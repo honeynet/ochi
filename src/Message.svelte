@@ -1,7 +1,6 @@
 <script lang="ts">
     import { createEventDispatcher, onMount } from 'svelte';
-import { element } from 'svelte/internal';
-
+    
 	const dispatch = createEventDispatcher();
     
     export let message:messageType;
