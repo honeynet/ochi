@@ -16,6 +16,7 @@
         {#if content.payload}
             Payload:<br />
             <pre>{render(content.payload)}</pre>
+            <a href={"data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(content))} download="event.json">Download</a>
         {/if}
     {/if}
 </div>
