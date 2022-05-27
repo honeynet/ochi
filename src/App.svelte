@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from "svelte";
+	import { now } from "svelte/internal";
 
 	import Content from "./Content.svelte";
 	import Message from "./Message.svelte";
@@ -44,26 +45,35 @@
 		content = event.detail;
 	}
 
-	function test() {
-		addMessage({
-			action: "action",
-			connKey: [2, 2],
-			dstPort: 1234,
-			rule: "TCP",
-			scanner: "censys",
-			sensorID: "sensorID",
-			srcHost: "1.1.1.1",
-			srcPort: "4321",
-			timestamp: "2022-05-23T21:02:26.882473842Z",
-			payload: "dGVzdA==", // test
-		});
-	}
+	const sleep = (ms) => new Promise((f) => setTimeout(f, ms));
+
+	const test = async () => {
+		while (true) {
+			await sleep(1000);
+			addMessage({
+				action: "action",
+				connKey: [2, 2],
+				dstPort: 1234,
+				rule: "TCP",
+				scanner: "censys",
+				sensorID: "sensorID",
+				srcHost: "1.1.1.1",
+				srcPort: "4321",
+				timestamp: now().toString(),
+				payload: "dGVzdA==", // test
+			});
+		}
+	};
 
 	onMount(() => {
 		dial();
 		//test();
 	});
 </script>
+
+<header class="site-header">
+	<b>Ochi</b>: find me on <a href="https://github.com/glaslos/ochi">github/glaslos/ochi</a>
+</header>
 
 <main>
 	<div class="row">
@@ -77,6 +87,11 @@
 </main>
 
 <style>
+	.site-header {
+		border-bottom-style: solid;
+    	border-width: 1px;
+	}
+
 	main {
 		width: 100vw;
 		min-width: 320px;
@@ -85,7 +100,7 @@
 	.row {
 		display: flex;
 		position: absolute;
-		top: 0;
+		top: 30px;
 		left: 0;
 		bottom: 0;
 		right: 0;
