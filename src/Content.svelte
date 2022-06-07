@@ -11,7 +11,7 @@
     {#if content}
         {content.srcHost}:{content.srcPort} -> {content.dstPort}<br />
         {#if content.rule}
-            Rule: {content.rule}<br /><br />
+            {content.rule}<br /><br />
         {/if}
         {#if content.payload}
             Payload:<br />
