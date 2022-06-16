@@ -4,10 +4,21 @@
 
 	import Content from "./Content.svelte";
 	import Message from "./Message.svelte";
-	import SSOButton from "./SOOButton.svelte"
+	import SSOButton from "./SOOButton.svelte";
+	import LogoutButton from "./LogoutButton.svelte";
+	import SOORevokeButton from "./SOORevokeButton.svelte";
+
+	import { isAuthenticated } from "./store";
+
+	// subscribe to the authentication status
+	let isLoggedIn: boolean;
+	isAuthenticated.subscribe((status) => {
+		isLoggedIn = status;
+	});
 
 	export let messages: messageType[] = [];
 
+	// truncate the number of messages show in the app
 	$: if (messages.length >= 50) {
 		messages = messages.slice(1);
 	}
@@ -97,7 +108,12 @@
 	<input bind:value={filter} placeholder="Filter destination port" />
 	<button on:click={filterMessages}>Apply</button>
 	<span>Port number and '&&' to concat.</span>
-	<SSOButton />
+	{#if !isLoggedIn}
+		<SSOButton />
+	{:else}
+		<LogoutButton />
+		<SOORevokeButton />
+	{/if}
 </header>
 
 <main>

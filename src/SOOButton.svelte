@@ -1,5 +1,7 @@
 <script lang="ts">
-    	function button() {
+	import { isAuthenticated, user, token } from "./store";
+
+	function button() {
 		google.accounts.id.renderButton(
 			document.getElementById("googleButton"),
 			{ type: "icon", size: "small" }
@@ -7,15 +9,18 @@
 	}
 
 	async function doPost(data) {
-		let result = null;
 		const res = await fetch("/login", {
 			method: "POST",
 			body: data,
 		});
 
-		const json = await res.json();
-		result = JSON.stringify(json);
-		console.log(result);
+		if (res.ok) {
+			const json = await res.json();
+			console.log(json);
+			user.set(json["user"])
+			token.set(json["token"])
+			isAuthenticated.set(true);
+		}
 	}
 
 	function handleCredentialResponse(response) {
@@ -44,3 +49,9 @@
 </svelte:head>
 
 <button id="googleButton">Login with Google</button>
+
+<style>
+	#googleButton {
+		float: right;
+	}
+</style>

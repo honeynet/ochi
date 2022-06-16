@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"io/ioutil"
@@ -39,8 +40,11 @@ type server struct {
 	subscribersMu sync.Mutex
 	subscribers   map[*subscriber]struct{}
 
-	// the repository
-	r *repo
+	// the repositories
+	uRepo *userRepo
+
+	// http client
+	httpClient *http.Client
 }
 
 //go:embed public
@@ -52,6 +56,12 @@ func newServer() *server {
 		subscriberMessageBuffer: 16,
 		subscribers:             make(map[*subscriber]struct{}),
 		publishLimiter:          rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
+		httpClient: &http.Client{
+			Timeout: time.Second,
+			Transport: &http.Transport{
+				TLSHandshakeTimeout: time.Second,
+			},
+		},
 	}
 
 	content, err := fs.Sub(public, "public")
@@ -64,7 +74,7 @@ func newServer() *server {
 		log.Fatal(err)
 	}
 
-	cs.r, err = newRepo(db)
+	cs.uRepo, err = newUserRepo(db)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -73,6 +83,7 @@ func newServer() *server {
 	cs.serveMux.HandleFunc("/subscribe", cs.subscribeHandler)
 	cs.serveMux.HandleFunc("/publish", cs.publishHandler)
 	cs.serveMux.HandleFunc("/login", cs.loginHandler)
+	cs.serveMux.HandleFunc("/session", cs.sessionHandler)
 
 	return cs
 }
@@ -135,6 +146,28 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
+// sessionHandler ...
+func (cs *server) sessionHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+
+	body := http.MaxBytesReader(w, r.Body, 1024)
+	data, err := ioutil.ReadAll(body)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	_, err = ValidateToken(string(data), os.Args[3])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 // loginHandler ...
 func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -150,7 +183,7 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := context.Background()
-	val, err := idtoken.NewValidator(ctx, idtoken.WithHTTPClient(http.DefaultClient))
+	val, err := idtoken.NewValidator(ctx, idtoken.WithHTTPClient(cs.httpClient))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -162,9 +195,10 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var user User
 	if emailInt, ok := payload.Claims["email"]; ok {
 		if email, ok := emailInt.(string); ok {
-			_, err := cs.r.user(email)
+			user, err = cs.uRepo.get(email)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -172,7 +206,22 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.WriteHeader(http.StatusAccepted)
+	type response struct {
+		User  User   `json:"user,omitempty"`
+		Token string `json:"token,omitempty"`
+	}
+
+	token, err := NewToken(os.Args[3])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err = json.NewEncoder(w).Encode(response{user, token}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 // subscribe subscribes the given WebSocket to all broadcast messages.
@@ -247,8 +296,8 @@ func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn,
 
 // run initializes the server
 func run() error {
-	if len(os.Args) < 3 {
-		return errors.New("please provide an address to listen on as the first argument, token second")
+	if len(os.Args) < 4 {
+		return errors.New("please provide an address to listen on as the first argument, token second, secret third")
 	}
 
 	l, err := net.Listen("tcp", os.Args[1])
@@ -263,7 +312,9 @@ func run() error {
 		ReadTimeout:  time.Second * 10,
 		WriteTimeout: time.Second * 10,
 	}
-	defer cs.r.close()
+
+	defer cs.uRepo.close()
+
 	errc := make(chan error, 1)
 	go func() {
 		errc <- s.Serve(l)

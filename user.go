@@ -15,14 +15,14 @@ type User struct {
 	Email string `json:"email,omitempty"`
 }
 
-type repo struct {
+type userRepo struct {
 	read   *sqlx.Stmt
 	create *sqlx.NamedStmt
 	db     *sqlx.DB
 }
 
-func newRepo(db *sqlx.DB) (*repo, error) {
-	r := &repo{}
+func newUserRepo(db *sqlx.DB) (*userRepo, error) {
+	r := &userRepo{}
 	db.Mapper = reflectx.NewMapperFunc("json", strings.ToLower)
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS users (
 		id TEXT PRIMARY KEY NOT NULL
@@ -41,7 +41,7 @@ func newRepo(db *sqlx.DB) (*repo, error) {
 	return r, err
 }
 
-func (r *repo) user(email string) (User, error) {
+func (r *userRepo) get(email string) (User, error) {
 	u := User{
 		Email: email,
 	}
@@ -61,7 +61,7 @@ func (r *repo) user(email string) (User, error) {
 	return u, err
 }
 
-func (r *repo) close() {
+func (r *userRepo) close() {
 	if r.db != nil {
 		r.db.Close()
 	}
