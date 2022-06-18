@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { isAuthenticated, user, token } from "./store";
+	import "google.accounts";
 
 	function button() {
 		google.accounts.id.renderButton(
@@ -8,7 +9,7 @@
 		);
 	}
 
-	async function doPost(data) {
+	async function doPost(data:any) {
 		const res = await fetch("/login", {
 			method: "POST",
 			body: data,
@@ -17,13 +18,13 @@
 		if (res.ok) {
 			const json = await res.json();
 			console.log(json);
-			user.set(json["user"])
-			token.set(json["token"])
+			user.set(json["user"]);
+			token.set(json["token"]);
 			isAuthenticated.set(true);
 		}
 	}
 
-	function handleCredentialResponse(response) {
+	function handleCredentialResponse(response:any) {
 		if (response && response.credential) {
 			doPost(response.credential);
 		}

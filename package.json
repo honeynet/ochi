@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@types/google-one-tap": "^1.2.0",
+    "@types/google.accounts": "^0.0.2",
     "hexy": "^0.3.4",
     "jwt-decode": "^3.1.2",
     "sirv-cli": "^2.0.0"

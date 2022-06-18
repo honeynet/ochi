@@ -12,5 +12,6 @@
     "types": [
       "jest"
     ]
-  }
+  },
+  "types": ["google.accounts"]
 }

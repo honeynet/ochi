@@ -1,17 +1,18 @@
 <script lang="ts">
 	import { isAuthenticated, user, token } from "./store";
+	import "google.accounts";
 
-	let email: string
-	user.subscribe(value => {
+	let email: string;
+	user.subscribe((value) => {
 		email = value["email"];
 	});
 
 	function revokeSSO() {
-		console.log(email)
-		google.accounts.id.revoke(email, (done) => {
-			isAuthenticated.set(false)
-			user.set({})
-			token.set("")
+		console.log(email);
+		google.accounts.id.revoke(email, () => {
+			isAuthenticated.set(false);
+			user.set({});
+			token.set("");
 		});
 	}
 </script>

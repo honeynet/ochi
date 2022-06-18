@@ -4,7 +4,7 @@
 	const dispatch = createEventDispatcher();
     
     export let message:messageType;
-    let element;
+    let element:HTMLElement;
 
     function click() {
         dispatch('message', message)

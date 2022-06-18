@@ -59,7 +59,7 @@
 				setTimeout(dial, 1000);
 			}
 		});
-		conn.addEventListener("open", (ev) => {
+		conn.addEventListener("open", () => {
 			console.info("websocket connected");
 		});
 		conn.addEventListener("message", (ev) => {
@@ -70,7 +70,7 @@
 		return true;
 	}
 
-	function displayContent(event) {
+	function displayContent(event:any) {
 		content = event.detail;
 	}
 
