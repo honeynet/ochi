@@ -16,9 +16,10 @@ type User struct {
 }
 
 type userRepo struct {
-	read   *sqlx.Stmt
-	create *sqlx.NamedStmt
-	db     *sqlx.DB
+	readEmail *sqlx.Stmt
+	readUser  *sqlx.Stmt
+	create    *sqlx.NamedStmt
+	db        *sqlx.DB
 }
 
 func newUserRepo(db *sqlx.DB) (*userRepo, error) {
@@ -33,7 +34,11 @@ func newUserRepo(db *sqlx.DB) (*userRepo, error) {
 	if err != nil {
 		return nil, err
 	}
-	r.read, err = db.Preparex("SELECT * FROM users WHERE email=?")
+	r.readEmail, err = db.Preparex("SELECT * FROM users WHERE email=?")
+	if err != nil {
+		return nil, err
+	}
+	r.readUser, err = db.Preparex("SELECT * FROM users WHERE id=?")
 	if err != nil {
 		return nil, err
 	}
@@ -41,11 +46,17 @@ func newUserRepo(db *sqlx.DB) (*userRepo, error) {
 	return r, err
 }
 
-func (r *userRepo) get(email string) (User, error) {
+func (r *userRepo) get(id string) (User, error) {
 	u := User{
-		Email: email,
+		ID: id,
 	}
-	err := r.read.Get(&u, email)
+	err := r.readUser.Get(&u, id)
+	return u, err
+}
+
+func (r *userRepo) find(email string) (User, error) {
+	u := User{Email: email}
+	err := r.readEmail.Get(&u, email)
 	if err == sql.ErrNoRows {
 		var id uuid.UUID
 		id, err = uuid.NewRandom()

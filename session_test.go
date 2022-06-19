@@ -8,10 +8,12 @@ import (
 
 func TestSession(t *testing.T) {
 	secret := "test"
-	tokenString, err := NewToken(secret)
+	user := User{ID: "test_id"}
+	tokenString, err := NewToken(secret, user)
 	require.NoError(t, err)
 	require.NotEmpty(t, tokenString)
-	valid, err := ValidateToken(tokenString, secret)
+	claims, valid, err := ValidateToken(tokenString, secret)
 	require.NoError(t, err)
 	require.True(t, valid)
+	require.Equal(t, user.ID, claims.UserID)
 }

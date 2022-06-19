@@ -146,6 +146,11 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
+type response struct {
+	User  User   `json:"user,omitempty"`
+	Token string `json:"token,omitempty"`
+}
+
 // sessionHandler ...
 func (cs *server) sessionHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -160,12 +165,34 @@ func (cs *server) sessionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = ValidateToken(string(data), os.Args[3])
+	claims, valid, err := ValidateToken(string(data), os.Args[3])
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	if !valid {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
+
+	user, err := cs.uRepo.get(claims.UserID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	token, err := NewToken(os.Args[3], user)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
+	if err = json.NewEncoder(w).Encode(response{user, token}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 // loginHandler ...
@@ -198,7 +225,7 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request) {
 	var user User
 	if emailInt, ok := payload.Claims["email"]; ok {
 		if email, ok := emailInt.(string); ok {
-			user, err = cs.uRepo.get(email)
+			user, err = cs.uRepo.find(email)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -206,12 +233,7 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	type response struct {
-		User  User   `json:"user,omitempty"`
-		Token string `json:"token,omitempty"`
-	}
-
-	token, err := NewToken(os.Args[3])
+	token, err := NewToken(os.Args[3], user)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
