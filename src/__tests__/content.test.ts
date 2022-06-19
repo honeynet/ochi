@@ -1,8 +1,4 @@
-/**
- * @jest-environment jsdom
- */
-
-import { render, screen } from "@testing-library/svelte";
+import { render } from "@testing-library/svelte";
 import Content from "../Content.svelte";
 
 describe("Content", () => {

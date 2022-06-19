@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"io/ioutil"
@@ -14,8 +15,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"golang.org/x/time/rate"
-
+	"google.golang.org/api/idtoken"
 	"nhooyr.io/websocket"
 )
 
@@ -37,6 +39,12 @@ type server struct {
 
 	subscribersMu sync.Mutex
 	subscribers   map[*subscriber]struct{}
+
+	// the repositories
+	uRepo *userRepo
+
+	// http client
+	httpClient *http.Client
 }
 
 //go:embed public
@@ -48,6 +56,12 @@ func newServer() *server {
 		subscriberMessageBuffer: 16,
 		subscribers:             make(map[*subscriber]struct{}),
 		publishLimiter:          rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
+		httpClient: &http.Client{
+			Timeout: time.Second,
+			Transport: &http.Transport{
+				TLSHandshakeTimeout: time.Second,
+			},
+		},
 	}
 
 	content, err := fs.Sub(public, "public")
@@ -55,9 +69,21 @@ func newServer() *server {
 		log.Fatal(err)
 	}
 
+	db, err := sqlx.Connect("sqlite3", "./data.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	cs.uRepo, err = newUserRepo(db)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	cs.serveMux.Handle("/", http.FileServer(http.FS(content)))
 	cs.serveMux.HandleFunc("/subscribe", cs.subscribeHandler)
 	cs.serveMux.HandleFunc("/publish", cs.publishHandler)
+	cs.serveMux.HandleFunc("/login", cs.loginHandler)
+	cs.serveMux.HandleFunc("/session", cs.sessionHandler)
 
 	return cs
 }
@@ -118,6 +144,106 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request) {
 	cs.publish(msg)
 
 	w.WriteHeader(http.StatusAccepted)
+}
+
+type response struct {
+	User  User   `json:"user,omitempty"`
+	Token string `json:"token,omitempty"`
+}
+
+// sessionHandler ...
+func (cs *server) sessionHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+
+	body := http.MaxBytesReader(w, r.Body, 1024)
+	data, err := ioutil.ReadAll(body)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	claims, valid, err := ValidateToken(string(data), os.Args[3])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if !valid {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
+
+	user, err := cs.uRepo.get(claims.UserID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	token, err := NewToken(os.Args[3], user)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err = json.NewEncoder(w).Encode(response{user, token}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// loginHandler ...
+func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+		return
+	}
+
+	body := http.MaxBytesReader(w, r.Body, 8192)
+	data, err := ioutil.ReadAll(body)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	ctx := context.Background()
+	val, err := idtoken.NewValidator(ctx, idtoken.WithHTTPClient(cs.httpClient))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	payload, err := val.Validate(ctx, string(data), "610036027764-0lveoeejd62j594aqab5e24o2o82r8uf.apps.googleusercontent.com")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var user User
+	if emailInt, ok := payload.Claims["email"]; ok {
+		if email, ok := emailInt.(string); ok {
+			user, err = cs.uRepo.find(email)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+	}
+
+	token, err := NewToken(os.Args[3], user)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err = json.NewEncoder(w).Encode(response{user, token}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 // subscribe subscribes the given WebSocket to all broadcast messages.
@@ -192,8 +318,8 @@ func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn,
 
 // run initializes the server
 func run() error {
-	if len(os.Args) < 3 {
-		return errors.New("please provide an address to listen on as the first argument, token second")
+	if len(os.Args) < 4 {
+		return errors.New("please provide an address to listen on as the first argument, token second, secret third")
 	}
 
 	l, err := net.Listen("tcp", os.Args[1])
@@ -208,6 +334,9 @@ func run() error {
 		ReadTimeout:  time.Second * 10,
 		WriteTimeout: time.Second * 10,
 	}
+
+	defer cs.uRepo.close()
+
 	errc := make(chan error, 1)
 	go func() {
 		errc <- s.Serve(l)
