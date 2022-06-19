@@ -96,8 +96,8 @@
 	};
 
 	onMount(() => {
-		//dial();
-		test();
+		dial();
+		//test();
 		validate();
 	});
 </script>
