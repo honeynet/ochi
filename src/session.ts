@@ -14,7 +14,9 @@ export async function validate() {
         });
 
         if (res.ok) {
-            login()
+            const json = await res.json();
+			console.log(json);
+			login(json);
         } else {
             console.log("failed to validate");
             logout()
