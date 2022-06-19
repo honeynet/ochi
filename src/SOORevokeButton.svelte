@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { isAuthenticated, user, token } from "./store";
+	import { user } from "./store";
+	import { logout } from "./session";
 	import "google.accounts";
 
 	let email: string;
@@ -8,12 +9,16 @@
 	});
 
 	function revokeSSO() {
-		console.log(email);
-		google.accounts.id.revoke(email, () => {
-			isAuthenticated.set(false);
-			user.set({});
-			token.set("");
-		});
+		google.accounts.id.revoke(
+			email,
+			(response: google.accounts.id.RevocationResponse) => {
+				if (response.successful) {
+					logout();
+				} else {
+					console.log(response.error);
+				}
+			}
+		);
 	}
 </script>
 

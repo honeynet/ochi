@@ -11,7 +11,7 @@
   "compilerOptions": {
     "types": [
       "jest"
-    ]
-  },
-  "types": ["google.accounts"]
+    ],
+    "sourceMap": true
+  }
 }

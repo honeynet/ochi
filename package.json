@@ -30,16 +30,14 @@
     "svelte": "^3.0.0",
     "svelte-check": "^2.0.0",
     "svelte-jester": "^2.3.2",
-    "svelte-preprocess": "^4.0.0",
-    "ts-jest": "^28.0.3",
+    "svelte-preprocess": "^4.10.7",
+    "ts-jest": "^28.0.5",
     "tslib": "^2.0.0",
-    "typescript": "^4.0.0"
+    "typescript": "^4.7.4"
   },
   "dependencies": {
-    "@types/google-one-tap": "^1.2.0",
     "@types/google.accounts": "^0.0.2",
     "hexy": "^0.3.4",
-    "jwt-decode": "^3.1.2",
     "sirv-cli": "^2.0.0"
   }
 }

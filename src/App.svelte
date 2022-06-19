@@ -7,6 +7,7 @@
 	import SSOButton from "./SOOButton.svelte";
 	import LogoutButton from "./LogoutButton.svelte";
 	import SOORevokeButton from "./SOORevokeButton.svelte";
+	import { validate } from "./session";
 
 	import { isAuthenticated } from "./store";
 
@@ -70,7 +71,7 @@
 		return true;
 	}
 
-	function displayContent(event:any) {
+	function displayContent(event: any) {
 		content = event.detail;
 	}
 
@@ -97,6 +98,7 @@
 	onMount(() => {
 		//dial();
 		test();
+		validate();
 	});
 </script>
 

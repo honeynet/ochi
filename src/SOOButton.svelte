@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { isAuthenticated, user, token } from "./store";
+	import { login } from "./session";
 	import "google.accounts";
 
 	function button() {
@@ -9,24 +9,30 @@
 		);
 	}
 
-	async function doPost(data:any) {
+	async function sendCredentials(
+		data: google.accounts.id.CredentialResponse
+	) {
 		const res = await fetch("/login", {
 			method: "POST",
-			body: data,
+			body: data.credential,
 		});
 
 		if (res.ok) {
 			const json = await res.json();
 			console.log(json);
-			user.set(json["user"]);
-			token.set(json["token"]);
-			isAuthenticated.set(true);
+			login(json);
+		} else {
+			console.log("failed to login");
 		}
 	}
 
-	function handleCredentialResponse(response:any) {
+	function handleCredentialResponse(
+		response: google.accounts.id.CredentialResponse
+	) {
 		if (response && response.credential) {
-			doPost(response.credential);
+			sendCredentials(response);
+		} else {
+			console.log("invalid credential response");
 		}
 	}
 

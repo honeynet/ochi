@@ -1,11 +1,5 @@
 <script lang="ts">
-	import { isAuthenticated, user, token } from "./store";
-
-	function logout() {
-		isAuthenticated.set(false);
-		user.set({});
-		token.set("");
-	}
+	import { logout } from "./session";
 </script>
 
 <button id="logoutButton" on:click={logout}>Logout</button>
