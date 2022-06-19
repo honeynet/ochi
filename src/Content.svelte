@@ -11,7 +11,10 @@
     {#if content}
         {content.srcHost}:{content.srcPort} -> {content.dstPort}<br />
         {#if content.rule}
-            {content.rule}<br /><br />
+            {content.rule}<br />
+        {/if}
+        {#if content.scanner}
+            Scanner: {content.scanner}<br /><br />
         {/if}
         {#if content.payload}
             Payload:<br />

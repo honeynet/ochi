@@ -14,7 +14,7 @@
 </script>
 
 <p on:click={click} bind:this={element}>
-    {message.srcHost}:{message.srcPort} -> {message.dstPort}: {message.rule}{#if message.payload}: <u>Payload</u>{/if}
+    {message.srcHost}:{message.srcPort} -> {message.dstPort}: {message.rule} {#if message.scanner}"{message.scanner}"{/if} {#if message.payload}: <u>Payload</u>{/if}
 </p>
 
 <style>
