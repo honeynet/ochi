@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@types/google.accounts": "^0.0.2",
+    "chevrotain": "^10.1.2",
     "hexy": "^0.3.4",
     "sirv-cli": "^2.0.0"
   }

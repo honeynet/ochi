@@ -7,13 +7,14 @@
 	import SSOButton from "./SOOButton.svelte";
 	import LogoutButton from "./LogoutButton.svelte";
 	import SOORevokeButton from "./SOORevokeButton.svelte";
+	
 	import { validate } from "./session";
-
 	import { isAuthenticated } from "./store";
+	import { parseDSL } from "./dsl"
 
 	// subscribe to the authentication status
 	let isLoggedIn: boolean;
-	isAuthenticated.subscribe((status) => {
+	isAuthenticated.subscribe((status: boolean) => {
 		isLoggedIn = status;
 	});
 
@@ -96,9 +97,11 @@
 	};
 
 	onMount(() => {
-		dial();
-		//test();
+		//dial();
+		test();
 		validate();
+		let ret = parseDSL("tcp.port eq 21")
+		console.log(ret)
 	});
 </script>
 
