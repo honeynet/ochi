@@ -1,4 +1,4 @@
-import { createToken, Lexer, CstParser, Rule } from "chevrotain"
+import { createToken, Lexer, CstParser, Rule } from "../node_modules/chevrotain/lib/chevrotain"
 
 // DSL representing a simplified version of Wiresharks Display Filter
 

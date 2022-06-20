@@ -38,6 +38,14 @@ export default {
 		name: 'app',
 		file: 'public/build/bundle.js'
 	},
+	onwarn(warning, warn) {
+		// skip `EVAL``warnings related to Chevrotain
+		// https://github.com/Chevrotain/chevrotain/issues/1760
+		if (warning.code === 'EVAL' && warning.id?.includes('chevrotain')) return
+
+		// Use default behavior for everything else
+		warn(warning)
+	},
 	plugins: [
 		svelte({
 			preprocess: sveltePreprocess({ sourceMap: !production }),
