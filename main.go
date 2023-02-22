@@ -5,8 +5,8 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/glaslos/ochi/entities"
+	"github.com/glaslos/ochi/repos"
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/time/rate"
 	"google.golang.org/api/idtoken"
@@ -41,7 +43,7 @@ type server struct {
 	subscribers   map[*subscriber]struct{}
 
 	// the repositories
-	uRepo *userRepo
+	uRepo *repos.UserRepo
 
 	// http client
 	httpClient *http.Client
@@ -74,7 +76,7 @@ func newServer() *server {
 		log.Fatal(err)
 	}
 
-	cs.uRepo, err = newUserRepo(db)
+	cs.uRepo, err = repos.NewUserRepo(db)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -135,7 +137,7 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body := http.MaxBytesReader(w, r.Body, 8192)
-	msg, err := ioutil.ReadAll(body)
+	msg, err := io.ReadAll(body)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
 		return
@@ -147,8 +149,8 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 type response struct {
-	User  User   `json:"user,omitempty"`
-	Token string `json:"token,omitempty"`
+	User  entities.User `json:"user,omitempty"`
+	Token string        `json:"token,omitempty"`
 }
 
 // sessionHandler ...
@@ -159,7 +161,7 @@ func (cs *server) sessionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body := http.MaxBytesReader(w, r.Body, 1024)
-	data, err := ioutil.ReadAll(body)
+	data, err := io.ReadAll(body)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
 		return
@@ -176,7 +178,7 @@ func (cs *server) sessionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := cs.uRepo.get(claims.UserID)
+	user, err := cs.uRepo.Get(claims.UserID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -203,7 +205,7 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	body := http.MaxBytesReader(w, r.Body, 8192)
-	data, err := ioutil.ReadAll(body)
+	data, err := io.ReadAll(body)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
 		return
@@ -222,10 +224,10 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var user User
+	var user entities.User
 	if emailInt, ok := payload.Claims["email"]; ok {
 		if email, ok := emailInt.(string); ok {
-			user, err = cs.uRepo.find(email)
+			user, err = cs.uRepo.Find(email)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -335,7 +337,7 @@ func run() error {
 		WriteTimeout: time.Second * 10,
 	}
 
-	defer cs.uRepo.close()
+	defer cs.uRepo.Close()
 
 	errc := make(chan error, 1)
 	go func() {

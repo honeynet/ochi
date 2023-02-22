@@ -1,29 +1,25 @@
-package main
+package repos
 
 import (
 	"database/sql"
 	"strings"
 
+	"github.com/glaslos/ochi/entities"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/reflectx"
 	_ "github.com/mattn/go-sqlite3"
 )
 
-type User struct {
-	ID    string `json:"id,omitempty"`
-	Email string `json:"email,omitempty"`
-}
-
-type userRepo struct {
+type UserRepo struct {
 	readEmail *sqlx.Stmt
 	readUser  *sqlx.Stmt
 	create    *sqlx.NamedStmt
 	db        *sqlx.DB
 }
 
-func newUserRepo(db *sqlx.DB) (*userRepo, error) {
-	r := &userRepo{}
+func NewUserRepo(db *sqlx.DB) (*UserRepo, error) {
+	r := &UserRepo{}
 	db.Mapper = reflectx.NewMapperFunc("json", strings.ToLower)
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS users (
 		id TEXT PRIMARY KEY NOT NULL
@@ -46,16 +42,18 @@ func newUserRepo(db *sqlx.DB) (*userRepo, error) {
 	return r, err
 }
 
-func (r *userRepo) get(id string) (User, error) {
-	u := User{
+// Get a user
+func (r *UserRepo) Get(id string) (entities.User, error) {
+	u := entities.User{
 		ID: id,
 	}
 	err := r.readUser.Get(&u, id)
 	return u, err
 }
 
-func (r *userRepo) find(email string) (User, error) {
-	u := User{Email: email}
+// Find a user
+func (r *UserRepo) Find(email string) (entities.User, error) {
+	u := entities.User{Email: email}
 	err := r.readEmail.Get(&u, email)
 	if err == sql.ErrNoRows {
 		var id uuid.UUID
@@ -72,7 +70,8 @@ func (r *userRepo) find(email string) (User, error) {
 	return u, err
 }
 
-func (r *userRepo) close() {
+// Close the db
+func (r *UserRepo) Close() {
 	if r.db != nil {
 		r.db.Close()
 	}

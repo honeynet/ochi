@@ -1,4 +1,4 @@
-package main
+package repos
 
 import (
 	"os"
@@ -13,13 +13,13 @@ func TestUser(t *testing.T) {
 	db, err := sqlx.Connect("sqlite3", "./test.db")
 	require.NoError(t, err)
 	defer os.Remove("./test.db")
-	r, err := newUserRepo(db)
+	r, err := NewUserRepo(db)
 	require.NoError(t, err)
 	require.NotNil(t, r)
-	u1, err := r.find("test@test")
+	u1, err := r.Find("test@test")
 	require.NoError(t, err)
 	require.NotEmpty(t, u1)
-	u2, err := r.find("test@test")
+	u2, err := r.Find("test@test")
 	require.NoError(t, err)
 	require.NotEmpty(t, u2)
 	require.Equal(t, u1, u2)
