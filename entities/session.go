@@ -1,10 +1,9 @@
-package main
+package entities
 
 import (
 	"fmt"
 	"time"
 
-	"github.com/glaslos/ochi/entities"
 	"github.com/golang-jwt/jwt/v4"
 )
 
@@ -14,7 +13,7 @@ type Claims struct {
 	UserEmail string `json:"user_email,omitempty"`
 }
 
-func NewToken(secret string, user entities.User) (string, error) {
+func NewToken(secret string, user User) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		UserID:    user.ID,
 		UserEmail: user.Email,

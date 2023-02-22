@@ -167,7 +167,7 @@ func (cs *server) sessionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, valid, err := ValidateToken(string(data), os.Args[3])
+	claims, valid, err := entities.ValidateToken(string(data), os.Args[3])
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -184,7 +184,7 @@ func (cs *server) sessionHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := NewToken(os.Args[3], user)
+	token, err := entities.NewToken(os.Args[3], user)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -235,7 +235,7 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	token, err := NewToken(os.Args[3], user)
+	token, err := entities.NewToken(os.Args[3], user)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
