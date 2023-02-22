@@ -32,16 +32,31 @@ function serve() {
 
 export default {
 	input: 'src/main.ts',
+	external: [
+		"chevrotain"
+	],
 	output: {
 		sourcemap: true,
 		format: 'iife',
 		name: 'app',
-		file: 'public/build/bundle.js'
+		file: 'public/build/bundle.js',
+		globals: {
+			'chevrotain': 'chevrotain'
+		},
 	},
 	onwarn(warning, warn) {
-		// skip `EVAL``warnings related to Chevrotain
+		// skip `EVAL` warnings related to Chevrotain
 		// https://github.com/Chevrotain/chevrotain/issues/1760
 		if (warning.code === 'EVAL' && warning.id?.includes('chevrotain')) return
+
+		// skip `CIRCULAR_DEPENDENCY` warnings related to Chevrotain
+		if (
+			warning.code === 'CIRCULAR_DEPENDENCY' &&
+			warning.message?.includes('chevrotain')
+		)
+			return
+
+		console.dir(warning)
 
 		// Use default behavior for everything else
 		warn(warning)
