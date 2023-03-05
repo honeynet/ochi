@@ -17,11 +17,21 @@
 		isLoggedIn = status;
 	});
 
+	let eventStatus: boolean;
+	let showEvents: boolean;
+
 	export let messages: messageType[] = [];
 
 	// truncate the number of messages show in the app
 	$: if (messages.length >= 50) {
 		messages = messages.slice(1);
+	}
+	
+	$: eventStatus = showEvents;
+
+	$: if(eventStatus){
+		// test();
+		dial();
 	}
 
 	let content: messageType;
@@ -47,28 +57,30 @@
 	}
 
 	function dial() {
-		let conn: WebSocket;
-		try {
-			conn = new WebSocket(`wss://${location.host}/subscribe`);
-		} catch (e) {
-			conn = new WebSocket(`ws://${location.host}/subscribe`);
-		}
-
-		conn.addEventListener("close", (ev) => {
-			if (ev.code !== 1001) {
-				//appendLog("Reconnecting in 1s");
-				setTimeout(dial, 1000);
+		if(eventStatus){
+			let conn: WebSocket;
+			try {
+				conn = new WebSocket(`wss://${location.host}/subscribe`);
+			} catch (e) {
+				conn = new WebSocket(`ws://${location.host}/subscribe`);
 			}
-		});
-		conn.addEventListener("open", () => {
-			console.info("websocket connected");
-		});
-		conn.addEventListener("message", (ev) => {
-			const obj = JSON.parse(ev.data);
-			console.log(obj);
-			addMessage(obj);
-		});
-		return true;
+
+			conn.addEventListener("close", (ev) => {
+				if (ev.code !== 1001) {
+					//appendLog("Reconnecting in 1s");
+					setTimeout(dial, 1000);
+				}
+			});
+			conn.addEventListener("open", () => {
+				console.info("websocket connected");
+			});
+			conn.addEventListener("message", (ev) => {
+				const obj = JSON.parse(ev.data);
+				console.log(obj);
+				addMessage(obj);
+			});
+			return true;
+		}
 	}
 
 	function displayContent(event: any) {
@@ -78,7 +90,7 @@
 	const sleep = (ms: number) => new Promise((f) => setTimeout(f, ms));
 
 	const test = async () => {
-		while (true) {
+		while (eventStatus) {
 			await sleep(1000);
 			addMessage({
 				action: "action",
@@ -96,10 +108,18 @@
 	};
 
 	onMount(() => {
-		dial();
-		//test();
+		eventStatus = true;
+		showEvents = true;
 		validate();
 	});
+
+	let eventHandler = () => {
+		showEvents = false;
+	}
+
+	let resumeEventHandler = () =>{
+		showEvents = true;
+	}
 </script>
 
 <header class="site-header">
@@ -120,12 +140,13 @@
 
 <main>
 	<div class="row">
-		<div class="column" id="message-log">
+		<div class="column" id="message-log" on:scroll={eventHandler}>
 			{#each messages as message (message.timestamp)}
 				{#if !filterPorts.includes(message.dstPort)}
 					<Message on:message={displayContent} {message} />
 				{/if}
 			{/each}
+			<button style="visibility: {showEvents ? 'hidden' : 'visible'};" id="event-handler" on:click={resumeEventHandler}>Resume Events</button>
 		</div>
 		<Content {content} />
 	</div>
