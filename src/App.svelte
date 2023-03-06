@@ -114,11 +114,9 @@
 	});
 
 	let eventHandler = (e) => {
-		if(e.srcElement.scrollTop == e.srcElement.scrollHeight - e.srcElement.clientHeight){
-			
+		if(e.srcElement.scrollTop != e.srcElement.scrollHeight - e.srcElement.clientHeight){
+			showEvents = false;
 		}
-		else
-		showEvents = false;
 	}
 
 	let resumeEventHandler = () =>{
