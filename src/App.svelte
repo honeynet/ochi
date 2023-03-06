@@ -30,8 +30,8 @@
 	$: eventStatus = showEvents;
 
 	$: if(eventStatus){
-		test();
-		// dial();
+		// test();
+		dial();
 	}
 
 	let content: messageType;
