@@ -30,8 +30,8 @@
 	$: eventStatus = showEvents;
 
 	$: if(eventStatus){
-		// test();
-		dial();
+		test();
+		// dial();
 	}
 
 	let content: messageType;
@@ -113,7 +113,11 @@
 		validate();
 	});
 
-	let eventHandler = () => {
+	let eventHandler = (e) => {
+		if(e.srcElement.scrollTop == e.srcElement.scrollHeight - e.srcElement.clientHeight){
+			
+		}
+		else
 		showEvents = false;
 	}
 
