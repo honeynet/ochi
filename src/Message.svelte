@@ -4,13 +4,16 @@
 	const dispatch = createEventDispatcher();
     
     export let message:messageType;
+    export let follow: boolean;
     let element:HTMLElement;
 
     function click() {
         dispatch('message', message)
     }
 
-	onMount(() => element.scrollIntoView());
+	onMount(() => {
+    follow && element.scrollIntoView();
+    });
 </script>
 
 <p on:click={click} bind:this={element}>
