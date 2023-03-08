@@ -170,10 +170,17 @@
 		flex: 50%;
 		padding: 15px 20px;
 	}
-
 	#message-log {
 		width: 100%;
 		flex-grow: 1;
 		overflow-y: scroll;
+	}
+
+	#resume-btn {
+		position: fixed;
+		bottom: 2rem;
+		z-index: 2;
+		left: 40vw;
+		cursor: pointer;
 	}
 </style>
