@@ -13,20 +13,17 @@ For backend development
 2. run `cd ochi`
 2. run `npm install`
 
-   ##### For Frontend development only
-   1. `comment the dial() and uncomment the test() in src/App.svelte`
-   2. run `npm run dev`
+##### For Frontend development only
+1. `comment the dial() and uncomment the test() in src/App.svelte`
+2. run `npm run dev`
     
-   ##### For Frontend and backend development
-    1. To build the project, run 
-    `make build`
-    2. To start a local server, run
-    `make local`
-    3. Go to `localhost:3000` in your browser
+##### For Frontend and backend development
+1. To build the project, run `make build`
+2. To start a local server, run `make local`
+3. Go to `localhost:3000` in your browser
 
 
-### Note - 
+### Notes
 The Development setup runs best on Linux based systems.
 
 The backend development need to run `go-sqlite` which is difficult to setup on windows, so you may have to face some difficulties while setting it up.
-
