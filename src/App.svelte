@@ -31,14 +31,6 @@
 
 	//   To set auto follow work or not
 	let follow: boolean = true;
-  	// Function to stop auto follow
-  	const stopFollow = () => {
-   	 follow = false;
-  	};
-  	//   Function to resume auto follow
-  	const resumeFollow = () => {
-   	 follow = true
-  	};
 
 	function addMessage(message: messageType) {
 		if (
@@ -107,8 +99,8 @@
 	};
 
 	onMount(() => {
-		// dial();
-		test();
+		dial();
+		// test();
 		validate();
 	});
 </script>
@@ -131,7 +123,13 @@
 
 <main>
 	<div class="row">
-		<div class="column" id="message-log" on:wheel={stopFollow}>
+		<div
+			class="column"
+			id="message-log"
+			on:wheel={() => {
+				follow = false;
+			}}
+		>
 			{#each messages as message (message.timestamp)}
 				{#if !filterPorts.includes(message.dstPort)}
 					<Message on:message={displayContent} {message} {follow} />
@@ -140,10 +138,15 @@
 		</div>
 		<Content {content} />
 	</div>
-	
+
 	{#if !follow}
-    	<button on:click={resumeFollow} id="resume-btn">Resume</button>
-  	{/if}
+		<button
+			on:click={() => {
+				follow = true;
+			}}
+			id="resume-btn">Resume</button
+		>
+	{/if}
 </main>
 
 <style>
