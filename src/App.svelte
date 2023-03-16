@@ -29,6 +29,9 @@
 
 	let filterPorts: number[] = [];
 
+	//   To set auto follow work or not
+	let follow: boolean = true;
+
 	function addMessage(message: messageType) {
 		if (
 			message.dstPort === null ||
@@ -97,7 +100,7 @@
 
 	onMount(() => {
 		dial();
-		//test();
+		// test();
 		validate();
 	});
 </script>
@@ -120,15 +123,30 @@
 
 <main>
 	<div class="row">
-		<div class="column" id="message-log">
+		<div
+			class="column"
+			id="message-log"
+			on:wheel={() => {
+				follow = false;
+			}}
+		>
 			{#each messages as message (message.timestamp)}
 				{#if !filterPorts.includes(message.dstPort)}
-					<Message on:message={displayContent} {message} />
+					<Message on:message={displayContent} {message} {follow} />
 				{/if}
 			{/each}
 		</div>
 		<Content {content} />
 	</div>
+
+	{#if !follow}
+		<button
+			on:click={() => {
+				follow = true;
+			}}
+			id="resume-btn">Resume</button
+		>
+	{/if}
 </main>
 
 <style>
@@ -155,10 +173,17 @@
 		flex: 50%;
 		padding: 15px 20px;
 	}
-
 	#message-log {
 		width: 100%;
 		flex-grow: 1;
 		overflow-y: scroll;
+	}
+
+	#resume-btn {
+		position: fixed;
+		bottom: 2rem;
+		z-index: 2;
+		left: 40vw;
+		cursor: pointer;
 	}
 </style>
