@@ -25,7 +25,6 @@
 	let isDevOn: boolean;
 	let conn: WebSocket;
 	let follow: boolean = true;
-	let editing:boolean = false;
 
 	// truncate the number of messages show in the app
 	$: if (messages.length > noOfMessages) {
@@ -56,7 +55,6 @@
 		modalHandler();
 
 		noOfMessages = chosenValue;
-		editing = false;
 	}
 
 	function modalHandler(){
