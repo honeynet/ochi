@@ -19,10 +19,13 @@
 	export let messages: messageType[] = [];
 
 	let noOfMessages: number;
+	let inputMessages: number;
 	let content: messageType;
 	let filter: string;
 	let isDevOn: boolean;
 	let conn: WebSocket;
+	let follow: boolean = true;
+	let editing:boolean = false;
 
 	// truncate the number of messages show in the app
 	$: if (messages.length > noOfMessages) {
@@ -38,8 +41,9 @@
 	let filterPorts: number[] = [];
 
 	function defineMessages (event:any) {
-		let chosenValue = event.target.value;
+		let chosenValue = event.target[0].value;
 		let presentMessages = messages.length;
+		const inputBox = document.getElementById('messages-input-box');
 
 		if(chosenValue<=0){
 			return;
@@ -49,7 +53,21 @@
 			messages = messages.slice((messages.length-chosenValue),messages.length);
 		}
 
-		noOfMessages = event.target.value;
+		modalHandler();
+
+		noOfMessages = chosenValue;
+		editing = false;
+	}
+
+	function modalHandler(){
+		let backdrop = document.getElementById('backdrop');
+		let element = document.getElementById('configmodal');
+
+		if(inputMessages<=0){
+			inputMessages = noOfMessages;
+		}
+		backdrop.style.visibility = 'hidden';
+		element.style.visibility = 'hidden';
 	}
 
 	function toggleMode (event: any){
@@ -127,14 +145,6 @@
 			backdrop.style.visibility = 'hidden';
 		}
 	}
-
-	function submitHandler(){
-		let backdrop = document.getElementById('backdrop');
-		let element = document.getElementById('configmodal');
-		backdrop.style.visibility = 'hidden';
-		element.style.visibility = 'hidden';
-	}
-
 	const sleep = (ms: number) => new Promise((f) => setTimeout(f, ms));
 
 	const test = async () => {
@@ -172,11 +182,11 @@
 	<input bind:value={filter} placeholder="Filter destination port" />
 	<button on:click={filterMessages}>Apply</button>
 	<span>Port number and '&&' to concat.</span>
-	<backdrop id="backdrop" on:click={submitHandler} style="visibility: hidden;"></backdrop>
+	<backdrop id="backdrop" on:click={modalHandler} style="visibility: hidden;"></backdrop>
 	<button id="configButton" on:click={configButtonHandler}>Config</button>
-		<div id="configmodal" style="visibility: hidden;">
+		<form id="configmodal" style="visibility: hidden;" on:submit|preventDefault={defineMessages}>
 			<p>Number of messages</p>
-			<input type="number" min="0" on:change={defineMessages}>
+			<input id="messages-input-box" type="number" min="0" bind:value={inputMessages} class:error-state="{inputMessages <= 0}">
 			<p>Mode</p>
 			<label>
 				<input type="radio" name="radio-group" id="dev" on:click={toggleMode}>
@@ -186,8 +196,8 @@
 				<input type="radio" name="radio-group" checked id="prod" on:click={toggleMode}>
 				Production
 			</label>
-			<button on:click={submitHandler}>Apply</button>
-		</div>
+			<button disabled='{inputMessages<0}'>Apply</button>
+		</form>
 	{#if !isLoggedIn}
 		<SSOButton />
 	{:else}
@@ -198,15 +208,26 @@
 
 <main>
 	<div class="row">
-		<div class="column" id="message-log">
+		<div class="column" id="message-log" on:wheel={() => {
+			follow = false;
+		}}>
 			{#each messages as message (message.timestamp)}
 				{#if !filterPorts.includes(message.dstPort)}
-					<Message on:message={displayContent} {message} />
+				<Message on:message={displayContent} {message} {follow} />
 				{/if}
 			{/each}
 		</div>
 		<Content {content} />
 	</div>
+
+	{#if !follow}
+ 		<button
+ 			on:click={() => {
+ 				follow = true;
+ 			}}
+ 			id="resume-btn">Resume</button
+ 		>
+ 	{/if}
 </main>
 
 <style>
@@ -261,4 +282,17 @@
 		z-index: 20;
 		background-color: rgba(0, 0, 0, 0.75);
   	}
+
+	#resume-btn {
+ 		position: fixed;
+ 		bottom: 2rem;
+ 		z-index: 2;
+ 		left: 40vw;
+ 		cursor: pointer;
+ 	}
+
+	.error-state{
+		border: 2px red solid;
+		outline: none;
+	}
 </style>
