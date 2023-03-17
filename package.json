@@ -1,43 +1,44 @@
 {
-  "name": "ochi",
-  "version": "1.0.0",
-  "private": true,
-  "scripts": {
-    "build": "rollup -c",
-    "dev": "rollup -c -w",
-    "start": "sirv public --no-clear",
-    "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test": "jest"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.18.2",
-    "@babel/preset-env": "^7.18.2",
-    "@rollup/plugin-commonjs": "^17.0.0",
-    "@rollup/plugin-node-resolve": "^11.0.0",
-    "@rollup/plugin-typescript": "^8.0.0",
-    "@testing-library/jest-dom": "^5.16.4",
-    "@testing-library/svelte": "^3.1.1",
-    "@tsconfig/svelte": "^2.0.0",
-    "@types/jest": "^27.5.1",
-    "babel-jest": "^28.1.0",
-    "jest": "^28.1.0",
-    "jest-environment-jsdom": "^28.1.0",
-    "rollup": "^2.3.4",
-    "rollup-plugin-css-only": "^3.1.0",
-    "rollup-plugin-livereload": "^2.0.0",
-    "rollup-plugin-svelte": "^7.0.0",
-    "rollup-plugin-terser": "^7.0.0",
-    "svelte": "^3.49.0",
-    "svelte-check": "^2.0.0",
-    "svelte-jester": "^2.3.2",
-    "svelte-preprocess": "^4.10.7",
-    "ts-jest": "^28.0.5",
-    "tslib": "^2.0.0",
-    "typescript": "^4.7.4"
-  },
-  "dependencies": {
-    "@types/google.accounts": "^0.0.2",
-    "hexy": "^0.3.4",
-    "sirv-cli": "^2.0.0"
-  }
+    "name": "ochi",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "build": "rollup -c",
+        "dev": "rollup -c -w",
+        "start": "sirv public --no-clear",
+        "check": "svelte-check --tsconfig ./tsconfig.json",
+        "test": "jest"
+    },
+    "devDependencies": {
+        "@babel/core": "^7.18.2",
+        "@babel/preset-env": "^7.18.2",
+        "@rollup/plugin-commonjs": "^17.0.0",
+        "@rollup/plugin-node-resolve": "^11.0.0",
+        "@rollup/plugin-typescript": "^8.0.0",
+        "@testing-library/jest-dom": "^5.16.4",
+        "@testing-library/svelte": "^3.1.1",
+        "@tsconfig/svelte": "^2.0.0",
+        "@types/jest": "^27.5.1",
+        "babel-jest": "^28.1.0",
+        "jest": "^28.1.0",
+        "jest-environment-jsdom": "^28.1.0",
+        "prettier-plugin-svelte": "^2.9.0",
+        "rollup": "^2.3.4",
+        "rollup-plugin-css-only": "^3.1.0",
+        "rollup-plugin-livereload": "^2.0.0",
+        "rollup-plugin-svelte": "^7.0.0",
+        "rollup-plugin-terser": "^7.0.0",
+        "svelte": "^3.49.0",
+        "svelte-check": "^2.0.0",
+        "svelte-jester": "^2.3.2",
+        "svelte-preprocess": "^4.10.7",
+        "ts-jest": "^28.0.5",
+        "tslib": "^2.0.0",
+        "typescript": "^4.7.4"
+    },
+    "dependencies": {
+        "@types/google.accounts": "^0.0.2",
+        "hexy": "^0.3.4",
+        "sirv-cli": "^2.0.0"
+    }
 }

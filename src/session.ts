@@ -1,9 +1,8 @@
-
 import { isAuthenticated, user, token } from "./store";
 
-let jwt: string
-token.subscribe(value => {
-    jwt = value
+let jwt: string;
+token.subscribe((value) => {
+    jwt = value;
 });
 
 export async function validate() {
@@ -15,11 +14,11 @@ export async function validate() {
 
         if (res.ok) {
             const json = await res.json();
-			console.log(json);
-			login(json);
+            console.log(json);
+            login(json);
         } else {
             console.log("failed to validate");
-            logout()
+            logout();
         }
     }
 }
@@ -30,8 +29,8 @@ export function logout() {
     token.set("");
 }
 
-export function login(data:any) {
+export function login(data: any) {
     user.set(data["user"]);
     token.set(data["token"]);
-	isAuthenticated.set(true);
+    isAuthenticated.set(true);
 }

@@ -1,9 +1,9 @@
 <script lang="ts">
     import { hexy } from "hexy";
-    export let content:messageType;
+    export let content: messageType;
 
-    function render(payload:string) {
-        return hexy(atob(payload),{});
+    function render(payload: string) {
+        return hexy(atob(payload), {});
     }
 </script>
 
@@ -19,7 +19,10 @@
         {#if content.payload}
             Payload:<br />
             <pre>{render(content.payload)}</pre>
-            <a href={"data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(content))} download="event.json">Download</a>
+            <a
+                href={"data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(content))}
+                download="event.json">Download</a
+            >
         {/if}
     {/if}
 </div>
