@@ -38,6 +38,7 @@
   "dependencies": {
     "@types/google.accounts": "^0.0.2",
     "hexy": "^0.3.4",
+    "prettier": "^2.8.4",
     "sirv-cli": "^2.0.0"
   }
 }
