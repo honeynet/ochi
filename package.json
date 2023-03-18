@@ -46,7 +46,7 @@
         "sirv-cli": "^2.0.0"
     },
     "lint-staged": {
-        "**/*.{js,jsx,ts,tsx,html,css,json,svelte,md}": [
+        "**/*.{js,jsx,ts,tsx,html,css,svelte,md}": [
             "npx prettier --write"
         ]
     }
