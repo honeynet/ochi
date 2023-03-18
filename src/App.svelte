@@ -2,6 +2,8 @@
   import { onMount } from "svelte";
   import { now } from "svelte/internal";
 
+  import Modal from "./Modal.svelte";
+
   import Content from "./Content.svelte";
   import Message from "./Message.svelte";
   import SSOButton from "./SOOButton.svelte";
@@ -25,6 +27,7 @@
   let isDevOn: boolean;
   let conn: WebSocket;
   let follow: boolean = true;
+  let showModal;
 
   // truncate the number of messages show in the app
   $: if (messages.length > noOfMessages) {
@@ -42,7 +45,6 @@
   function defineMessages(event: any) {
     let chosenValue = event.target[0].value;
     let presentMessages = messages.length;
-    const inputBox = document.getElementById("messages-input-box");
 
     if (chosenValue <= 0) {
       return;
@@ -52,20 +54,7 @@
       messages = messages.slice(messages.length - chosenValue, messages.length);
     }
 
-    modalHandler();
-
     noOfMessages = chosenValue;
-  }
-
-  function modalHandler() {
-    let backdrop = document.getElementById("backdrop");
-    let element = document.getElementById("configmodal");
-
-    if (inputMessages <= 0) {
-      inputMessages = noOfMessages;
-    }
-    backdrop.style.visibility = "hidden";
-    element.style.visibility = "hidden";
   }
 
   function toggleMode(event: any) {
@@ -97,9 +86,9 @@
 
   function dial(conn: WebSocket) {
     try {
-      if (!isDevOn) conn = new WebSocket(`wss://${location.host}/subscribe`);
+      if (!isDevOn) conn = new WebSocket(`ws://${location.host}/subscribe`);
     } catch (e) {
-      conn = new WebSocket(`wss://${location.host}/subscribe`);
+      conn = new WebSocket(`ws://${location.host}/subscribe`);
     }
     if (conn) {
       conn.addEventListener("close", (ev) => {
@@ -124,18 +113,6 @@
     content = event.detail;
   }
 
-  function configButtonHandler() {
-    var element = document.getElementById("configmodal");
-    var backdrop = document.getElementById("backdrop");
-
-    if (element.style.visibility == "hidden") {
-      element.style.visibility = "visible";
-      backdrop.style.visibility = "visible";
-    } else {
-      element.style.visibility = "hidden";
-      backdrop.style.visibility = "hidden";
-    }
-  }
   const sleep = (ms: number) => new Promise((f) => setTimeout(f, ms));
 
   const test = async () => {
@@ -165,21 +142,8 @@
   });
 </script>
 
-<header class="site-header">
-  <b>Ochi</b>: find me at
-  <a target="_blank" href="https://github.com/glaslos/ochi"
-    >github/glaslos/ochi</a
-  >
-  <input bind:value={filter} placeholder="Filter destination port" />
-  <button on:click={filterMessages}>Apply</button>
-  <span>Port number and '&&' to concat.</span>
-  <backdrop id="backdrop" on:click={modalHandler} style="visibility: hidden;" />
-  <button id="configButton" on:click={configButtonHandler}>Config</button>
-  <form
-    id="configmodal"
-    style="visibility: hidden;"
-    on:submit|preventDefault={defineMessages}
-  >
+<Modal bind:showModal>
+  <form id="configmodal" on:submit|preventDefault={defineMessages}>
     <p>Number of messages</p>
     <input
       id="messages-input-box"
@@ -203,8 +167,25 @@
       />
       Production
     </label>
-    <button disabled={inputMessages < 0}>Apply</button>
+    <button disabled={inputMessages < 0} type="submit">Apply</button>
   </form>
+</Modal>
+
+<header class="site-header">
+  <b>Ochi</b>: find me at
+  <a target="_blank" href="https://github.com/glaslos/ochi"
+    >github/glaslos/ochi</a
+  >
+  <input bind:value={filter} placeholder="Filter destination port" />
+  <button on:click={filterMessages}>Apply</button>
+  <span>Port number and '&&' to concat.</span>
+  <button
+    id="configButton"
+    on:click={() => {
+      showModal = true;
+      inputMessages = noOfMessages;
+    }}>Config</button
+  >
   {#if !isLoggedIn}
     <SSOButton />
   {:else}
@@ -270,28 +251,6 @@
     width: 100%;
     flex-grow: 1;
     overflow-y: scroll;
-  }
-
-  #configmodal {
-    position: absolute;
-    z-index: 50;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    border: 1px black solid;
-    padding: 15px;
-    border-radius: 10px;
-    background-color: white;
-  }
-
-  #backdrop {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100vh;
-    z-index: 20;
-    background-color: rgba(0, 0, 0, 0.75);
   }
 
   #resume-btn {
