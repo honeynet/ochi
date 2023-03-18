@@ -84,7 +84,7 @@
 
     function dial(conn: WebSocket) {
         try {
-            if (!isDevOn) conn = new WebSocket(`ws://${location.host}/subscribe`);
+            if (!isDevOn) conn = new WebSocket(`wss://${location.host}/subscribe`);
         } catch (e) {
             conn = new WebSocket(`ws://${location.host}/subscribe`);
         }
