@@ -17,6 +17,8 @@
         isLoggedIn = status;
     });
 
+    const ws = new WebSocket(`wss://${location.host}/subscribe`);
+
     export let messages: messageType[] = [];
 
     // truncate the number of messages show in the app
