@@ -7,7 +7,8 @@
     "dev": "rollup -c -w",
     "start": "sirv public --no-clear",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test": "jest"
+    "test": "jest",
+    "prepare": "husky install"
   },
   "devDependencies": {
     "@babel/core": "^7.18.2",
@@ -20,8 +21,10 @@
     "@tsconfig/svelte": "^2.0.0",
     "@types/jest": "^27.5.1",
     "babel-jest": "^28.1.0",
+    "husky": "^8.0.0",
     "jest": "^28.1.0",
     "jest-environment-jsdom": "^28.1.0",
+    "lint-staged": "^13.2.0",
     "prettier": "^2.8.4",
     "rollup": "^2.3.4",
     "rollup-plugin-css-only": "^3.1.0",
@@ -41,5 +44,10 @@
     "hexy": "^0.3.4",
     "prettier-plugin-svelte": "^2.9.0",
     "sirv-cli": "^2.0.0"
+  },
+  "lint-staged":{
+    "**/*.{js,jsx,ts,tsx,css,html,svelte}":[
+      "npx prettier --write"
+    ]
   }
 }
