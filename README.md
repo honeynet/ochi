@@ -34,6 +34,6 @@ UI for events from [Glutton](https://github.com/mushorg/glutton), streamed live 
 4. To generate fake events, follow frontend development's step 1.
 
 ### Notes
-> If you are uncommenting `test()` and commenting `dial()`, please revert it back to its original state before generating PRs.
-In case you are still facing any issue while setup, feel free to ask in [discussion](https://github.com/glaslos/ochi/discussions).
+1. If you are uncommenting `test()` and commenting `dial()`, please revert it back to its original state before generating PRs.
+2. In case you are still facing any issue while setup, feel free to ask in [discussion](https://github.com/glaslos/ochi/discussions).
 
