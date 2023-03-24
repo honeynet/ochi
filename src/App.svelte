@@ -4,9 +4,9 @@
 
     import Content from './Content.svelte';
     import Message from './Message.svelte';
-    import SSOButton from './SOOButton.svelte';
+    import SSOButton from './SSOButton.svelte';
     import LogoutButton from './LogoutButton.svelte';
-    import SOORevokeButton from './SOORevokeButton.svelte';
+    import SSORevokeButton from './SSORevokeButton.svelte';
     import { validate } from './session';
 
     import { isAuthenticated } from './store';
@@ -110,7 +110,7 @@
         <SSOButton />
     {:else}
         <LogoutButton />
-        <SOORevokeButton />
+        <SSORevokeButton />
     {/if}
 </header>
 
