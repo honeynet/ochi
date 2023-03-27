@@ -45,12 +45,11 @@
     }
 
     function dial() {
-        let conn: WebSocket;
-        try {
-            conn = new WebSocket(`wss://${location.host}/subscribe`);
-        } catch (e) {
-            conn = new WebSocket(`ws://${location.host}/subscribe`);
-        }
+        let wsUrl =
+            location.protocol === 'https:'
+                ? `wss://${location.host}/subscribe`
+                : `ws://${location.host}/subscribe`;
+        let conn: WebSocket = new WebSocket(wsUrl);
 
         conn.addEventListener('close', (ev) => {
             if (ev.code !== 1001) {
