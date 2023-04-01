@@ -6,9 +6,9 @@
 
     import Content from './Content.svelte';
     import Message from './Message.svelte';
-    import SSOButton from './SOOButton.svelte';
+    import SSOButton from './SSOButton.svelte';
     import LogoutButton from './LogoutButton.svelte';
-    import SOORevokeButton from './SOORevokeButton.svelte';
+    import SSORevokeButton from './SSORevokeButton.svelte';
     import { validate } from './session';
 
     import { isAuthenticated } from './store';
@@ -83,11 +83,12 @@
     }
 
     function dial(conn: WebSocket) {
-        try {
-            if (!isDevOn) conn = new WebSocket(`wss://${location.host}/subscribe`);
-        } catch (e) {
-            conn = new WebSocket(`ws://${location.host}/subscribe`);
-        }
+        let wsUrl =
+            location.protocol === 'https:'
+                ? `wss://${location.host}/subscribe`
+                : `ws://${location.host}/subscribe`;
+        conn = new WebSocket(wsUrl);
+
         if (conn) {
             conn.addEventListener('close', (ev) => {
                 if (ev.code !== 1001) {
@@ -180,7 +181,7 @@
         <SSOButton />
     {:else}
         <LogoutButton />
-        <SOORevokeButton />
+        <SSORevokeButton />
     {/if}
 </header>
 
