@@ -2,6 +2,8 @@
     import { onMount } from 'svelte';
     import { now } from 'svelte/internal';
 
+    import Modal from './Modal.svelte';
+
     import Content from './Content.svelte';
     import Message from './Message.svelte';
     import SSOButton from './SSOButton.svelte';
@@ -10,7 +12,6 @@
     import { validate } from './session';
 
     import { isAuthenticated } from './store';
-
     // subscribe to the authentication status
     let isLoggedIn: boolean;
     isAuthenticated.subscribe((status) => {
@@ -19,18 +20,55 @@
 
     export let messages: messageType[] = [];
 
+    let noOfMessages: number;
+    let inputMessages: number;
+    let content: messageType;
+    let filter: string;
+    let isDevOn: boolean;
+    let conn: WebSocket;
+    let follow: boolean = true;
+    let showModal;
+
     // truncate the number of messages show in the app
-    $: if (messages.length >= 50) {
+    $: if (messages.length > noOfMessages) {
         messages = messages.slice(1);
     }
 
-    let content: messageType;
-    let filter: string;
+    $: if (isDevOn) {
+        test();
+    } else {
+        dial(conn);
+    }
 
     let filterPorts: number[] = [];
 
-    //   To set auto follow work or not
-    let follow: boolean = true;
+    function defineMessages(event: any) {
+        let chosenValue = event.target[0].value;
+        let presentMessages = messages.length;
+
+        if (chosenValue <= 0) {
+            return;
+        }
+
+        if (chosenValue < presentMessages) {
+            messages = messages.slice(messages.length - chosenValue, messages.length);
+        }
+
+        noOfMessages = chosenValue;
+    }
+
+    function toggleMode(event: any) {
+        let chosenMode = event.target.id;
+
+        if (chosenMode == 'dev') {
+            isDevOn = true;
+        } else if (chosenMode == 'prod') {
+            isDevOn = false;
+            if (conn != null) {
+                conn.close();
+            }
+        }
+    }
 
     function addMessage(message: messageType) {
         if (message.dstPort === null || !filterPorts.includes(message.dstPort)) {
@@ -44,27 +82,29 @@
         messages = messages.filter((message) => !filterPorts.includes(message.dstPort));
     }
 
-    function dial() {
+    function dial(conn: WebSocket) {
         let wsUrl =
             location.protocol === 'https:'
                 ? `wss://${location.host}/subscribe`
                 : `ws://${location.host}/subscribe`;
-        let conn: WebSocket = new WebSocket(wsUrl);
+        conn = new WebSocket(wsUrl);
 
-        conn.addEventListener('close', (ev) => {
-            if (ev.code !== 1001) {
-                //appendLog("Reconnecting in 1s");
-                setTimeout(dial, 1000);
-            }
-        });
-        conn.addEventListener('open', () => {
-            console.info('websocket connected');
-        });
-        conn.addEventListener('message', (ev) => {
-            const obj = JSON.parse(ev.data);
-            console.log(obj);
-            addMessage(obj);
-        });
+        if (conn) {
+            conn.addEventListener('close', (ev) => {
+                if (ev.code !== 1001) {
+                    //appendLog("Reconnecting in 1s");
+                    setTimeout(dial, 1000);
+                }
+            });
+            conn.addEventListener('open', () => {
+                console.info('websocket connected');
+            });
+            conn.addEventListener('message', (ev) => {
+                const obj = JSON.parse(ev.data);
+                console.log(obj);
+                addMessage(obj);
+            });
+        }
         return true;
     }
 
@@ -75,7 +115,7 @@
     const sleep = (ms: number) => new Promise((f) => setTimeout(f, ms));
 
     const test = async () => {
-        while (true) {
+        while (isDevOn) {
             await sleep(1000);
             addMessage({
                 action: 'action',
@@ -93,11 +133,36 @@
     };
 
     onMount(() => {
-        dial();
-        // test();
+        // Default value of number of messages
+        noOfMessages = 50;
+        isDevOn = false;
+        conn = null;
         validate();
     });
 </script>
+
+<Modal bind:showModal>
+    <form id="configmodal" on:submit|preventDefault={defineMessages}>
+        <p>Number of messages</p>
+        <input
+            id="messages-input-box"
+            type="number"
+            min="0"
+            bind:value={inputMessages}
+            class:error-state={inputMessages <= 0}
+        />
+        <p>Mode</p>
+        <label>
+            <input type="radio" name="radio-group" id="dev" on:click={toggleMode} />
+            Development
+        </label>
+        <label>
+            <input type="radio" name="radio-group" checked id="prod" on:click={toggleMode} />
+            Production
+        </label>
+        <button disabled={inputMessages < 0} type="submit">Apply</button>
+    </form>
+</Modal>
 
 <header class="site-header">
     <b>Ochi</b>: find me at
@@ -105,6 +170,13 @@
     <input bind:value={filter} placeholder="Filter destination port" />
     <button on:click={filterMessages}>Apply</button>
     <span>Port number and '&&' to concat.</span>
+    <button
+        id="configButton"
+        on:click={() => {
+            showModal = true;
+            inputMessages = noOfMessages;
+        }}>Config</button
+    >
     {#if !isLoggedIn}
         <SSOButton />
     {:else}
@@ -165,6 +237,7 @@
         flex: 50%;
         padding: 15px 20px;
     }
+
     #message-log {
         width: 100%;
         flex-grow: 1;
@@ -177,5 +250,10 @@
         z-index: 2;
         left: 40vw;
         cursor: pointer;
+    }
+
+    .error-state {
+        border: 2px red solid;
+        outline: none;
     }
 </style>
