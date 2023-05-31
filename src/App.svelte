@@ -3,6 +3,7 @@
     import { now } from 'svelte/internal';
 
     import Modal from './Modal.svelte';
+    import { ENV_DEV, ENV_PROD } from './Constants.svelte';
 
     import Content from './Content.svelte';
     import Message from './Message.svelte';
@@ -20,60 +21,30 @@
 
     export let messages: messageType[] = [];
 
-    let noOfMessages: number;
-    let inputMessages: number;
     let content: messageType;
+    let configModal;
     let filter: string;
-    let isDevOn: boolean;
     let conn: WebSocket;
     let follow: boolean = true;
-    let showModal;
+    let env;
+    let maxNumberOfMessages;
 
-    // truncate the number of messages show in the app
-    $: if (messages.length > noOfMessages) {
-        messages = messages.slice(1);
-    }
-
-    $: if (isDevOn) {
+    $: if (env == ENV_DEV) {
         test();
-    } else {
+    } else if (env == ENV_PROD) {
         dial(conn);
     }
 
     let filterPorts: number[] = [];
 
-    function defineMessages(event: any) {
-        let chosenValue = event.target[0].value;
-        let presentMessages = messages.length;
-
-        if (chosenValue <= 0) {
-            return;
-        }
-
-        if (chosenValue < presentMessages) {
-            messages = messages.slice(messages.length - chosenValue, messages.length);
-        }
-
-        noOfMessages = chosenValue;
-    }
-
-    function toggleMode(event: any) {
-        let chosenMode = event.target.id;
-
-        if (chosenMode == 'dev') {
-            isDevOn = true;
-        } else if (chosenMode == 'prod') {
-            isDevOn = false;
-            if (conn != null) {
-                conn.close();
-            }
-        }
-    }
-
     function addMessage(message: messageType) {
         if (message.dstPort === null || !filterPorts.includes(message.dstPort)) {
             messages.push(message);
             messages = messages;
+
+            if (maxNumberOfMessages < messages.length) {
+                messages = messages.slice(messages.length - maxNumberOfMessages);
+            }
         }
     }
 
@@ -83,6 +54,9 @@
     }
 
     function dial(conn: WebSocket) {
+        if (env == ENV_DEV) {
+            return;
+        }
         let wsUrl =
             location.protocol === 'https:'
                 ? `wss://${location.host}/subscribe`
@@ -92,7 +66,6 @@
         if (conn) {
             conn.addEventListener('close', (ev) => {
                 if (ev.code !== 1001) {
-                    //appendLog("Reconnecting in 1s");
                     setTimeout(dial, 1000);
                 }
             });
@@ -115,7 +88,7 @@
     const sleep = (ms: number) => new Promise((f) => setTimeout(f, ms));
 
     const test = async () => {
-        while (isDevOn) {
+        while (env == ENV_DEV) {
             await sleep(1000);
             addMessage({
                 action: 'action',
@@ -134,35 +107,31 @@
 
     onMount(() => {
         // Default value of number of messages
-        noOfMessages = 50;
-        isDevOn = false;
+        maxNumberOfMessages = 50;
+        env = ENV_DEV;
         conn = null;
         validate();
     });
+
+    function updateConfig() {
+        if (maxNumberOfMessages <= 0) {
+            return;
+        }
+
+        if (maxNumberOfMessages < messages.length) {
+            messages = messages.slice(messages.length - maxNumberOfMessages, messages.length);
+        }
+
+        if (env == ENV_PROD) {
+            if (conn != null) {
+                conn.close();
+            }
+            messages = [];
+        }
+    }
 </script>
 
-<Modal bind:showModal>
-    <form id="configmodal" on:submit|preventDefault={defineMessages}>
-        <p>Number of messages</p>
-        <input
-            id="messages-input-box"
-            type="number"
-            min="0"
-            bind:value={inputMessages}
-            class:error-state={inputMessages <= 0}
-        />
-        <p>Mode</p>
-        <label>
-            <input type="radio" name="radio-group" id="dev" on:click={toggleMode} />
-            Development
-        </label>
-        <label>
-            <input type="radio" name="radio-group" checked id="prod" on:click={toggleMode} />
-            Production
-        </label>
-        <button disabled={inputMessages < 0} type="submit">Apply</button>
-    </form>
-</Modal>
+<Modal bind:this={configModal} bind:env bind:maxNumberOfMessages on:configChange={updateConfig} />
 
 <header class="site-header">
     <b>Ochi</b>: find me at
@@ -173,8 +142,7 @@
     <button
         id="configButton"
         on:click={() => {
-            showModal = true;
-            inputMessages = noOfMessages;
+            configModal.showModal();
         }}>Config</button
     >
     {#if !isLoggedIn}
@@ -250,10 +218,5 @@
         z-index: 2;
         left: 40vw;
         cursor: pointer;
-    }
-
-    .error-state {
-        border: 2px red solid;
-        outline: none;
     }
 </style>

@@ -1,19 +1,78 @@
 <script>
-    export let showModal;
+    import { createEventDispatcher } from 'svelte';
+
+    const dispatch = createEventDispatcher();
+
+    export let maxNumberOfMessages;
+    export let env;
+    let currentNumberOfMessages, currentEnv;
+    let timeoutId;
 
     let dialog;
 
-    $: if (dialog && showModal) dialog.showModal();
+    export function showModal() {
+        if (!dialog.open) {
+            dialog.showModal();
+        }
+        currentNumberOfMessages = maxNumberOfMessages;
+        // currentEnv = env;
+    }
+
+    function closeModal() {
+        if (dialog.open) {
+            dialog.close();
+        }
+    }
+
+    function applyConfig() {
+        // Let parent know about config update
+        dispatch('configChange');
+        maxNumberOfMessages = currentNumberOfMessages;
+        env = currentEnv;
+        dialog.close();
+    }
+
+    function handleInputChange() {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+            if (currentNumberOfMessages > 0) {
+                maxNumberOfMessages = currentNumberOfMessages;
+                dispatch('configChange');
+            }
+        }, 2000);
+    }
+
+    function updateAndCloseModal() {
+        if (currentNumberOfMessages > 0) {
+            maxNumberOfMessages = currentNumberOfMessages;
+            dispatch('configChange');
+        }
+        closeModal();
+    }
 </script>
 
-<dialog
-    bind:this={dialog}
-    on:close={() => (showModal = false)}
-    on:click|self={() => dialog.close()}
->
+<dialog bind:this={dialog} on:click|self={updateAndCloseModal}>
     <div on:click|stopPropagation>
-        <slot />
-        <button on:click={() => dialog.close()}>Close</button>
+        <p>Max number of messages</p>
+        <input
+            id="messages-input-box"
+            type="number"
+            min="0"
+            bind:value={currentNumberOfMessages}
+            on:input={handleInputChange}
+            class:error-state={maxNumberOfMessages <= 0}
+        />
+        <p>Model</p>
+        <label>
+            <input type="radio" bind:group={env} name="currentEnv" id="dev" value="dev" />
+            Development
+        </label>
+        <label>
+            <input type="radio" bind:group={env} name="currentEnv" id="prod" value="prod" />
+            Production
+        </label>
+        <!-- <button disabled={currentNumberOfMessages < 0} on:click={applyConfig}>Apply</button> -->
+        <button on:click={closeModal}>Close</button>
     </div>
 </dialog>
 
@@ -39,5 +98,10 @@
     }
     button {
         display: block;
+    }
+
+    .error-state {
+        border: 2px red solid;
+        outline: none;
     }
 </style>
