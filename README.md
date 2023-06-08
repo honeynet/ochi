@@ -1,6 +1,12 @@
 # Ochi
 
-UI for events from [Glutton](https://github.com/mushorg/glutton), streamed live from a development instance.
+UI for events from [Glutton](https://github.com/mushorg/glutton), events streamed [live](https://ochi.mushmush.org/) from a development instance.
+
+## Motivation
+
+Any publicly available IP address is under a constant barrage of attacks. We want to identify trends and attacks which are interesting for honeypot development. The majority of events are internet background noise, so we need to be able to identify truly new events worth investigating.
+Threats are happening in real time and we don't scale to preserve history. We work on a live stream with the requirement to be able to easily filter and classify events which are interesting. 
+Eventually we want to be able to enabled to quickly react to new trends, improve our sensors to collect valuable information.
 
 ## Development Requirements
 
