@@ -1,5 +1,6 @@
 <script>
     import { createEventDispatcher } from 'svelte';
+    import { debounce } from './util';
 
     const dispatch = createEventDispatcher();
 
@@ -33,13 +34,13 @@
     }
 
     function handleInputChange() {
-        clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => {
+        return debounce(() => {
             if (currentNumberOfMessages > 0) {
                 maxNumberOfMessages = currentNumberOfMessages;
+                console.log('called');
                 dispatch('configChange');
             }
-        }, 2000);
+        }, 1000);
     }
 
     function updateAndCloseModal() {
@@ -59,7 +60,7 @@
             type="number"
             min="0"
             bind:value={currentNumberOfMessages}
-            on:input={handleInputChange}
+            on:input={handleInputChange()}
             class:error-state={maxNumberOfMessages <= 0}
         />
         <p>Model</p>

@@ -1,11 +1,11 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { now } from 'svelte/internal';
 
     import Modal from './Modal.svelte';
     import { ENV_DEV, ENV_PROD } from './Constants.svelte';
 
     import Content from './Content.svelte';
+    import { debounce, generateRandomTestEvent } from './util';
     import Message from './Message.svelte';
     import SSOButton from './SSOButton.svelte';
     import LogoutButton from './LogoutButton.svelte';
@@ -90,18 +90,7 @@
     const test = async () => {
         while (env == ENV_DEV) {
             await sleep(1000);
-            addMessage({
-                action: 'action',
-                connKey: [2, 2],
-                dstPort: 1234,
-                rule: 'Rule: TCP',
-                scanner: 'censys',
-                sensorID: 'sensorID',
-                srcHost: '1.1.1.1',
-                srcPort: '4321',
-                timestamp: now().toString(),
-                payload: 'dGVzdA==', // test
-            });
+            addMessage(generateRandomTestEvent());
         }
     };
 
