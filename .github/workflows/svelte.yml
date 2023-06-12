@@ -21,3 +21,5 @@ jobs:
       - run: npm run check
       - run: npm run test
       - run: npx prettier --check "**/*.{svelte,ts}"
+      - name: Validate generated files are up-to-date
+        run: npm run generate-check
