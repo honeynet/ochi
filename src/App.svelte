@@ -5,6 +5,7 @@
     import { ENV_DEV, ENV_PROD } from './Constants.svelte';
 
     import Content from './Content.svelte';
+    import type { Event } from './event';
     import { debounce, generateRandomTestEvent } from './util';
     import Message from './Message.svelte';
     import SSOButton from './SSOButton.svelte';
@@ -19,9 +20,9 @@
         isLoggedIn = status;
     });
 
-    export let messages: messageType[] = [];
+    export let messages: Event[] = [];
 
-    let content: messageType;
+    let content: Event;
     let configModal: Modal;
     let filter: string;
     let conn: WebSocket;
@@ -37,7 +38,7 @@
 
     let filterPorts: number[] = [];
 
-    function addMessage(message: messageType) {
+    function addMessage(message: Event) {
         if (message.dstPort === null || !filterPorts.includes(message.dstPort)) {
             messages.push(message);
             messages = messages;

@@ -1,9 +1,7 @@
-/// <reference types="svelte" />
-
-interface messageType {
+export interface Event {
     payload?: string;
     action?: string;
-    connKey?: number[2];
+    connKey?: number[];
     dstPort: number;
     rule?: string;
     scanner?: string;

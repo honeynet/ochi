@@ -1,9 +1,10 @@
 <script lang="ts">
     import { createEventDispatcher, onMount } from 'svelte';
+    import type { Event } from './event';
 
     const dispatch = createEventDispatcher();
 
-    export let message: messageType;
+    export let message: Event;
     export let follow: boolean;
     let element: HTMLElement;
 

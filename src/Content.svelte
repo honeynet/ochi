@@ -1,6 +1,7 @@
 <script lang="ts">
     import { hexy } from 'hexy';
-    export let content: messageType;
+    import type { Event } from './event';
+    export let content: Event;
 
     function render(payload: string) {
         return hexy(atob(payload), {});
