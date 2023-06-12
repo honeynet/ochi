@@ -9,7 +9,9 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "jest",
     "test-watch": "jest --watchAll",
-    "format": "prettier --write '**/*.{svelte,ts}'"
+    "format": "prettier --write '**/*.{svelte,ts}'",
+    "generate": "npx ts-node ./scripts/generate.ts && npm run format",
+    "generate-check": "npm run generate && git diff --quiet"
   },
   "devDependencies": {
     "@babel/core": "^7.18.2",
