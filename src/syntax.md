@@ -1,5 +1,8 @@
 # Query DSL is vaguely based on these rules:
 
+initial query 
+   : booleanclause and query : booleandclause or query : booleanclause 
+
 ```
 query
    : booleanClause booleanSuffixClause || "NOT" query
@@ -38,10 +41,3 @@ ipv4:
 `ip.src != 192.168.1.12 or udp.port == 12`  
 `not ip.src != 192.168.1.12`  
 `not (ip.src != 192.168.1.12)`
-
-# Questions
-
-* Should we support CIDR notation?
-* Should we support operators like `contains` or `matches`?
-* Should we support `in` operator? 
-* Should we support "unary" clause (for example `tcp`, `ip.src`, etc)?
