@@ -22,12 +22,12 @@
     export let messages: messageType[] = [];
 
     let content: messageType;
-    let configModal;
+    let configModal: Modal;
     let filter: string;
     let conn: WebSocket;
     let follow: boolean = true;
-    let env;
-    let maxNumberOfMessages;
+    let env: string;
+    let maxNumberOfMessages: number;
 
     $: if (env == ENV_DEV) {
         test();
@@ -108,7 +108,7 @@
     onMount(() => {
         // Default value of number of messages
         maxNumberOfMessages = 50;
-        env = ENV_DEV;
+        env = ENV_PROD;
         conn = null;
         validate();
     });
