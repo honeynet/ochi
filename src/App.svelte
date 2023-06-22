@@ -1,16 +1,20 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { now } from 'svelte/internal';
 
     import Modal from './Modal.svelte';
     import { ENV_DEV, ENV_PROD } from './Constants.svelte';
 
     import Content from './Content.svelte';
+    import type { Event } from './event';
+    import { debounce, generateRandomTestEvent } from './util';
+    import { filterEvent } from './eventFilter';
+    import type { QueryCstNode } from './generated/chevrotain_dts';
     import Message from './Message.svelte';
     import SSOButton from './SSOButton.svelte';
     import LogoutButton from './LogoutButton.svelte';
     import SSORevokeButton from './SSORevokeButton.svelte';
     import { validate } from './session';
+    import { parseDSL } from './dsl';
 
     import { isAuthenticated } from './store';
     // subscribe to the authentication status
@@ -19,11 +23,13 @@
         isLoggedIn = status;
     });
 
-    export let messages: messageType[] = [];
+    export let messages: Event[] = [];
 
-    let content: messageType;
+    let content: Event;
     let configModal: Modal;
     let filter: string;
+    let filterValid: boolean = false;
+    let parsedFilter: QueryCstNode | undefined = undefined;
     let conn: WebSocket;
     let follow: boolean = true;
     let env: string;
@@ -37,8 +43,8 @@
 
     let filterPorts: number[] = [];
 
-    function addMessage(message: messageType) {
-        if (message.dstPort === null || !filterPorts.includes(message.dstPort)) {
+    function addMessage(message: Event) {
+        if (!parsedFilter || filterEvent(message, parsedFilter)) {
             messages.push(message);
             messages = messages;
 
@@ -48,9 +54,35 @@
         }
     }
 
-    function filterMessages() {
-        filterPorts = filter.split('&&').map(Number);
-        messages = messages.filter((message) => !filterPorts.includes(message.dstPort));
+    function filterChangeHandler(): () => void {
+        return debounce(() => {
+            // TODO: validate queries as user types them.
+            console.log('filter is changing');
+            let parseResult = parseDSL(filter);
+            if (parseResult.lexErrors.length > 0 || parseResult.parseErrors.length > 0) {
+                console.log('Found some errors', parseResult.lexErrors, parseResult.parseErrors);
+                filterValid = false;
+                // TODO: highlight in red
+            } else {
+                filterValid = true;
+            }
+        }, 1000);
+    }
+
+    function applyFilter() {
+        console.log(`Going to parse ${filter}`);
+        let parseResult = parseDSL(filter);
+        if (parseResult.lexErrors.length > 0) {
+            console.error(parseResult.lexErrors);
+            return;
+        }
+        if (parseResult.parseErrors.length > 0) {
+            console.error(parseResult.parseErrors);
+            return;
+        }
+
+        parsedFilter = parseResult.cst;
+        messages = messages.filter((message) => filterEvent(message, parsedFilter));
     }
 
     function dial(conn: WebSocket) {
@@ -90,18 +122,7 @@
     const test = async () => {
         while (env == ENV_DEV) {
             await sleep(1000);
-            addMessage({
-                action: 'action',
-                connKey: [2, 2],
-                dstPort: 1234,
-                rule: 'Rule: TCP',
-                scanner: 'censys',
-                sensorID: 'sensorID',
-                srcHost: '1.1.1.1',
-                srcPort: '4321',
-                timestamp: now().toString(),
-                payload: 'dGVzdA==', // test
-            });
+            addMessage(generateRandomTestEvent());
         }
     };
 
@@ -136,8 +157,13 @@
 <header class="site-header">
     <b>Ochi</b>: find me at
     <a target="_blank" href="https://github.com/glaslos/ochi">github/glaslos/ochi</a>
-    <input bind:value={filter} placeholder="Filter destination port" />
-    <button on:click={filterMessages}>Apply</button>
+    <input
+        class:input-error={filter && !filterValid}
+        bind:value={filter}
+        placeholder="Filter destination port"
+        on:input={filterChangeHandler()}
+    />
+    <button disabled={!filterValid} on:click={applyFilter}>Apply</button>
     <span>Port number and '&&' to concat.</span>
     <button
         id="configButton"
@@ -218,5 +244,9 @@
         z-index: 2;
         left: 40vw;
         cursor: pointer;
+    }
+
+    .site-header input.input-error {
+        border: 1px solid #ff0000;
     }
 </style>

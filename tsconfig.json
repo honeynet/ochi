@@ -9,8 +9,5 @@
     "public/*"
   ],
   "compilerOptions": {
-    "types": [
-      "jest"
-    ]
   }
 }

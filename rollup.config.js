@@ -2,7 +2,7 @@ import svelte from 'rollup-plugin-svelte';
 import commonjs from '@rollup/plugin-commonjs';
 import resolve from '@rollup/plugin-node-resolve';
 import livereload from 'rollup-plugin-livereload';
-import { terser } from 'rollup-plugin-terser';
+import terser from '@rollup/plugin-terser';
 import sveltePreprocess from 'svelte-preprocess';
 import typescript from '@rollup/plugin-typescript';
 import css from 'rollup-plugin-css-only';
@@ -30,14 +30,27 @@ function serve() {
 	};
 }
 
+function silence(warning, warn) {
+	if (warning.code == 'CIRCULAR_DEPENDENCY') {
+		if (/node_modules.*?chevrotain/.test( warning.importer )) return;
+	}
+	if ( /node_modules.*?chevrotain/.test( warning.id ) ) {
+		if (warning.code == 'EVAL') return;
+		if (warning.code == 'THIS_IS_UNDEFINED') return;
+		return;
+	}
+	warn(warning);
+}
+
 export default {
 	input: 'src/main.ts',
 	output: {
 		sourcemap: true,
 		format: 'iife',
 		name: 'app',
-		file: 'public/build/bundle.js'
+		file: 'public/build/bundle.js',
 	},
+	onwarn: silence,
 	plugins: [
 		svelte({
 			preprocess: sveltePreprocess({ sourceMap: !production }),
