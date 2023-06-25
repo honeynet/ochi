@@ -4,7 +4,8 @@ import (
 	"database/sql"
 	"strings"
 
-	"github.com/glaslos/ochi/entities"
+	"github.com/honeynet/ochi/entities"
+
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/reflectx"

@@ -156,7 +156,7 @@
 
 <header class="site-header">
     <b>Ochi</b>: find me at
-    <a target="_blank" href="https://github.com/glaslos/ochi">github/glaslos/ochi</a>
+    <a target="_blank" href="https://github.com/honeynet/ochi">github/honeynet/ochi</a>
     <input
         class:input-error={filter && !filterValid}
         bind:value={filter}

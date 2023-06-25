@@ -15,8 +15,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/glaslos/ochi/entities"
-	"github.com/glaslos/ochi/repos"
+	"github.com/honeynet/ochi/entities"
+	"github.com/honeynet/ochi/repos"
+
 	"github.com/jmoiron/sqlx"
 	"golang.org/x/time/rate"
 	"google.golang.org/api/idtoken"

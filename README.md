@@ -22,7 +22,7 @@ Eventually we want to be able to enabled to quickly react to new trends, improve
 
 ### Steps for development
 
-1. Clone the repo `git clone https://github.com/glaslos/ochi.git`
+1. Clone the repo `git clone https://github.com/honeynet/ochi.git`
 2. run `cd ochi`
 3. run `npm install`
 
@@ -50,5 +50,5 @@ Eventually we want to be able to enabled to quickly react to new trends, improve
 
 ### Notes
 1. If you are uncommenting `test()` and commenting `dial()`, please revert it back to its original state before generating PRs.
-2. In case you are still facing any issue while setup, feel free to ask in [discussion](https://github.com/glaslos/ochi/discussions).
+2. In case you are still facing any issue while setup, feel free to ask in [discussion](https://github.com/honeynet/ochi/discussions).
 

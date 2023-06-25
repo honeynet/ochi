@@ -1,4 +1,4 @@
-module github.com/glaslos/ochi
+module github.com/honeynet/ochi
 
 go 1.17
 
