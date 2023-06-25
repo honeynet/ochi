@@ -2,9 +2,9 @@ name: Svelte CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build:
@@ -16,6 +16,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: "17.x"
+          cache: "npm"
       - run: npm ci
       - run: npm run build --if-present
       - run: npm run check
