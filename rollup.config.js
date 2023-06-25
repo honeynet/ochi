@@ -32,9 +32,9 @@ function serve() {
 
 function silence(warning, warn) {
 	if (warning.code == 'CIRCULAR_DEPENDENCY') {
-		if (/node_modules.*?chevrotain/.test( warning.importer )) return;
+		if (/node_modules.*?chevrotain/.test(warning.importer)) return;
 	}
-	if ( /node_modules.*?chevrotain/.test( warning.id ) ) {
+	if (/node_modules.*?chevrotain/.test(warning.id)) {
 		if (warning.code == 'EVAL') return;
 		if (warning.code == 'THIS_IS_UNDEFINED') return;
 		return;
