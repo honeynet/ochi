@@ -23,7 +23,7 @@ export function debounce<T extends (...args: any[]) => void>(callback: T, delay:
 }
 
 const ports = [80, 443, 22, 8080, 65345];
-const handlers = ["http", "rdp", "", null]
+const handlers = ['http', 'rdp', '', null];
 
 /**
  * Generates a random event used for UI testing.
@@ -41,6 +41,6 @@ export function generateRandomTestEvent(): Event {
         srcPort: '4321',
         timestamp: now().toString(),
         payload: 'dGVzdA==', // test,
-        decoded: {"test": 123},
+        decoded: { test: 123 },
     };
 }
