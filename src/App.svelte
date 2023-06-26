@@ -12,7 +12,7 @@
     import Message from './Message.svelte';
     import SSOButton from './components/SSOButton.svelte';
     import LogoutButton from './components/LogoutButton.svelte';
-    import SSORevokeButton from './SSORevokeButton.svelte';
+    import SSORevokeButton from './components/SSORevokeButton.svelte';
     import { validate } from './session';
     import { parseDSL } from './dsl';
 

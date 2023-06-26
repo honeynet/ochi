@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { user } from './store';
-    import { logout } from './session';
+    import { user } from '../store';
+    import { logout } from '../session';
     import 'google.accounts';
 
     let email: string;
