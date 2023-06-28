@@ -7,6 +7,12 @@
     let messages: Event[] = [];
     let follow: boolean = true;
 
+    parsedFilter.subscribe((value) => {
+        if (value) {
+            messages = messages.filter((message) => filterEvent(message, value));
+        }
+    });
+
     export function onNewMessage(message: Event) {
         if (!$parsedFilter || filterEvent(message, $parsedFilter)) {
             messages.push(message);

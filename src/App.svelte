@@ -4,6 +4,7 @@
     import { onMount } from 'svelte';
 
     import Modal from './Modal.svelte';
+    import Filter from './components/Filter.svelte';
     import { ENV_DEV, ENV_PROD } from './Constants.svelte';
 
     import Content from './Content.svelte';
@@ -26,13 +27,11 @@
     });
 
     export let messages: Event[] = [];
-    let content: Event;
     let configModal: Modal;
     let filter: string;
     let filterValid: boolean = false;
     let parsedFilter: QueryCstNode | undefined = undefined;
     let conn: WebSocket;
-    let follow: boolean = true;
     let env: string;
     let maxNumberOfMessages: number;
     let messageList: MessageList;
@@ -43,18 +42,8 @@
         dial(conn);
     }
 
-    let filterPorts: number[] = [];
-
     function addMessage(message: Event) {
         messageList.onNewMessage(message);
-        // if (!parsedFilter || filterEvent(message, parsedFilter)) {
-        //     messages.push(message);
-        //     messages = messages;
-
-        //     if (maxNumberOfMessages < messages.length) {
-        //         messages = messages.slice(messages.length - maxNumberOfMessages);
-        //     }
-        // }
     }
 
     function filterChangeHandler(): () => void {
@@ -116,10 +105,6 @@
         return true;
     }
 
-    function displayContent(event: any) {
-        content = event.detail;
-    }
-
     const sleep = (ms: number) => new Promise((f) => setTimeout(f, ms));
 
     const test = async () => {
@@ -160,20 +145,23 @@
 <header class="site-header">
     <b>Ochi</b>: find me at
     <a target="_blank" href="https://github.com/honeynet/ochi">github/honeynet/ochi</a>
-    <input
+    <!-- <input
         class:input-error={filter && !filterValid}
         bind:value={filter}
         placeholder="Filter destination port"
         on:input={filterChangeHandler()}
     />
-    <button disabled={!filterValid} on:click={applyFilter}>Apply</button>
-    <span>Port number and '&&' to concat.</span>
+    <button disabled={!filterValid} on:click={applyFilter}>Apply</button> -->
+
+    <Filter />
+
+    <!-- <span>Port number and '&&' to concat.</span>
     <button
         id="configButton"
         on:click={() => {
             configModal.showModal();
         }}>Config</button
-    >
+    > -->
     {#if !isLoggedIn}
         <SSOButton />
     {:else}
@@ -185,31 +173,8 @@
 <main>
     <div class="row">
         <MessageList bind:this={messageList}/>
-
-        <!-- <div
-            class="column"
-            id="message-log"
-            on:wheel={() => {
-                follow = false;
-            }}
-        >
-            {#each messages as message (message.timestamp)}
-                {#if !filterPorts.includes(message.dstPort)}
-                    <Message on:message={displayContent} {message} {follow} />
-                {/if}
-            {/each}
-        </div> -->
         <Content />
     </div>
-
-    <!-- {#if !follow}
-        <button
-            on:click={() => {
-                follow = true;
-            }}
-            id="resume-btn">Resume</button
-        >
-    {/if} -->
 </main>
 
 <style>
@@ -230,25 +195,6 @@
         left: 0;
         bottom: 0;
         right: 0;
-    }
-
-    .column {
-        flex: 50%;
-        padding: 15px 20px;
-    }
-
-    #message-log {
-        width: 100%;
-        flex-grow: 1;
-        overflow-y: scroll;
-    }
-
-    #resume-btn {
-        position: fixed;
-        bottom: 2rem;
-        z-index: 2;
-        left: 40vw;
-        cursor: pointer;
     }
 
     .site-header input.input-error {

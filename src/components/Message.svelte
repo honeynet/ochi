@@ -2,15 +2,11 @@
     import { createEventDispatcher, onMount } from 'svelte';
     import type { Event } from '../event';
     import { currentEvent } from '../store';
-
-    const dispatch = createEventDispatcher();
-
     export let message: Event;
     export let follow: boolean;
     let element: HTMLElement;
 
     function click() {
-        // dispatch('message', message);
         currentEvent.set(message);
     }
 
