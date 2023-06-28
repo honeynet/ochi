@@ -1,7 +1,7 @@
 <script lang="ts">
     import { hexy } from 'hexy';
     import type { Event } from './event';
-    export let content: Event;
+    import { currentEvent } from './store';
 
     function render(payload: string) {
         return hexy(atob(payload), {});
@@ -9,28 +9,28 @@
 </script>
 
 <div class="column" id="content">
-    {#if content}
-        {content.srcHost}:{content.srcPort} -> {content.dstPort}<br />
-        {#if content.handler}
-            Handler: {content.handler}<br />
+    {#if $currentEvent}
+        {$currentEvent.srcHost}:{$currentEvent.srcPort} -> {$currentEvent.dstPort}<br />
+        {#if $currentEvent.handler}
+            Handler: {$currentEvent.handler}<br />
         {/if}
-        {#if content.rule}
-            {content.rule}<br />
+        {#if $currentEvent.rule}
+            {$currentEvent.rule}<br />
         {/if}
-        {#if content.scanner}
-            Scanner: {content.scanner}<br /><br />
+        {#if $currentEvent.scanner}
+            Scanner: {$currentEvent.scanner}<br /><br />
         {/if}
-        {#if content.payload}
+        {#if $currentEvent.payload}
             Payload:<br />
-            <pre>{render(content.payload)}</pre>
+            <pre>{render($currentEvent.payload)}</pre>
             <a
-                href={'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(content))}
+                href={'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify($currentEvent))}
                 download="event.json">Download</a
             >
         {/if}
-        {#if content.decoded}
+        {#if $currentEvent.decoded}
             <br /><br />
-            <pre>{JSON.stringify(content.decoded, null, 2)}</pre>
+            <pre>{JSON.stringify($currentEvent.decoded, null, 2)}</pre>
         {/if}
     {/if}
 </div>

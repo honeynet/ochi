@@ -1,4 +1,6 @@
 <script lang="ts">
+    import MessageList from './components/MessageList.svelte';
+
     import { onMount } from 'svelte';
 
     import Modal from './Modal.svelte';
@@ -24,7 +26,6 @@
     });
 
     export let messages: Event[] = [];
-
     let content: Event;
     let configModal: Modal;
     let filter: string;
@@ -34,6 +35,7 @@
     let follow: boolean = true;
     let env: string;
     let maxNumberOfMessages: number;
+    let messageList: MessageList;
 
     $: if (env == ENV_DEV) {
         test();
@@ -44,14 +46,15 @@
     let filterPorts: number[] = [];
 
     function addMessage(message: Event) {
-        if (!parsedFilter || filterEvent(message, parsedFilter)) {
-            messages.push(message);
-            messages = messages;
+        messageList.onNewMessage(message);
+        // if (!parsedFilter || filterEvent(message, parsedFilter)) {
+        //     messages.push(message);
+        //     messages = messages;
 
-            if (maxNumberOfMessages < messages.length) {
-                messages = messages.slice(messages.length - maxNumberOfMessages);
-            }
-        }
+        //     if (maxNumberOfMessages < messages.length) {
+        //         messages = messages.slice(messages.length - maxNumberOfMessages);
+        //     }
+        // }
     }
 
     function filterChangeHandler(): () => void {
@@ -129,7 +132,7 @@
     onMount(() => {
         // Default value of number of messages
         maxNumberOfMessages = 50;
-        env = ENV_PROD;
+        env = ENV_DEV;
         conn = null;
         validate();
     });
@@ -181,7 +184,9 @@
 
 <main>
     <div class="row">
-        <div
+        <MessageList bind:this={messageList}/>
+
+        <!-- <div
             class="column"
             id="message-log"
             on:wheel={() => {
@@ -193,18 +198,18 @@
                     <Message on:message={displayContent} {message} {follow} />
                 {/if}
             {/each}
-        </div>
-        <Content {content} />
+        </div> -->
+        <Content />
     </div>
 
-    {#if !follow}
+    <!-- {#if !follow}
         <button
             on:click={() => {
                 follow = true;
             }}
             id="resume-btn">Resume</button
         >
-    {/if}
+    {/if} -->
 </main>
 
 <style>
