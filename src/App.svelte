@@ -9,15 +9,11 @@
 
     import Content from './Content.svelte';
     import type { Event } from './event';
-    import { debounce, generateRandomTestEvent } from './util';
-    import { filterEvent } from './eventFilter';
-    import type { QueryCstNode } from './generated/chevrotain_dts';
-    import Message from './Message.svelte';
+    import { generateRandomTestEvent } from './util';
     import SSOButton from './components/SSOButton.svelte';
     import LogoutButton from './components/LogoutButton.svelte';
     import SSORevokeButton from './components/SSORevokeButton.svelte';
     import { validate } from './session';
-    import { parseDSL } from './dsl';
 
     import { isAuthenticated } from './store';
     // subscribe to the authentication status
@@ -28,9 +24,6 @@
 
     export let messages: Event[] = [];
     let configModal: Modal;
-    let filter: string;
-    let filterValid: boolean = false;
-    let parsedFilter: QueryCstNode | undefined = undefined;
     let conn: WebSocket;
     let env: string;
     let maxNumberOfMessages: number;
@@ -44,37 +37,6 @@
 
     function addMessage(message: Event) {
         messageList.onNewMessage(message);
-    }
-
-    function filterChangeHandler(): () => void {
-        return debounce(() => {
-            // TODO: validate queries as user types them.
-            console.log('filter is changing');
-            let parseResult = parseDSL(filter);
-            if (parseResult.lexErrors.length > 0 || parseResult.parseErrors.length > 0) {
-                console.log('Found some errors', parseResult.lexErrors, parseResult.parseErrors);
-                filterValid = false;
-                // TODO: highlight in red
-            } else {
-                filterValid = true;
-            }
-        }, 1000);
-    }
-
-    function applyFilter() {
-        console.log(`Going to parse ${filter}`);
-        let parseResult = parseDSL(filter);
-        if (parseResult.lexErrors.length > 0) {
-            console.error(parseResult.lexErrors);
-            return;
-        }
-        if (parseResult.parseErrors.length > 0) {
-            console.error(parseResult.parseErrors);
-            return;
-        }
-
-        parsedFilter = parseResult.cst;
-        messages = messages.filter((message) => filterEvent(message, parsedFilter));
     }
 
     function dial(conn: WebSocket) {
@@ -145,14 +107,6 @@
 <header class="site-header">
     <b>Ochi</b>: find me at
     <a target="_blank" href="https://github.com/honeynet/ochi">github/honeynet/ochi</a>
-    <!-- <input
-        class:input-error={filter && !filterValid}
-        bind:value={filter}
-        placeholder="Filter destination port"
-        on:input={filterChangeHandler()}
-    />
-    <button disabled={!filterValid} on:click={applyFilter}>Apply</button> -->
-
     <Filter />
 
     <!-- <span>Port number and '&&' to concat.</span>
