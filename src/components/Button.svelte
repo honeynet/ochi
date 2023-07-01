@@ -5,8 +5,7 @@
     export let disabled: boolean = false;
 </script>
 
-<button class="button" disabled={disabled} id={buttonId} on:click={onClick}>{text}</button>
+<button class="button" {disabled} id={buttonId} on:click={onClick}>{text}</button>
 
 <style>
-
 </style>

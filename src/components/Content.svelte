@@ -1,7 +1,7 @@
 <script lang="ts">
     import { hexy } from 'hexy';
-    import type { Event } from './event';
-    import { currentEvent } from './store';
+    import type { Event } from '../event';
+    import { currentEvent } from '../store';
 
     function render(payload: string) {
         return hexy(atob(payload), {});
@@ -24,7 +24,8 @@
             Payload:<br />
             <pre>{render($currentEvent.payload)}</pre>
             <a
-                href={'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify($currentEvent))}
+                href={'data:text/json;charset=utf-8,' +
+                    encodeURIComponent(JSON.stringify($currentEvent))}
                 download="event.json">Download</a
             >
         {/if}

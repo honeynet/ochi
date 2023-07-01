@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { createEventDispatcher, onMount } from 'svelte';
+    import { onMount } from 'svelte';
     import type { Event } from '../event';
     import { currentEvent } from '../store';
     export let message: Event;
@@ -16,7 +16,8 @@
 </script>
 
 <p on:click={click} bind:this={element}>
-    {message.srcHost}:{message.srcPort} -> {message.dstPort}: {message.rule}
+    {message.srcHost}:{message.srcPort} -> {message.dstPort}:
+    {#if message.handler}{message.handler}{:else}{message.rule}{/if}
     {#if message.scanner}"{message.scanner}"{/if}
     {#if message.payload}: <u>Payload</u>{/if}
 </p>

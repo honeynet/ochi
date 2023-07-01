@@ -1,46 +1,32 @@
 <script lang="ts">
+    import Header from './components/Header.svelte';
     import MessageList from './components/MessageList.svelte';
-
-    import { onMount } from 'svelte';
-
-    import Modal from './Modal.svelte';
     import Filter from './components/Filter.svelte';
-    import { ENV_DEV, ENV_PROD } from './Constants.svelte';
+    import Config from './components/Config.svelte';
+    import Content from './components/Content.svelte';
 
-    import Content from './Content.svelte';
+    import { onDestroy, onMount } from 'svelte';
+    import { ENV_DEV, ENV_PROD } from './constants';
     import type { Event } from './event';
     import { generateRandomTestEvent } from './util';
-    import SSOButton from './components/SSOButton.svelte';
-    import LogoutButton from './components/LogoutButton.svelte';
-    import SSORevokeButton from './components/SSORevokeButton.svelte';
     import { validate } from './session';
+    import { isAuthenticated, env } from './store';
 
-    import { isAuthenticated } from './store';
     // subscribe to the authentication status
     let isLoggedIn: boolean;
-    isAuthenticated.subscribe((status) => {
+    const isAuthenticatedUnsubscribe = isAuthenticated.subscribe((status) => {
         isLoggedIn = status;
     });
 
-    export let messages: Event[] = [];
-    let configModal: Modal;
-    let conn: WebSocket;
-    let env: string;
-    let maxNumberOfMessages: number;
+    let conn: WebSocket = null;
     let messageList: MessageList;
 
-    $: if (env == ENV_DEV) {
-        test();
-    } else if (env == ENV_PROD) {
-        dial(conn);
-    }
-
     function addMessage(message: Event) {
-        messageList.onNewMessage(message);
+        messageList?.onNewMessage(message);
     }
 
     function dial(conn: WebSocket) {
-        if (env == ENV_DEV) {
+        if ($env == ENV_DEV) {
             return;
         }
         let wsUrl =
@@ -70,88 +56,53 @@
     const sleep = (ms: number) => new Promise((f) => setTimeout(f, ms));
 
     const test = async () => {
-        while (env == ENV_DEV) {
-            await sleep(1000);
+        while ($env == ENV_DEV) {
             addMessage(generateRandomTestEvent());
+            await sleep(1000);
         }
     };
 
-    onMount(() => {
-        // Default value of number of messages
-        maxNumberOfMessages = 50;
-        env = ENV_DEV;
-        conn = null;
-        validate();
+    const envUnsubscribe = env.subscribe((value) => {
+        if (value === ENV_DEV) {
+            test();
+        } else if (value === ENV_PROD) {
+            dial(conn);
+        }
     });
 
-    function updateConfig() {
-        if (maxNumberOfMessages <= 0) {
-            return;
-        }
+    onDestroy(() => {
+        envUnsubscribe();
+        isAuthenticatedUnsubscribe();
+    });
 
-        if (maxNumberOfMessages < messages.length) {
-            messages = messages.slice(messages.length - maxNumberOfMessages, messages.length);
-        }
-
-        if (env == ENV_PROD) {
-            if (conn != null) {
-                conn.close();
-            }
-            messages = [];
-        }
-    }
+    onMount(() => {
+        validate();
+    });
 </script>
 
-<Modal bind:this={configModal} bind:env bind:maxNumberOfMessages on:configChange={updateConfig} />
-
-<header class="site-header">
-    <b>Ochi</b>: find me at
-    <a target="_blank" href="https://github.com/honeynet/ochi">github/honeynet/ochi</a>
-    <Filter />
-
-    <!-- <span>Port number and '&&' to concat.</span>
-    <button
-        id="configButton"
-        on:click={() => {
-            configModal.showModal();
-        }}>Config</button
-    > -->
-    {#if !isLoggedIn}
-        <SSOButton />
-    {:else}
-        <LogoutButton />
-        <SSORevokeButton />
-    {/if}
-</header>
-
+<Header {isLoggedIn} />
 <main>
+    <Filter />
+    <Config />
     <div class="row">
-        <MessageList bind:this={messageList}/>
+        <MessageList bind:this={messageList} />
         <Content />
     </div>
 </main>
 
 <style>
-    .site-header {
-        border-bottom-style: solid;
-        border-width: 1px;
-    }
-
     main {
         width: 100vw;
         min-width: 320px;
     }
 
     .row {
+        margin-top: 100px;
         display: flex;
         position: absolute;
         top: 55px;
         left: 0;
         bottom: 0;
         right: 0;
-    }
-
-    .site-header input.input-error {
-        border: 1px solid #ff0000;
     }
 </style>

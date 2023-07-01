@@ -2,14 +2,28 @@
     import Message from './Message.svelte';
     import type { Event } from '../event';
     import { filterEvent } from '../eventFilter';
-    import { maxNumberOfMessages, parsedFilter } from '../store';
+    import { maxNumberOfMessages, parsedFilter, env } from '../store';
+    import { onDestroy } from 'svelte';
+    import { ENV_PROD } from '../constants';
 
     let messages: Event[] = [];
     let follow: boolean = true;
 
-    parsedFilter.subscribe((value) => {
+    const parsedFilterUnsubscribe = parsedFilter.subscribe((value) => {
         if (value) {
             messages = messages.filter((message) => filterEvent(message, value));
+        }
+    });
+
+    const maxNumberOfMessagesUnsubscribe = maxNumberOfMessages.subscribe((value) => {
+        if (value < messages.length) {
+            messages = messages.slice(messages.length - value, messages.length);
+        }
+    });
+
+    const envUnsubscribe = env.subscribe((value) => {
+        if (value == ENV_PROD) {
+            messages = [];
         }
     });
 
@@ -23,6 +37,12 @@
             }
         }
     }
+
+    onDestroy(() => {
+        parsedFilterUnsubscribe();
+        maxNumberOfMessagesUnsubscribe();
+        envUnsubscribe();
+    });
 </script>
 
 <div

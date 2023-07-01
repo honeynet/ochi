@@ -44,17 +44,28 @@
 
 <section class="filter">
     <input
-    class:input-error={filter && !filterValid}
-    bind:value={filter}
-    placeholder="Filter destination port"
-    on:input={filterChangeHandler()}
+        class:input-error={filter && !filterValid}
+        bind:value={filter}
+        placeholder="Filter destination port"
+        on:input={filterChangeHandler()}
     />
     <Button disabled={!filterValid} onClick={applyFilter} text="Apply" />
 </section>
 
-
 <style>
-    /* .filter {
+    .filter {
         margin: 10px 30px 10px;
-    } */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+    }
+
+    input.input-error {
+        border: 1px solid #ff0000;
+    }
+
+    input.input-error:focus {
+        outline: 1px solid #ff0000;
+    }
 </style>
