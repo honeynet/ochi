@@ -11,6 +11,9 @@
 <div class="column" id="content">
     {#if content}
         {content.srcHost}:{content.srcPort} -> {content.dstPort}<br />
+        {#if content.handler}
+            Handler: {content.handler}<br />
+        {/if}
         {#if content.rule}
             {content.rule}<br />
         {/if}
@@ -24,6 +27,10 @@
                 href={'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(content))}
                 download="event.json">Download</a
             >
+        {/if}
+        {#if content.decoded}
+            <br /><br />
+            <pre>{JSON.stringify(content.decoded, null, 2)}</pre>
         {/if}
     {/if}
 </div>
