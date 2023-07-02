@@ -1,6 +1,5 @@
 <script lang="ts">
     import { hexy } from 'hexy';
-    import type { Event } from '../event';
     import { currentEvent } from '../store';
 
     function render(payload: string) {

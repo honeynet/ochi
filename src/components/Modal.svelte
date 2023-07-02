@@ -1,13 +1,8 @@
 <script>
-    import { createEventDispatcher } from 'svelte';
     import { debounce } from '../util';
     import { maxNumberOfMessages, env } from '../store';
 
-    const dispatch = createEventDispatcher();
-
     let currentNumberOfMessages, currentEnv;
-    let timeoutId;
-
     let dialog;
 
     export function showModal() {
@@ -15,7 +10,6 @@
             dialog.showModal();
         }
         currentNumberOfMessages = $maxNumberOfMessages;
-        // currentEnv = env;
     }
 
     function closeModal() {
@@ -23,14 +17,6 @@
             dialog.close();
         }
     }
-
-    // function applyConfig() {
-    //     // Let parent know about config update
-    //     dispatch('configChange');
-    //     maxNumberOfMessages.set(currentNumberOfMessages);
-    //     env = currentEnv;
-    //     dialog.close();
-    // }
 
     function handleInputChange() {
         return debounce(() => {
@@ -68,7 +54,6 @@
             <input type="radio" bind:group={$env} name="currentEnv" id="prod" value="prod" />
             Production
         </label>
-        <!-- <button disabled={currentNumberOfMessages < 0} on:click={applyConfig}>Apply</button> -->
         <button on:click={closeModal}>Close</button>
     </div>
 </dialog>
