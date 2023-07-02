@@ -1,5 +1,5 @@
-import { productions } from '../src/dsl';
-import { generateCstDts } from 'chevrotain';
+import { productions, serializedGrammar } from '../src/dsl';
+import { generateCstDts, createSyntaxDiagramsCode } from 'chevrotain';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import process from 'node:process';
@@ -21,7 +21,20 @@ function generateChevrotainDts(): void {
     }
 }
 
+function generateSyntaxDiagram(): void {
+    const htmlText = createSyntaxDiagramsCode(serializedGrammar);
+    const diagramFile = path.resolve(__dirname, '../public/syntax_diagram.html');
+    try {
+        fs.writeFileSync(diagramFile, htmlText);
+        console.log(`Wrote to ${diagramFile}`);
+    } catch (err) {
+        console.error(err);
+        process.exit(1);
+    }
+}
+
 generateChevrotainDts();
+generateSyntaxDiagram();
 
 // 'export {}' statement to make it a module to be able to run using `npm run generate`
 export {};
