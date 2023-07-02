@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { login } from './session';
+    import { login } from '../session';
     import 'google.accounts';
 
     function button() {

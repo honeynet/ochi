@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { logout } from './session';
+    import { logout } from '../session';
 </script>
 
 <button id="logoutButton" on:click={logout}>Logout</button>

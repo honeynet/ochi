@@ -1,92 +1,32 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import Header from './components/Header.svelte';
+    import MessageList from './components/MessageList.svelte';
+    import Filter from './components/Filter.svelte';
+    import Config from './components/Config.svelte';
+    import Content from './components/Content.svelte';
 
-    import Modal from './Modal.svelte';
-    import { ENV_DEV, ENV_PROD } from './Constants.svelte';
-
-    import Content from './Content.svelte';
+    import { onDestroy, onMount } from 'svelte';
+    import { ENV_DEV, ENV_PROD } from './constants';
     import type { Event } from './event';
-    import { debounce, generateRandomTestEvent } from './util';
-    import { filterEvent } from './eventFilter';
-    import type { QueryCstNode } from './generated/chevrotain_dts';
-    import Message from './Message.svelte';
-    import SSOButton from './SSOButton.svelte';
-    import LogoutButton from './LogoutButton.svelte';
-    import SSORevokeButton from './SSORevokeButton.svelte';
+    import { generateRandomTestEvent } from './util';
     import { validate } from './session';
-    import { parseDSL } from './dsl';
+    import { isAuthenticated, env } from './store';
 
-    import { isAuthenticated } from './store';
     // subscribe to the authentication status
     let isLoggedIn: boolean;
-    isAuthenticated.subscribe((status) => {
+    const isAuthenticatedUnsubscribe = isAuthenticated.subscribe((status) => {
         isLoggedIn = status;
     });
 
-    export let messages: Event[] = [];
-
-    let content: Event;
-    let configModal: Modal;
-    let filter: string;
-    let filterValid: boolean = false;
-    let parsedFilter: QueryCstNode | undefined = undefined;
-    let conn: WebSocket;
-    let follow: boolean = true;
-    let env: string;
-    let maxNumberOfMessages: number;
-
-    $: if (env == ENV_DEV) {
-        test();
-    } else if (env == ENV_PROD) {
-        dial(conn);
-    }
-
-    let filterPorts: number[] = [];
+    let conn: WebSocket = null;
+    let messageList: MessageList;
 
     function addMessage(message: Event) {
-        if (!parsedFilter || filterEvent(message, parsedFilter)) {
-            messages.push(message);
-            messages = messages;
-
-            if (maxNumberOfMessages < messages.length) {
-                messages = messages.slice(messages.length - maxNumberOfMessages);
-            }
-        }
-    }
-
-    function filterChangeHandler(): () => void {
-        return debounce(() => {
-            // TODO: validate queries as user types them.
-            console.log('filter is changing');
-            let parseResult = parseDSL(filter);
-            if (parseResult.lexErrors.length > 0 || parseResult.parseErrors.length > 0) {
-                console.log('Found some errors', parseResult.lexErrors, parseResult.parseErrors);
-                filterValid = false;
-                // TODO: highlight in red
-            } else {
-                filterValid = true;
-            }
-        }, 1000);
-    }
-
-    function applyFilter() {
-        console.log(`Going to parse ${filter}`);
-        let parseResult = parseDSL(filter);
-        if (parseResult.lexErrors.length > 0) {
-            console.error(parseResult.lexErrors);
-            return;
-        }
-        if (parseResult.parseErrors.length > 0) {
-            console.error(parseResult.parseErrors);
-            return;
-        }
-
-        parsedFilter = parseResult.cst;
-        messages = messages.filter((message) => filterEvent(message, parsedFilter));
+        messageList?.onNewMessage(message);
     }
 
     function dial(conn: WebSocket) {
-        if (env == ENV_DEV) {
+        if ($env == ENV_DEV) {
             return;
         }
         let wsUrl =
@@ -113,140 +53,56 @@
         return true;
     }
 
-    function displayContent(event: any) {
-        content = event.detail;
-    }
-
     const sleep = (ms: number) => new Promise((f) => setTimeout(f, ms));
 
     const test = async () => {
-        while (env == ENV_DEV) {
-            await sleep(1000);
+        while ($env == ENV_DEV) {
             addMessage(generateRandomTestEvent());
+            await sleep(1000);
         }
     };
 
-    onMount(() => {
-        // Default value of number of messages
-        maxNumberOfMessages = 50;
-        env = ENV_PROD;
-        conn = null;
-        validate();
+    const envUnsubscribe = env.subscribe((value) => {
+        if (value === ENV_DEV) {
+            test();
+        } else if (value === ENV_PROD) {
+            dial(conn);
+        }
     });
 
-    function updateConfig() {
-        if (maxNumberOfMessages <= 0) {
-            return;
-        }
+    onDestroy(() => {
+        envUnsubscribe();
+        isAuthenticatedUnsubscribe();
+    });
 
-        if (maxNumberOfMessages < messages.length) {
-            messages = messages.slice(messages.length - maxNumberOfMessages, messages.length);
-        }
-
-        if (env == ENV_PROD) {
-            if (conn != null) {
-                conn.close();
-            }
-            messages = [];
-        }
-    }
+    onMount(() => {
+        validate();
+    });
 </script>
 
-<Modal bind:this={configModal} bind:env bind:maxNumberOfMessages on:configChange={updateConfig} />
-
-<header class="site-header">
-    <b>Ochi</b>: find me at
-    <a target="_blank" href="https://github.com/honeynet/ochi">github/honeynet/ochi</a>
-    <input
-        class:input-error={filter && !filterValid}
-        bind:value={filter}
-        placeholder="Filter destination port"
-        on:input={filterChangeHandler()}
-    />
-    <button disabled={!filterValid} on:click={applyFilter}>Apply</button>
-    <span>Port number and '&&' to concat.</span>
-    <button
-        id="configButton"
-        on:click={() => {
-            configModal.showModal();
-        }}>Config</button
-    >
-    {#if !isLoggedIn}
-        <SSOButton />
-    {:else}
-        <LogoutButton />
-        <SSORevokeButton />
-    {/if}
-</header>
-
+<Header {isLoggedIn} />
 <main>
+    <Filter />
+    <Config />
     <div class="row">
-        <div
-            class="column"
-            id="message-log"
-            on:wheel={() => {
-                follow = false;
-            }}
-        >
-            {#each messages as message (message.timestamp)}
-                {#if !filterPorts.includes(message.dstPort)}
-                    <Message on:message={displayContent} {message} {follow} />
-                {/if}
-            {/each}
-        </div>
-        <Content {content} />
+        <MessageList bind:this={messageList} />
+        <Content />
     </div>
-
-    {#if !follow}
-        <button
-            on:click={() => {
-                follow = true;
-            }}
-            id="resume-btn">Resume</button
-        >
-    {/if}
 </main>
 
 <style>
-    .site-header {
-        border-bottom-style: solid;
-        border-width: 1px;
-    }
-
     main {
         width: 100vw;
         min-width: 320px;
     }
 
     .row {
+        margin-top: 100px;
         display: flex;
         position: absolute;
         top: 55px;
         left: 0;
         bottom: 0;
         right: 0;
-    }
-
-    .column {
-        flex: 50%;
-        padding: 15px 20px;
-    }
-
-    #message-log {
-        width: 100%;
-        flex-grow: 1;
-        overflow-y: scroll;
-    }
-
-    #resume-btn {
-        position: fixed;
-        bottom: 2rem;
-        z-index: 2;
-        left: 40vw;
-        cursor: pointer;
-    }
-
-    .site-header input.input-error {
-        border: 1px solid #ff0000;
     }
 </style>

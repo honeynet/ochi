@@ -1,15 +1,13 @@
 <script lang="ts">
-    import { createEventDispatcher, onMount } from 'svelte';
-    import type { Event } from './event';
-
-    const dispatch = createEventDispatcher();
-
+    import { onMount } from 'svelte';
+    import type { Event } from '../event';
+    import { currentEvent } from '../store';
     export let message: Event;
     export let follow: boolean;
     let element: HTMLElement;
 
     function click() {
-        dispatch('message', message);
+        currentEvent.set(message);
     }
 
     onMount(() => {

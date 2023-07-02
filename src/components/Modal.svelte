@@ -1,22 +1,15 @@
 <script>
-    import { createEventDispatcher } from 'svelte';
-    import { debounce } from './util';
+    import { debounce } from '../util';
+    import { maxNumberOfMessages, env } from '../store';
 
-    const dispatch = createEventDispatcher();
-
-    export let maxNumberOfMessages;
-    export let env;
     let currentNumberOfMessages, currentEnv;
-    let timeoutId;
-
     let dialog;
 
     export function showModal() {
         if (!dialog.open) {
             dialog.showModal();
         }
-        currentNumberOfMessages = maxNumberOfMessages;
-        // currentEnv = env;
+        currentNumberOfMessages = $maxNumberOfMessages;
     }
 
     function closeModal() {
@@ -25,28 +18,17 @@
         }
     }
 
-    function applyConfig() {
-        // Let parent know about config update
-        dispatch('configChange');
-        maxNumberOfMessages = currentNumberOfMessages;
-        env = currentEnv;
-        dialog.close();
-    }
-
     function handleInputChange() {
         return debounce(() => {
             if (currentNumberOfMessages > 0) {
-                maxNumberOfMessages = currentNumberOfMessages;
-                console.log('called');
-                dispatch('configChange');
+                maxNumberOfMessages.set(currentNumberOfMessages);
             }
         }, 1000);
     }
 
     function updateAndCloseModal() {
         if (currentNumberOfMessages > 0) {
-            maxNumberOfMessages = currentNumberOfMessages;
-            dispatch('configChange');
+            maxNumberOfMessages.set(currentNumberOfMessages);
         }
         closeModal();
     }
@@ -61,18 +43,17 @@
             min="0"
             bind:value={currentNumberOfMessages}
             on:input={handleInputChange()}
-            class:error-state={maxNumberOfMessages <= 0}
+            class:error-state={$maxNumberOfMessages <= 0}
         />
         <p>Model</p>
         <label>
-            <input type="radio" bind:group={env} name="currentEnv" id="dev" value="dev" />
+            <input type="radio" bind:group={$env} name="currentEnv" id="dev" value="dev" />
             Development
         </label>
         <label>
-            <input type="radio" bind:group={env} name="currentEnv" id="prod" value="prod" />
+            <input type="radio" bind:group={$env} name="currentEnv" id="prod" value="prod" />
             Production
         </label>
-        <!-- <button disabled={currentNumberOfMessages < 0} on:click={applyConfig}>Apply</button> -->
         <button on:click={closeModal}>Close</button>
     </div>
 </dialog>
