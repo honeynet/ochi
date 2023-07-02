@@ -21,6 +21,11 @@ const and = createToken({ name: 'AND', pattern: /and/, label: 'and' });
 const or = createToken({ name: 'OR', pattern: /or/, label: 'or' });
 const not = createToken({ name: 'NOT', pattern: /not/, label: 'not' });
 
+// Search and match operators
+const contains = createToken({ name: 'CONTAINS', pattern: /contains/, label: 'contains' });
+const matches = createToken({ name: 'MATCHES', pattern: /matches/, label: 'matches' });
+const matchesSmb = createToken({ name: 'MATCHES_SMB', pattern: /~/, label: 'matches_smb' });
+
 // Literals
 const port = createToken({ name: 'PORT', pattern: /(?:0|[1-9]\d*)/ });
 const ipv4 = createToken({
@@ -34,6 +39,9 @@ const ipDst = createToken({ name: 'IP_DST', pattern: /ip\.dst/ });
 
 const tcpPort = createToken({ name: 'TCP_PORT', pattern: /tcp\.port/ });
 const udpPort = createToken({ name: 'UDP_PORT', pattern: /udp\.port/ });
+
+const payload = createToken({ name: 'PAYLOAD', pattern: /payload/ });
+const string = createToken({ name: 'STRING', pattern: /\"[a-zA-Z0-9]+\"/ });
 
 const whiteSpace = createToken({
     name: 'WhiteSpace',
@@ -52,6 +60,10 @@ let allTokens = [
     or,
     not,
 
+    contains,
+    matches,
+    matchesSmb,
+
     ipv4,
     port,
 
@@ -59,6 +71,9 @@ let allTokens = [
     ipDst,
     tcpPort,
     udpPort,
+
+    payload,
+    string,
 ];
 
 let queryLexer = new Lexer(allTokens);
@@ -121,6 +136,18 @@ class QueryParser extends CstParser {
         ]);
     });
 
+    private searchClause = this.RULE('searchClause', () => {
+        this.OR([
+            {
+                ALT: () => {
+                    this.CONSUME(payload);
+                    this.CONSUME(contains);
+                    this.CONSUME(string);
+                },
+            },
+        ]);
+    });
+
     private portItemClause = this.RULE('portItemClause', () => {
         this.OR([
             {
@@ -165,6 +192,11 @@ class QueryParser extends CstParser {
                     this.SUBRULE(this.ipItemClause);
                     this.SUBRULE1(this.binaryOperator);
                     this.CONSUME(ipv4);
+                },
+            },
+            {
+                ALT: () => {
+                    this.SUBRULE(this.searchClause);
                 },
             },
         ]);

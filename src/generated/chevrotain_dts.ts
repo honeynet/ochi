@@ -35,6 +35,17 @@ export type BooleanClauseCstChildren = {
     binaryClause?: BinaryClauseCstNode[];
 };
 
+export interface SearchClauseCstNode extends CstNode {
+    name: 'searchClause';
+    children: SearchClauseCstChildren;
+}
+
+export type SearchClauseCstChildren = {
+    PAYLOAD?: IToken[];
+    CONTAINS?: IToken[];
+    STRING?: IToken[];
+};
+
 export interface PortItemClauseCstNode extends CstNode {
     name: 'portItemClause';
     children: PortItemClauseCstChildren;
@@ -66,6 +77,7 @@ export type BinaryClauseCstChildren = {
     PORT?: IToken[];
     ipItemClause?: IpItemClauseCstNode[];
     IPV4?: IToken[];
+    searchClause?: SearchClauseCstNode[];
 };
 
 export interface BinaryOperatorCstNode extends CstNode {
@@ -84,6 +96,7 @@ export interface ICstNodeVisitor<IN, OUT> extends ICstVisitor<IN, OUT> {
     query(children: QueryCstChildren, param?: IN): OUT;
     booleanSuffixClause(children: BooleanSuffixClauseCstChildren, param?: IN): OUT;
     booleanClause(children: BooleanClauseCstChildren, param?: IN): OUT;
+    searchClause(children: SearchClauseCstChildren, param?: IN): OUT;
     portItemClause(children: PortItemClauseCstChildren, param?: IN): OUT;
     ipItemClause(children: IpItemClauseCstChildren, param?: IN): OUT;
     binaryClause(children: BinaryClauseCstChildren, param?: IN): OUT;

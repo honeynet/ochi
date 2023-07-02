@@ -7,14 +7,17 @@ initial query
 query
    : booleanClause booleanSuffixClause || "NOT" query
 
-booleaSuffixClause:
+searchclause
+   : payload searchOperator string
+
+booleanSuffixClause:
    emptyString || OR query || AND query
 
 booleanClause
    : binaryClause || unaryClause
 
 binaryClause
-   : portItemClause binaryOperator integer || ipItemClause binaryOperator ipv4
+   : portItemClause binaryOperator integer || ipItemClause binaryOperator ipv4 || searchClause
 
 binaryOperator
    : "eq" || "==" || "ne" || "!="
@@ -30,6 +33,18 @@ integer:
 
 ipv4:
    : regex([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})
+
+searchClause: 
+   : payload searchOperator string
+
+searchOperators: 
+   "contains" || "matches" || "~"
+
+payload:
+   : "payload"
+
+string:
+   : regex([\S]+)
 ```
 
 
