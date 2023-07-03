@@ -16,7 +16,6 @@
         return debounce(() => {
             // TODO: validate queries as user types them.
             console.log('filter is changing');
-            focus = true;
             if (filter == '') {
                 filterValid = true;
                 return;
@@ -34,6 +33,7 @@
 
     function resetQuery() {
         focus = false;
+        filter = '';
     }
 
     function applyFilter() {
@@ -64,6 +64,7 @@
         placeholder="Filter destination port"
         on:input={filterChangeHandler()}
         on:focus={handleFocus}
+        on:blur={resetQuery}
     />
     <Button disabled={!filterValid} onClick={applyFilter} text="Apply" />
     {#if focus}
