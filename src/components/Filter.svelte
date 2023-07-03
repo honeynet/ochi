@@ -17,6 +17,10 @@
             // TODO: validate queries as user types them.
             console.log('filter is changing');
             focus = true;
+            if (filter == '') {
+                filterValid = true;
+                return;
+            }
             let parseResult = parseDSL(filter);
             if (parseResult.lexErrors.length > 0 || parseResult.parseErrors.length > 0) {
                 console.log('Found some errors', parseResult.lexErrors, parseResult.parseErrors);
