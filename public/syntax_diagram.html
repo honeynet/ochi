@@ -1,0 +1,340 @@
+
+<!-- This is a generated file -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+  body {
+    background-color: hsl(30, 20%, 95%)
+  }
+</style>
+
+
+<link rel='stylesheet' href='https://unpkg.com/chevrotain@10.5.0/diagrams/diagrams.css'>
+
+<script src='https://unpkg.com/chevrotain@10.5.0/diagrams/vendor/railroad-diagrams.js'></script>
+<script src='https://unpkg.com/chevrotain@10.5.0/diagrams/src/diagrams_builder.js'></script>
+<script src='https://unpkg.com/chevrotain@10.5.0/diagrams/src/diagrams_behavior.js'></script>
+<script src='https://unpkg.com/chevrotain@10.5.0/diagrams/src/main.js'></script>
+
+<div id="diagrams" align="center"></div>    
+
+<script>
+    window.serializedGrammar = [
+  {
+    "type": "Rule",
+    "name": "query",
+    "orgText": "",
+    "definition": [
+      {
+        "type": "Alternation",
+        "idx": 0,
+        "definition": [
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "NonTerminal",
+                "name": "booleanClause",
+                "idx": 0
+              },
+              {
+                "type": "NonTerminal",
+                "name": "booleanSuffixClause",
+                "idx": 0
+              }
+            ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "NOT",
+                "label": "not",
+                "idx": 0,
+                "pattern": "not"
+              },
+              {
+                "type": "NonTerminal",
+                "name": "query",
+                "idx": 0
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Rule",
+    "name": "booleanSuffixClause",
+    "orgText": "",
+    "definition": [
+      {
+        "type": "Alternation",
+        "idx": 0,
+        "definition": [
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "OR",
+                "label": "or",
+                "idx": 0,
+                "pattern": "or"
+              },
+              {
+                "type": "NonTerminal",
+                "name": "query",
+                "idx": 0
+              }
+            ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "AND",
+                "label": "and",
+                "idx": 0,
+                "pattern": "and"
+              },
+              {
+                "type": "NonTerminal",
+                "name": "query",
+                "idx": 1
+              }
+            ]
+          },
+          {
+            "type": "Alternative",
+            "definition": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Rule",
+    "name": "booleanClause",
+    "orgText": "",
+    "definition": [
+      {
+        "type": "Alternation",
+        "idx": 0,
+        "definition": [
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "NonTerminal",
+                "name": "binaryClause",
+                "idx": 0
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Rule",
+    "name": "portItemClause",
+    "orgText": "",
+    "definition": [
+      {
+        "type": "Alternation",
+        "idx": 0,
+        "definition": [
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "TCP_PORT",
+                "label": "TCP_PORT",
+                "idx": 0,
+                "pattern": "tcp\\.port"
+              }
+            ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "UDP_PORT",
+                "label": "UDP_PORT",
+                "idx": 0,
+                "pattern": "udp\\.port"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Rule",
+    "name": "ipItemClause",
+    "orgText": "",
+    "definition": [
+      {
+        "type": "Alternation",
+        "idx": 0,
+        "definition": [
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "IP_SRC",
+                "label": "IP_SRC",
+                "idx": 0,
+                "pattern": "ip\\.src"
+              }
+            ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "IP_DST",
+                "label": "IP_DST",
+                "idx": 0,
+                "pattern": "ip\\.dst"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Rule",
+    "name": "binaryClause",
+    "orgText": "",
+    "definition": [
+      {
+        "type": "Alternation",
+        "idx": 0,
+        "definition": [
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "NonTerminal",
+                "name": "portItemClause",
+                "idx": 0
+              },
+              {
+                "type": "NonTerminal",
+                "name": "binaryOperator",
+                "idx": 0
+              },
+              {
+                "type": "Terminal",
+                "name": "PORT",
+                "label": "PORT",
+                "idx": 0,
+                "pattern": "(?:0|[1-9]\\d*)"
+              }
+            ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "NonTerminal",
+                "name": "ipItemClause",
+                "idx": 0
+              },
+              {
+                "type": "NonTerminal",
+                "name": "binaryOperator",
+                "idx": 1
+              },
+              {
+                "type": "Terminal",
+                "name": "IPV4",
+                "label": "IPV4",
+                "idx": 0,
+                "pattern": "([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\\.([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\\.([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\\.([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Rule",
+    "name": "binaryOperator",
+    "orgText": "",
+    "definition": [
+      {
+        "type": "Alternation",
+        "idx": 0,
+        "definition": [
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "EQUAL",
+                "label": "eq",
+                "idx": 0,
+                "pattern": "eq"
+              }
+            ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "NOT_EQUAL",
+                "label": "ne",
+                "idx": 0,
+                "pattern": "ne"
+              }
+            ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "EQUAL_SMB",
+                "label": "eq_smb",
+                "idx": 0,
+                "pattern": "=="
+              }
+            ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "NOT_EQUAL_SMB",
+                "label": "ne_smb",
+                "idx": 0,
+                "pattern": "!="
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+];
+</script>
+
+<script>
+    var diagramsDiv = document.getElementById("diagrams");
+    main.drawDiagramsFromSerializedGrammar(serializedGrammar, diagramsDiv);
+</script>

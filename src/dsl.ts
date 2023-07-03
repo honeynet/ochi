@@ -6,6 +6,7 @@ import {
     EMPTY_ALT,
     ILexingError,
     IRecognitionException,
+    createSyntaxDiagramsCode,
 } from 'chevrotain';
 import type { QueryCstNode } from './generated/chevrotain_dts';
 
@@ -189,6 +190,9 @@ export interface ParseResult {
 
 export const productions: Record<string, Rule> = parser.getGAstProductions();
 
+// create the HTML Text
+export const serializedGrammar = parser.getSerializedGastProductions();
+
 export function parseDSL(text: string): ParseResult {
     const lexResult = queryLexer.tokenize(text);
 
@@ -202,6 +206,7 @@ export function parseDSL(text: string): ParseResult {
     parser.input = lexResult.tokens;
     // any top level rule may be used as an entry point
     const cst = parser.query();
+    console.log(`the cst is ${JSON.stringify(cst)}`);
 
     return {
         // This is a pure grammar, the value will be undefined until we add embedded actions
