@@ -8,7 +8,7 @@
     let filterValid: boolean = false;
     let focus: boolean = false;
 
-    function handleFocus(): () => void {
+    function handleFocus() {
         focus = true;
     }
 
