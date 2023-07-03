@@ -36,6 +36,10 @@
         filter = '';
     }
 
+    function resetWidth() {
+        focus = false;
+    }
+
     function applyFilter() {
         console.log(`Going to parse ${filter}`);
         if (filter == '') {
@@ -64,7 +68,7 @@
         placeholder="Filter destination port"
         on:input={filterChangeHandler()}
         on:focus={handleFocus}
-        on:blur={resetQuery}
+        on:blur={resetWidth}
     />
     <Button disabled={!filterValid} onClick={applyFilter} text="Apply" />
     {#if focus}
