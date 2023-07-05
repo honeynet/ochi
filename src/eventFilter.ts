@@ -58,11 +58,9 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
             throw new Error('Unexpected missing portItemClause');
         }
     } else if (children.searchClause) {
-        let payloadString = children.searchClause[0].children.STRING[0].image.toLowerCase();
+        let payloadString = children.searchClause[0].children.STRING[0].image;
         let trimmedString = payloadString.substring(1, payloadString.length - 1);
-
-        console.log(payloadString.length);
-        return event.payload.toLowerCase().includes(trimmedString);
+        return atob(event.payload).includes(trimmedString);
     } else {
         throw new Error('Unexpected booleanClauseCstNode');
     }
