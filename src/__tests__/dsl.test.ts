@@ -52,4 +52,10 @@ describe('parseDSL', () => {
         expect(sx.lexErrors).toHaveLength(0);
         expect(sx.parseErrors.length).toBeGreaterThanOrEqual(1);
     });
+
+    test('parsing payload', () => {
+        let sx = parseDSL('payload contains "something"');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+    });
 });
