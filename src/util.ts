@@ -26,7 +26,7 @@ const ports = [80, 443, 22, 8080, 65345];
 const handlers = ['http', 'rdp', '', null];
 
 /**
- * Generates a random event used for UI testing.
+ * Generates a random event used for UI testing
  * @returns test event
  */
 export function generateRandomTestEvent(): Event {
@@ -42,5 +42,31 @@ export function generateRandomTestEvent(): Event {
         timestamp: now().toString(),
         payload: 'dGVzdA==', // test,
         decoded: { test: 123 },
+    };
+}
+
+/**
+ * Generates an event used for testing
+ * @returns test event
+ */
+export function generateTestEvent(
+    dport: number,
+    sport?: string,
+    sip?: string,
+    payload?: string,
+    rule: string = 'Rule: TCP',
+): Event {
+    return {
+        handler: handlers[Math.floor(Math.random() * handlers.length)],
+        connKey: [2, 2],
+        dstPort: dport,
+        rule: rule,
+        scanner: 'censys',
+        sensorID: 'sensorID',
+        srcHost: sip,
+        srcPort: sport,
+        timestamp: now().toString(),
+        payload: payload,
+        decoded: { paload: 'test' },
     };
 }
