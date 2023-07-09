@@ -5,7 +5,7 @@ initial query
 
 ```
 query
-   : booleanClause booleanSuffixClause || "NOT" query
+   : booleanClause booleanSuffixClause || "NOT" booleanClause booleanSuffixClause
 
 searchclause
    : payload searchOperator string

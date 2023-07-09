@@ -40,6 +40,7 @@ function generateRandomString(length: number): string {
  * @returns test event
  */
 export function generateRandomTestEvent(): Event {
+    let payload = `test ${generateRandomString(10 + Math.floor(Math.random() * 100))}`;
     return {
         handler: handlers[Math.floor(Math.random() * handlers.length)],
         connKey: [2, 2],
@@ -50,8 +51,8 @@ export function generateRandomTestEvent(): Event {
         srcHost: '1.1.1.1',
         srcPort: '4321',
         timestamp: now().toString(),
-        payload: btoa(`test ${generateRandomString(10 + Math.floor(Math.random() * 100))}`),
-        decoded: { test: 123 },
+        payload: Buffer.from(payload).toString('base64'),
+        decoded: { payload: payload },
     };
 }
 
@@ -77,6 +78,6 @@ export function generateTestEvent(
         srcPort: sport,
         timestamp: now().toString(),
         payload: payload,
-        decoded: { paload: 'test' },
+        decoded: { payload: 'test' },
     };
 }

@@ -12,7 +12,6 @@ export type QueryCstChildren = {
     booleanClause?: BooleanClauseCstNode[];
     booleanSuffixClause?: BooleanSuffixClauseCstNode[];
     NOT?: IToken[];
-    query?: QueryCstNode[];
 };
 
 export interface BooleanSuffixClauseCstNode extends CstNode {
