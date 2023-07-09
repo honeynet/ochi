@@ -24,7 +24,17 @@ export function debounce<T extends (...args: any[]) => void>(callback: T, delay:
 
 const ports = [80, 443, 22, 8080, 65345];
 const handlers = ['http', 'rdp', '', null];
-
+function generateRandomString(length: number): string {
+    let result = '';
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const charactersLength = characters.length;
+    let counter = 0;
+    while (counter < length) {
+        result += characters.charAt(Math.floor(Math.random() * charactersLength));
+        counter += 1;
+    }
+    return result;
+}
 /**
  * Generates a random event used for UI testing.
  * @returns test event
@@ -40,7 +50,7 @@ export function generateRandomTestEvent(): Event {
         srcHost: '1.1.1.1',
         srcPort: '4321',
         timestamp: now().toString(),
-        payload: 'dGVzdA==', // test,
+        payload: btoa(`test ${generateRandomString(10 + Math.floor(Math.random() * 100))}`),
         decoded: { test: 123 },
     };
 }
