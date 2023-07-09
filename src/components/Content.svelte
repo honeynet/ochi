@@ -41,7 +41,7 @@
             Scanner: {$currentEvent.scanner}<br /><br />
         {/if}
         {#if $currentEvent.payload}
-            Payload:<br />
+            Payload:
             <div class="pre">
                 {#each renderResults as renderResult}
                     <div class={renderResult.name}>
@@ -74,6 +74,8 @@
         justify-content: flex-start;
         gap: 20px;
         font-family: monospace;
+        padding-top: 15px;
+        padding-bottom: 15px;
     }
 
     .addressStr {
