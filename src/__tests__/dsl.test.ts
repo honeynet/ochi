@@ -98,6 +98,6 @@ describe('parseDSL', () => {
         let payload = Buffer.from('something').toString('base64');
         expect(
             filterEvent(generateTestEvent(445, '123', '192.168.1.1', payload), sx.cst),
-        ).toBeTruthy();
+        ).toBeFalsy();
     });
 });

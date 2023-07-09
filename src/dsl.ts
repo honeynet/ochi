@@ -95,7 +95,8 @@ class QueryParser extends CstParser {
             {
                 ALT: () => {
                     this.CONSUME(not);
-                    this.SUBRULE(this.query);
+                    this.SUBRULE1(this.booleanClause);
+                    this.SUBRULE1(this.booleanSuffixClause);
                 },
             },
         ]);
