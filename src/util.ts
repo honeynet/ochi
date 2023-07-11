@@ -36,7 +36,7 @@ function generateRandomString(length: number): string {
     return result;
 }
 /**
- * Generates a random event used for UI testing.
+ * Generates a random event used for UI testing
  * @returns test event
  */
 export function generateRandomTestEvent(): Event {
@@ -52,5 +52,31 @@ export function generateRandomTestEvent(): Event {
         timestamp: now().toString(),
         payload: btoa(`test ${generateRandomString(10 + Math.floor(Math.random() * 100))}`),
         decoded: { test: 123 },
+    };
+}
+
+/**
+ * Generates an event used for testing
+ * @returns test event
+ */
+export function generateTestEvent(
+    dport: number,
+    sport?: string,
+    sip?: string,
+    payload?: string,
+    rule: string = 'Rule: TCP',
+): Event {
+    return {
+        handler: handlers[Math.floor(Math.random() * handlers.length)],
+        connKey: [2, 2],
+        dstPort: dport,
+        rule: rule,
+        scanner: 'censys',
+        sensorID: 'sensorID',
+        srcHost: sip,
+        srcPort: sport,
+        timestamp: now().toString(),
+        payload: payload,
+        decoded: { paload: 'test' },
     };
 }
