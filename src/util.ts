@@ -51,7 +51,7 @@ export function generateRandomTestEvent(): Event {
         srcHost: '1.1.1.1',
         srcPort: '4321',
         timestamp: now().toString(),
-        payload: Buffer.from(payload).toString('base64'),
+        payload: btoa(payload),
         decoded: { payload: payload },
     };
 }
