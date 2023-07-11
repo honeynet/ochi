@@ -10,15 +10,15 @@
         let plainStr = '';
         resultLines.forEach((item, idx) => {
             if (item) {
-                addressStr += (idx > 0 ? '\n' : '') + item.substring(0, item.indexOf(':') + 1);
+                addressStr += (idx > 0 ? '\n' : '') + item.substring(0, item.indexOf(':'));
                 hexStr += (idx > 0 ? '\n' : '') + item.substring(item.indexOf(':') + 2, 51);
                 plainStr += (idx > 0 ? '\n' : '') + item.substring(51);
             }
         });
         return [
-            { name: 'addressStr', content: addressStr },
-            { name: 'hexStr', content: hexStr },
-            { name: 'plainStr', content: plainStr },
+            { name: 'addressStr', content: addressStr.split('\n') },
+            { name: 'hexStr', content: hexStr.split('\n') },
+            { name: 'plainStr', content: plainStr.split('\n') },
         ];
     }
 
@@ -45,7 +45,9 @@
             <div class="pre">
                 {#each renderResults as renderResult}
                     <div class={renderResult.name}>
-                        {renderResult.content}
+                        {#each renderResult.content as content, i}
+                            <div class={i % 2 == 0 ? 'even' : 'odd'}>{content}</div>
+                        {/each}
                     </div>
                 {/each}
             </div>
@@ -70,15 +72,19 @@
 
     .pre {
         display: flex;
-        white-space: pre;
         justify-content: flex-start;
         gap: 20px;
+        min-width: 535px;
         font-family: monospace;
         padding-top: 15px;
         padding-bottom: 15px;
     }
 
-    .addressStr {
-        width: 70px;
+    .even {
+        background-color: #fafafa;
+    }
+
+    .odd {
+        background-color: #d3d3d3;
     }
 </style>
