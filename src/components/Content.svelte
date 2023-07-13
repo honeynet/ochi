@@ -23,7 +23,7 @@
     }
 
     let renderResults;
-    $: if ($currentEvent) {
+    $: if ($currentEvent && $currentEvent.payload) {
         renderResults = render($currentEvent.payload);
     }
 </script>
