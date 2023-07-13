@@ -2,27 +2,49 @@ import type {
     QueryCstNode,
     BooleanClauseCstNode,
     BinaryOperatorCstChildren,
+    BooleanSuffixClauseCstNode,
 } from './generated/chevrotain_dts';
 import type { Event } from './event';
 
 export function filterEvent(event: Event, cst: QueryCstNode): boolean {
     let children = cst.children;
-    if (children.booleanClause) {
-        let booleanResult = filterByBooleanClause(event, children.booleanClause[0]);
-
-        let booleanSuffixClauseC = children.booleanSuffixClause[0].children;
-
-        if (booleanSuffixClauseC.AND) {
-            return booleanResult && filterEvent(event, booleanSuffixClauseC.query[0]);
-        } else if (booleanSuffixClauseC.OR) {
-            return booleanResult || filterEvent(event, booleanSuffixClauseC.query[0]);
-        } else {
-            return booleanResult;
-        }
-    } else if (children.NOT) {
-        return !filterEvent(event, cst.children.query[0]);
+    if (children.NOT) {
+        return filterByBooleanClauseWithSuffix(
+            event,
+            children.booleanClause[0],
+            children.booleanSuffixClause[0],
+            true,
+        );
+    } else if (children.booleanClause) {
+        return filterByBooleanClauseWithSuffix(
+            event,
+            children.booleanClause[0],
+            children.booleanSuffixClause[0],
+        );
     } else {
         throw new Error('Unexpected node at query');
+    }
+}
+
+function filterByBooleanClauseWithSuffix(
+    event: Event,
+    booleanClause: BooleanClauseCstNode,
+    suffix: BooleanSuffixClauseCstNode,
+    negate: boolean = false,
+): boolean {
+    let booleanResult = filterByBooleanClause(event, booleanClause);
+    if (negate) {
+        booleanResult = !booleanResult;
+    }
+
+    let booleanSuffixClauseC = suffix.children;
+
+    if (booleanSuffixClauseC.AND) {
+        return booleanResult && filterEvent(event, booleanSuffixClauseC.query[0]);
+    } else if (booleanSuffixClauseC.OR) {
+        return booleanResult || filterEvent(event, booleanSuffixClauseC.query[0]);
+    } else {
+        return booleanResult;
     }
 }
 
