@@ -16,7 +16,7 @@
 </script>
 
 <p on:click={click} bind:this={element}>
-    {message.srcHost}:{message.srcPort} -> {message.dstPort}:
+    {message.sensorID.split('-')[0]} | {message.srcHost}:{message.srcPort} -> {message.dstPort}:
     {#if message.handler}{message.handler}{:else}{message.rule}{/if}
     {#if message.scanner}"{message.scanner}"{/if}
     {#if message.payload}: <u>Payload</u>{/if}
@@ -25,5 +25,6 @@
 <style>
     p {
         margin: 5px 0 0 0;
+        font-family: monospace;
     }
 </style>

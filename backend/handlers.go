@@ -44,7 +44,7 @@ type response struct {
 	Token string        `json:"token,omitempty"`
 }
 
-// sessionHandler ...
+// sessionHandler creates a new token for the user
 func (cs *server) sessionHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	userID := r.Context().Value(userID("userID")).(string)
 	user, err := cs.uRepo.Get(userID)
@@ -66,7 +66,7 @@ func (cs *server) sessionHandler(w http.ResponseWriter, r *http.Request, _ httpr
 	}
 }
 
-// loginHandler ...
+// loginHandler validates a token with Google
 func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	body := http.MaxBytesReader(w, r.Body, 8192)
 	data, err := io.ReadAll(body)

@@ -43,7 +43,7 @@ function silence(warning, warn) {
 }
 
 export default {
-	input: 'src/main.ts',
+	input: 'frontend/main.ts',
 	output: {
 		sourcemap: !production,
 		format: 'iife',
