@@ -8,7 +8,7 @@ import (
 	"github.com/honeynet/ochi/backend"
 )
 
-//go:embed public
+//go:embed public/*
 var public embed.FS
 
 func main() {
@@ -16,7 +16,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	srv := backend.NewServer(content)
+
+	srv, err := backend.NewServer(content)
+	if err != nil {
+		log.Fatal(err)
+	}
 	if err := srv.Run(); err != nil {
 		log.Fatal(err)
 	}

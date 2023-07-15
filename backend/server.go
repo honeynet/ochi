@@ -49,7 +49,7 @@ type server struct {
 }
 
 // NewServer constructs a server with the defaults.
-func NewServer(fsys fs.FS) *server {
+func NewServer(fsys fs.FS) (*server, error) {
 	cs := &server{
 		subscriberMessageBuffer: 16,
 		subscribers:             make(map[*subscriber]struct{}),
@@ -73,9 +73,12 @@ func NewServer(fsys fs.FS) *server {
 		log.Fatal(err)
 	}
 
-	cs.mux = newRouter(cs)
+	cs.mux, err = newRouter(cs)
+	if err != nil {
+		return nil, err
+	}
 
-	return cs
+	return cs, nil
 }
 
 func (cs *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

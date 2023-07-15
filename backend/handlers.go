@@ -15,9 +15,22 @@ import (
 func (cs *server) indexHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	fh, err := cs.fs.Open("index.html")
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if _, err := io.Copy(w, fh); err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+}
+
+func (cs *server) cssHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	fh, err := cs.fs.Open("global.css")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Add("Content-Type", "text/css")
 	if _, err := io.Copy(w, fh); err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
