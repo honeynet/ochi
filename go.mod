@@ -6,6 +6,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.4.1
 	github.com/google/uuid v1.3.0
 	github.com/jmoiron/sqlx v1.3.5
+	github.com/julienschmidt/httprouter v1.3.0
 	github.com/mattn/go-sqlite3 v1.14.13
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/time v0.0.0-20220411224347-583f2d630306

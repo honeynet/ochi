@@ -1,11 +1,11 @@
-import { productions, serializedGrammar } from '../src/dsl';
+import { productions, serializedGrammar } from '../frontend/dsl';
 import { generateCstDts, createSyntaxDiagramsCode } from 'chevrotain';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import process from 'node:process';
 
 function generateChevrotainDts(): void {
-    const generatedFile = path.resolve(__dirname, '../src/generated/chevrotain_dts.ts');
+    const generatedFile = path.resolve(__dirname, '../frontend/generated/chevrotain_dts.ts');
     console.log(`Will generate the file ${generatedFile}`);
 
     const content =

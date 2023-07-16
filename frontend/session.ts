@@ -8,8 +8,8 @@ token.subscribe((value) => {
 export async function validate() {
     if (jwt !== '') {
         const res = await fetch('/session', {
-            method: 'POST',
-            body: jwt,
+            method: 'GET',
+            headers: { Authentication: `Bearer ${jwt}` },
         });
 
         if (res.ok) {
