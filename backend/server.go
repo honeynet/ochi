@@ -40,7 +40,8 @@ type server struct {
 	subscribers   map[*subscriber]struct{}
 
 	// the repositories
-	uRepo *repos.UserRepo
+	uRepo     *repos.UserRepo
+	queryRepo *repos.QueryRepo
 
 	// http client
 	httpClient *http.Client
@@ -69,6 +70,11 @@ func NewServer(fsys fs.FS) (*server, error) {
 	}
 
 	cs.uRepo, err = repos.NewUserRepo(db)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	cs.queryRepo, err = repos.NewQueryRepo(db)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -25,7 +25,7 @@ type userID string
 
 func bearerMiddleware(h httprouter.Handle, secret string) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		authHeader := r.Header.Get("Authentication")
+		authHeader := r.Header.Get("Authorization")
 		authFields := strings.Fields(authHeader)
 		if len(authFields) != 2 || strings.ToLower(authFields[0]) != "bearer" {
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)

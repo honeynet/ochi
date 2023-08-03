@@ -12,6 +12,9 @@ isAuthenticated.subscribe((value) => {
 export const user = writable({});
 export const maxNumberOfMessages = writable(50);
 
+export const stringFilter: Writable<string> = writable('');
+export const filterActive: Writable<boolean> = writable(false);
+
 export const env: Writable<String> = writable(ENV_DEV);
 export const parsedFilter: Writable<QueryCstNode | undefined> = writable(undefined);
 export const currentEvent: Writable<Event | undefined> = writable(undefined);

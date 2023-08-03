@@ -1,6 +1,7 @@
 <script lang="ts">
     import { login } from '../session';
     import 'google.accounts';
+    import { API_ENDPOINT } from '../constants';
 
     function button() {
         google.accounts.id.renderButton(document.getElementById('googleButton'), {
@@ -10,7 +11,7 @@
     }
 
     async function sendCredentials(data: google.accounts.id.CredentialResponse) {
-        const res = await fetch('/login', {
+        const res = await fetch(`${API_ENDPOINT}/login`, {
             method: 'POST',
             body: data.credential,
         });

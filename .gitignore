@@ -25,3 +25,6 @@ server
 
 # Databases
 data.db
+
+# Routify generated files
+/.routify/

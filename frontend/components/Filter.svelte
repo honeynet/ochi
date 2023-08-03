@@ -1,16 +1,17 @@
 <script lang="ts">
     import Button from './Button.svelte';
+    import QueryModal from './QueryModal.svelte';
     import { parseDSL } from '../dsl';
     import { debounce } from '../util';
-    import { parsedFilter } from '../store';
+    import { parsedFilter, stringFilter, filterActive, isAuthenticated } from '../store';
 
     let filter: string = '';
     let filterValid: boolean = false;
+    let saveModal: QueryModal;
 
     function filterChangeHandler(): () => void {
         return debounce(() => {
             // TODO: validate queries as user types them.
-            console.log('filter is changing');
             if (filter == '') {
                 filterValid = true;
                 return;
@@ -28,7 +29,9 @@
 
     function applyFilter() {
         console.log(`Going to parse ${filter}`);
+        stringFilter.set(filter);
         if (filter == '') {
+            filterActive.set(false);
             parsedFilter.set(undefined);
             return;
         }
@@ -36,13 +39,20 @@
         let parseResult = parseDSL(filter);
         if (parseResult.lexErrors.length > 0) {
             console.error(parseResult.lexErrors);
+            filterActive.set(false);
             return;
         }
         if (parseResult.parseErrors.length > 0) {
             console.error(parseResult.parseErrors);
+            filterActive.set(false);
             return;
         }
         parsedFilter.set(parseResult.cst);
+        filterActive.set(true);
+    }
+
+    function openSaveQuery() {
+        saveModal.showModal(filter);
     }
 </script>
 
@@ -54,6 +64,9 @@
         on:input={filterChangeHandler()}
     />
     <Button disabled={!filterValid} onClick={applyFilter} text="Apply" />
+    {#if $isAuthenticated}<QueryModal bind:this={saveModal} />
+        <Button onClick={openSaveQuery} text="Save" />
+    {/if}
 </section>
 
 <style>
