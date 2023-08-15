@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/honeynet/ochi/backend/entities"
+
 	"github.com/julienschmidt/httprouter"
 	"google.golang.org/api/idtoken"
 )
@@ -123,4 +124,100 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request, _ httprou
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+// query handlers
+
+// getQueriesHandler returns a list of queries belonging to ther user.
+func (cs *server) getQueriesHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	userID := r.Context().Value(userID("userID")).(string)
+	queries, err := cs.queryRepo.FindByOwnerId(userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err = json.NewEncoder(w).Encode(queries); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// createQueryHandler creates a new query.
+func (cs *server) createQueryHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	userID := r.Context().Value(userID("userID")).(string)
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+	var t entities.Query
+	err := decoder.Decode(&t)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	query, err := cs.queryRepo.Create(userID, t.Content, t.Description, t.Active)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err = json.NewEncoder(w).Encode(query); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// udpateQueryHandler updates an existing query making sure the user owns the query.
+func (cs *server) updateQueryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	userID := r.Context().Value(userID("userID")).(string)
+	id := p.ByName("id")
+	q, err := cs.queryRepo.GetByID(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if userID != q.OwnerID {
+		http.Error(w, "Unauthorized", http.StatusInternalServerError)
+		return
+	}
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+	var t entities.Query
+	err = decoder.Decode(&t)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if id != t.ID {
+		http.Error(w, "Ids dont match", http.StatusBadRequest)
+		return
+	}
+	err = cs.queryRepo.Update(t.ID, t.Content, t.Description, t.Active)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// deleteQueryHandler deletes a query making sure the user owns the query.
+func (cs *server) deleteQueryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	userID := r.Context().Value(userID("userID")).(string)
+	id := p.ByName("id")
+	q, err := cs.queryRepo.GetByID(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if userID != q.OwnerID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	err = cs.queryRepo.Delete(id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }

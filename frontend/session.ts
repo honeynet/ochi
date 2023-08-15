@@ -1,5 +1,7 @@
 import { isAuthenticated, user, token } from './store';
 
+import { API_ENDPOINT } from './constants';
+
 let jwt: string;
 token.subscribe((value) => {
     jwt = value;
@@ -7,9 +9,9 @@ token.subscribe((value) => {
 
 export async function validate() {
     if (jwt !== '') {
-        const res = await fetch('/session', {
+        const res = await fetch(`${API_ENDPOINT}/session`, {
             method: 'GET',
-            headers: { Authentication: `Bearer ${jwt}` },
+            headers: { Authorization: `Bearer ${jwt}` },
         });
 
         if (res.ok) {

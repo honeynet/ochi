@@ -8,5 +8,6 @@
     #logoutButton {
         float: right;
         margin-left: 0.5em;
+        margin: 0;
     }
 </style>

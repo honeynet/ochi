@@ -1,4 +1,4 @@
-<script>
+<script lang="ts">
     import { debounce } from '../util';
     import { maxNumberOfMessages, env } from '../store';
 

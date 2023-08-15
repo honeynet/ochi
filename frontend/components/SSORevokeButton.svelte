@@ -24,5 +24,6 @@
 <style>
     #revokeButton {
         float: right;
+        margin: 0;
     }
 </style>
