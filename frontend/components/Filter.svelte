@@ -52,7 +52,9 @@
     }
 
     function openSaveQuery() {
-        saveModal.showModal(filter);
+        saveModal.showModal({
+            content: filter,
+        });
     }
 </script>
 

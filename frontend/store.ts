@@ -1,6 +1,7 @@
 import { writable, Writable } from 'svelte/store';
 import type { QueryCstNode } from './generated/chevrotain_dts';
 import type { Event } from './event';
+import type { Query } from './query';
 import { ENV_DEV } from './constants';
 
 const storedIsAuthenticated = localStorage.getItem('isAuthenticated');
@@ -11,6 +12,8 @@ isAuthenticated.subscribe((value) => {
 
 export const user = writable({});
 export const maxNumberOfMessages = writable(50);
+
+export const userQueries: Writable<Query[]> = writable([]);
 
 export const stringFilter: Writable<string> = writable('');
 export const filterActive: Writable<boolean> = writable(false);

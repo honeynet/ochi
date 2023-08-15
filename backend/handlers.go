@@ -183,17 +183,16 @@ func (cs *server) updateQueryHandler(w http.ResponseWriter, r *http.Request, p h
 	}
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
-	var t entities.Query
-	err = decoder.Decode(&t)
+	err = decoder.Decode(&q)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if id != t.ID {
+	if id != q.ID {
 		http.Error(w, "Ids dont match", http.StatusBadRequest)
 		return
 	}
-	err = cs.queryRepo.Update(t.ID, t.Content, t.Description, t.Active)
+	err = cs.queryRepo.Update(q.ID, q.Content, q.Description, q.Active)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

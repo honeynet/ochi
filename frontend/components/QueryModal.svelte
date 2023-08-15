@@ -1,20 +1,16 @@
 <script lang="ts">
-    import { debounce } from '../util';
-    import { filterActive, token } from '../store';
-    import { escape } from 'svelte/internal';
+    import { token, userQueries } from '../store';
     import { API_ENDPOINT } from '../constants';
+    import { Query, createQuery, getQueries, updateQuery } from '../query';
 
     let dialog;
-    let currentFilter: string;
-    let currentDescription: string;
-    let currentActive: boolean;
+    let queryToEdit: Query = {};
 
-    export function showModal(filter: string) {
+    export function showModal(objectToEdit: Query) {
         if (!dialog.open) {
             dialog.showModal();
         }
-        currentFilter = filter;
-        currentActive = $filterActive;
+        queryToEdit = objectToEdit;
     }
 
     function closeModal() {
@@ -23,57 +19,71 @@
         }
     }
 
-    function handleInputChange() {}
-
-    async function saveQuery() {
+    async function saveQueryAndReload() {
         console.log('saving query');
-        const res = await fetch(`${API_ENDPOINT}/queries`, {
-            method: 'POST',
-            headers: {
-                Authorization: `Bearer ${$token}`,
-                'Content-Type': 'application/json',
+        await createQuery(
+            {
+                content: queryToEdit.content,
+                description: queryToEdit.description,
+                active: queryToEdit.active,
             },
-            body: JSON.stringify({
-                content: currentFilter,
-                description: currentDescription,
-                active: currentActive,
-            }),
-        });
+            $token,
+        );
+        await reloadQueries();
+    }
 
-        if (res.ok) {
-            console.log('received success ' + res.text());
-        } else {
-            console.log('failed to save ' + res.text());
-        }
+    async function reloadQueries() {
+        $userQueries = await getQueries($token);
+    }
+
+    async function updateQueryAndReload() {
+        await updateQuery(
+            {
+                id: queryToEdit.id,
+                content: queryToEdit.content,
+                description: queryToEdit.description,
+                active: queryToEdit.active,
+            },
+            $token,
+        );
+        queryToEdit = {};
+        await reloadQueries();
     }
 
     async function confirmAndCloseModal() {
         console.log('closing modal');
-        await saveQuery();
+        await saveQueryAndReload();
+        closeModal();
+    }
+
+    async function updateAndCloseModal() {
+        await updateQueryAndReload();
         closeModal();
     }
 </script>
 
 <dialog bind:this={dialog}>
-    <div on:click|stopPropagation>
-        <p>Content</p>
-        <input id="messages-input-box" type="text" bind:value={currentFilter} />
-        <p>Description</p>
-        <input id="messages-input-box" type="text" bind:value={currentDescription} />
-        <p>Active</p>
-        <input id="messages-input-box" type="checkbox" bind:checked={currentActive} />
-        <!-- <p>Model</p>
-        <label>
-            <input type="radio" bind:group={$env} name="currentEnv" id="dev" value="dev" />
-            Development
+    <form on:click|stopPropagation class="queryModal__form">
+        <label
+            >Content
+            <input id="messages-input-box" type="text" bind:value={queryToEdit.content} />
         </label>
-        <label>
-            <input type="radio" bind:group={$env} name="currentEnv" id="prod" value="prod" />
-            Production
-        </label> -->
-        <button on:click={confirmAndCloseModal}>Confirm</button>
-        <button on:click={closeModal}>Cancel</button>
-    </div>
+        <label
+            >Description
+            <input id="messages-input-box" type="text" bind:value={queryToEdit.description} />
+        </label>
+        <label
+            >Active
+            <input id="messages-input-box" type="checkbox" bind:checked={queryToEdit.active} />
+        </label>
+        {#if queryToEdit && queryToEdit.id}
+            <button type="button" on:click={updateAndCloseModal}>Update</button>
+        {:else}
+            <button type="button" on:click={confirmAndCloseModal}>Confirm</button>
+        {/if}
+
+        <button type="button" on:click={closeModal}>Cancel</button>
+    </form>
 </dialog>
 
 <style>
@@ -86,7 +96,7 @@
     dialog::backdrop {
         background: rgba(0, 0, 0, 0.3);
     }
-    dialog > div {
+    dialog > form {
         padding: 1em;
     }
     dialog[open] {
@@ -103,5 +113,9 @@
     .error-state {
         border: 2px red solid;
         outline: none;
+    }
+
+    .queryModal__form {
+        margin: 20px 20px;
     }
 </style>
