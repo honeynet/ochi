@@ -42,6 +42,7 @@ type server struct {
 	// the repositories
 	uRepo     *repos.UserRepo
 	queryRepo *repos.QueryRepo
+	eventRepo *repos.EventRepo
 
 	// http client
 	httpClient *http.Client
@@ -75,6 +76,11 @@ func NewServer(fsys fs.FS) (*server, error) {
 	}
 
 	cs.queryRepo, err = repos.NewQueryRepo(db)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	cs.eventRepo, err = repos.NewEventRepo(db)
 	if err != nil {
 		log.Fatal(err)
 	}
