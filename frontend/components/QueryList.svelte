@@ -1,7 +1,8 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { token, userQueries } from '../store';
-    import { Query, deleteQuery, getQueries, updateQuery } from '../query';
+    import { token, userQueries, stringFilter, activeFilterId } from '../store';
+    import { Query, deleteQuery, getQueries } from '../query';
+    import { parseDSL } from '../dsl';
     import QueryModal from './QueryModal.svelte';
 
     let saveModal: QueryModal;
@@ -20,17 +21,18 @@
         await reloadQueries();
     }
 
-    async function toggleActive(query: Query) {
-        console.log('toggling active in query', query);
+    async function activate(query: Query) {
+        console.log('activating query', query);
 
-        await updateQuery(
-            {
-                id: query.id,
-                active: !query.active,
-            },
-            $token,
-        );
-        await reloadQueries();
+        stringFilter.set(query.content);
+        activeFilterId.set(query.id);
+    }
+
+    async function deactivate(query: Query) {
+        console.log('deactivating query', query);
+
+        activeFilterId.set('');
+        stringFilter.set('');
     }
 </script>
 
@@ -46,7 +48,7 @@
                         {#if query.description}{query.description}{/if}
                     </p>
                     <p class="queryList__info-field queryList__active">
-                        {#if query.active}active{:else}inactive{/if}
+                        {#if query.id == $activeFilterId}active{:else}inactive{/if}
                     </p>
                 </div>
             </div>
@@ -54,7 +56,11 @@
                 <QueryModal bind:this={saveModal} />
                 <button on:click={() => saveModal.showModal(query)}>edit</button>
                 <button on:click={() => deleteQueryAndReload(query.id)}>Delete</button>
-                <button on:click={() => toggleActive(query)}>Toggle</button>
+                {#if $activeFilterId != query.id}
+                    <button on:click={() => activate(query)}>Activate</button>
+                {:else}
+                    <button on:click={() => deactivate(query)}>Deactivate</button>
+                {/if}
             </div>
         </li>
     {/each}

@@ -72,10 +72,10 @@
             >Description
             <input id="messages-input-box" type="text" bind:value={queryToEdit.description} />
         </label>
-        <label
+        <!-- <label
             >Active
             <input id="messages-input-box" type="checkbox" bind:checked={queryToEdit.active} />
-        </label>
+        </label> -->
         {#if queryToEdit && queryToEdit.id}
             <button type="button" on:click={updateAndCloseModal}>Update</button>
         {:else}

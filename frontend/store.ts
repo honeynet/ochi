@@ -15,12 +15,29 @@ export const maxNumberOfMessages = writable(50);
 
 export const userQueries: Writable<Query[]> = writable([]);
 
-export const stringFilter: Writable<string> = writable('');
+const storedStringFilter = localStorage.getItem('stringFilter');
+export const stringFilter: Writable<string> = writable(storedStringFilter || '');
+stringFilter.subscribe((value) => {
+    if (!value) {
+        localStorage.removeItem('stringFilter');
+    } else {
+        localStorage.setItem('stringFilter', value);
+    }
+});
+
 export const filterActive: Writable<boolean> = writable(false);
 
 export const env: Writable<String> = writable(ENV_DEV);
 export const parsedFilter: Writable<QueryCstNode | undefined> = writable(undefined);
 export const currentEvent: Writable<Event | undefined> = writable(undefined);
+
+const storedActiveFilterId = localStorage.getItem('activeFilterId');
+export const activeFilterId: Writable<string | undefined> = writable(
+    storedActiveFilterId || undefined,
+);
+activeFilterId.subscribe((value) => {
+    localStorage.setItem('activeFilterId', value);
+});
 
 const storedToken = localStorage.getItem('token');
 export const token = writable(storedToken);
