@@ -52,6 +52,7 @@
     "hexy": "^0.3.4",
     "optionator": "^0.9.3",
     "prettier-plugin-svelte": "^2.9.0",
+    "routify": "^2.0.1",
     "sirv-cli": "^2.0.0"
   },
   "routify": {
