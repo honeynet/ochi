@@ -7,6 +7,7 @@ import (
 	"github.com/honeynet/ochi/backend/entities"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/jmoiron/sqlx/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,16 +33,19 @@ func TestEvent(t *testing.T) {
 	require.Empty(t, u1)
 
 	event := entities.Event{
-		Payload:   "payload",
-		OwnerID:   MOCK_USER_ID,
+		OwnerID: MOCK_USER_ID,
+		Payload: "payload",
+		//ConnKey:   []int{1, 1},
+		DstPort:   443,
 		Rule:      "rule",
 		Handler:   "handler",
+		Transport: "tcp",
 		Scanner:   "scanner",
 		SensorID:  "sensorID",
 		SrcHost:   "srcHost",
 		SrcPort:   "srcPort",
 		Timestamp: "2023-08-18T23:04:17+00:00",
-		DstPort:   443,
+		Decoded:   types.JSONText(`{"foo": 1, "bar": 2}`),
 	}
 	event, err = r.Create(event)
 	require.NoError(t, err)
