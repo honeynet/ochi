@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/honeynet/ochi/backend/entities"
+
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
 )
@@ -30,21 +31,9 @@ func TestEvent(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, u1)
 
-	q, err := r.Create("payload", MOCK_USER_ID, "rule",
-		"handler", "scanner", "sensorID", "srcHost",
-		"srcPort", "2023-08-18T23:04:17+00:00", 443)
-	require.NoError(t, err)
-	require.NotEmpty(t, q.ID)
-
-	saved, err := r.FindByOwnerId(MOCK_USER_ID)
-	require.NoError(t, err)
-	require.Equal(t, len(saved), 1)
-
-	require.Equal(t, entities.Event{
-		ID:        saved[0].ID,
-		OwnerID:   MOCK_USER_ID,
+	event := entities.Event{
 		Payload:   "payload",
-		DstPort:   443,
+		OwnerID:   MOCK_USER_ID,
 		Rule:      "rule",
 		Handler:   "handler",
 		Scanner:   "scanner",
@@ -52,7 +41,17 @@ func TestEvent(t *testing.T) {
 		SrcHost:   "srcHost",
 		SrcPort:   "srcPort",
 		Timestamp: "2023-08-18T23:04:17+00:00",
-	}, saved[0])
+		DstPort:   443,
+	}
+	event, err = r.Create(event)
+	require.NoError(t, err)
+	require.NotEmpty(t, event.ID)
+
+	saved, err := r.FindByOwnerId(MOCK_USER_ID)
+	require.NoError(t, err)
+	require.Equal(t, len(saved), 1)
+
+	require.Equal(t, event, saved[0])
 
 	err = r.Delete("Not found")
 	require.Error(t, err)

@@ -131,6 +131,7 @@ func TestUpdateQuery_Existing(t *testing.T) {
 	require.NoError(t, err)
 
 	q1, err := r.GetByID(q.ID)
+	require.NoError(t, err)
 	require.Equal(t, "content-new", q1.Content)
 	require.Equal(t, "description-new", q1.Description)
 	require.Equal(t, false, q1.Active)

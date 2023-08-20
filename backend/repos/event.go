@@ -1,7 +1,6 @@
 package repos
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -27,25 +26,27 @@ func NewEventRepo(db *sqlx.DB) (*EventRepo, error) {
 	db.Mapper = reflectx.NewMapperFunc("json", strings.ToLower)
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS events (
 		id TEXT PRIMARY KEY NOT NULL
-		, payload TEXT NOT NULL
 		, ownerID TEXT NOT NULL
+		, payload TEXT NOT NULL
 		, dstPort INTEGER NOT NULL
-		, rule TEXT NOT NULL
-		, handler TEXT NOT NULL
-		, scanner TEXT NOT NULL
+		, rule TEXT
+		, handler TEXT
+		, transport TEXT NOT NULL
+		, scanner TEXT
 		, sensorID TEXT NOT NULL
 		, srcHost TEXT NOT NULL
 		, srcPort TEXT NOT NULL
 		, timestamp TEXT NOT NULL
+		, decoded JSON
 		, CONSTRAINT id_unique UNIQUE (id)
 	)`)
 	if err != nil {
 		return nil, err
 	}
 	r.createEvent, err = db.PrepareNamed(`INSERT INTO events
-			(id, ownerID, payload, dstPort, rule, handler, scanner, sensorID, srcHost, srcPort, timestamp)
+			(id, ownerID, payload, dstPort, rule, handler, transport, scanner, sensorID, srcHost, srcPort, timestamp, decoded)
 			VALUES
-			(:id, :ownerID, :payload, :dstPort, :rule, :handler, :scanner, :sensorID, :srcHost, :srcPort, :timestamp)`)
+			(:id, :ownerID, :payload, :dstPort, :rule, :handler, :transport, :scanner, :sensorID, :srcHost, :srcPort, :timestamp, :decoded)`)
 	if err != nil {
 		return nil, err
 	}
@@ -72,30 +73,17 @@ func (r *EventRepo) FindByOwnerId(ownerId string) ([]entities.Event, error) {
 }
 
 // Create creates a new event
-func (r *EventRepo) Create(payload, owner_id, rule, handler, scanner, sensorid, srchost, srcport, timestamp string, dstport int) (entities.Event, error) {
+func (r *EventRepo) Create(event entities.Event) (entities.Event, error) {
 	id, err := uuid.NewRandom()
-	ev := entities.Event{}
 	if err != nil {
-		return ev, err
+		return event, err
 	}
-	ev = entities.Event{
-		ID:        id.String(),
-		Payload:   payload,
-		OwnerID:   owner_id,
-		Rule:      rule,
-		Handler:   handler,
-		Scanner:   scanner,
-		SensorID:  sensorid,
-		SrcHost:   srchost,
-		SrcPort:   srcport,
-		Timestamp: timestamp,
-		DstPort:   dstport,
-	}
-	_, err = r.createEvent.Exec(&ev)
+	event.ID = id.String()
+	_, err = r.createEvent.Exec(event)
 	if err != nil {
-		return ev, err
+		return event, err
 	}
-	return ev, nil
+	return event, nil
 }
 
 // GetByID finds a single event by given ID
@@ -114,7 +102,7 @@ func (r *EventRepo) Delete(id string) error {
 	if cnt, err := res.RowsAffected(); err != nil {
 		return err
 	} else if cnt == 0 {
-		return errors.New(fmt.Sprintf("%s not found", id))
+		return fmt.Errorf("%s not found", id)
 	}
 	return nil
 }

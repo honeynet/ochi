@@ -229,24 +229,14 @@ func (cs *server) createEventHandler(w http.ResponseWriter, r *http.Request, _ h
 	userID := r.Context().Value(userID("userID")).(string)
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
-	var t entities.Event
-	err := decoder.Decode(&t)
-	if err != nil {
+	var event entities.Event
+	if err := decoder.Decode(&event); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	event, err := cs.eventRepo.Create(
-		t.Payload,
-		userID,
-		t.Rule,
-		t.Handler,
-		t.Scanner,
-		t.SensorID,
-		t.SrcHost,
-		t.SrcPort,
-		t.Timestamp,
-		t.DstPort,
-	)
+	event.OwnerID = userID
+	var err error
+	event, err = cs.eventRepo.Create(event)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

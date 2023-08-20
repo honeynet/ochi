@@ -1,7 +1,6 @@
 package repos
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -97,7 +96,7 @@ func (r *QueryRepo) Update(id, content, description string, active bool) error {
 	if cnt, err := res.RowsAffected(); err != nil {
 		return err
 	} else if cnt == 0 {
-		return errors.New(fmt.Sprintf("%s not found", id))
+		return fmt.Errorf("%s not found", id)
 	}
 	return nil
 }
@@ -118,7 +117,7 @@ func (r *QueryRepo) Delete(id string) error {
 	if cnt, err := res.RowsAffected(); err != nil {
 		return err
 	} else if cnt == 0 {
-		return errors.New(fmt.Sprintf("%s not found", id))
+		return fmt.Errorf("%s not found", id)
 	}
 	return nil
 }
