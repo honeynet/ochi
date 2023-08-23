@@ -174,7 +174,11 @@ func (cs *server) updateQueryHandler(w http.ResponseWriter, r *http.Request, p h
 	id := p.ByName("id")
 	q, err := cs.queryRepo.GetByID(id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		if isNotFoundError(err) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if userID != q.OwnerID {
@@ -207,9 +211,15 @@ func (cs *server) deleteQueryHandler(w http.ResponseWriter, r *http.Request, p h
 	id := p.ByName("id")
 	q, err := cs.queryRepo.GetByID(id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+
+		if isNotFoundError(err) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
 	if userID != q.OwnerID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -254,7 +264,11 @@ func (cs *server) deleteEventHandler(w http.ResponseWriter, r *http.Request, p h
 	id := p.ByName("id")
 	event, err := cs.eventRepo.GetByID(id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		if isNotFoundError(err) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if userID != event.OwnerID {
@@ -282,5 +296,24 @@ func (cs *server) getEventsHandler(w http.ResponseWriter, r *http.Request, _ htt
 	if err = json.NewEncoder(w).Encode(events); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+}
+
+// getEventByIDHandler returns an event with a given ID.
+func (cs *server) getEventByIDHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	id := p.ByName("id")
+
+	event, err := cs.eventRepo.GetByID(id)
+	if err != nil {
+		if isNotFoundError(err) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	if err = json.NewEncoder(w).Encode(event); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }

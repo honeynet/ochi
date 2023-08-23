@@ -47,6 +47,7 @@ func newRouter(cs *server) (*httprouter.Router, error) {
 	r.POST("/events", handlers.CorsMiddleware(bearerMiddleware(cs.createEventHandler, os.Args[3])))
 	r.DELETE("/events/:id", handlers.CorsMiddleware(bearerMiddleware(cs.deleteEventHandler, os.Args[3])))
 	r.GET("/events", handlers.CorsMiddleware(bearerMiddleware(cs.getEventsHandler, os.Args[3])))
+	r.GET("/events/:id", handlers.CorsMiddleware(bearerMiddleware(cs.getEventByIDHandler, os.Args[3])))
 
 	return r, nil
 }
