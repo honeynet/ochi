@@ -3,11 +3,22 @@
     import QueryModal from './QueryModal.svelte';
     import { parseDSL } from '../dsl';
     import { debounce } from '../util';
-    import { parsedFilter, stringFilter, filterActive, isAuthenticated } from '../store';
+    import {
+        parsedFilter,
+        stringFilter,
+        filterActive,
+        isAuthenticated,
+        activeFilterId,
+    } from '../store';
 
     let filter: string = '';
     let filterValid: boolean = false;
     let saveModal: QueryModal;
+
+    stringFilter.subscribe((value) => {
+        filter = value;
+        applyFilter();
+    });
 
     function filterChangeHandler(): () => void {
         return debounce(() => {
@@ -29,10 +40,13 @@
 
     function applyFilter() {
         console.log(`Going to parse ${filter}`);
-        stringFilter.set(filter);
-        if (filter == '') {
+        filterValid = true;
+
+        if (!filter) {
             filterActive.set(false);
             parsedFilter.set(undefined);
+            stringFilter.set('');
+            activeFilterId.set(undefined);
             return;
         }
 
@@ -40,19 +54,22 @@
         if (parseResult.lexErrors.length > 0) {
             console.error(parseResult.lexErrors);
             filterActive.set(false);
+            filterValid = false;
             return;
         }
         if (parseResult.parseErrors.length > 0) {
             console.error(parseResult.parseErrors);
             filterActive.set(false);
+            filterValid = false;
             return;
         }
         parsedFilter.set(parseResult.cst);
-        filterActive.set(true);
     }
 
     function openSaveQuery() {
-        saveModal.showModal(filter);
+        saveModal.showModal({
+            content: filter,
+        });
     }
 </script>
 
@@ -65,7 +82,7 @@
     />
     <Button disabled={!filterValid} onClick={applyFilter} text="Apply" />
     {#if $isAuthenticated}<QueryModal bind:this={saveModal} />
-        <Button onClick={openSaveQuery} text="Save" />
+        <Button disabled={!filterValid} onClick={openSaveQuery} text="Save" />
     {/if}
 </section>
 
