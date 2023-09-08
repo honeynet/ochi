@@ -11,14 +11,14 @@ describe('Content', () => {
 
     test('renders download button', () => {
         currentEvent.set(generateRandomTestEvent());
-        const { getByText } = render(Content, {});
+        const { getByText } = render(Content, { isShared: false });
 
         const node = getByText('Download');
         expect(node).not.toBeNull();
     });
 
     test('does not render download button when no event selected', () => {
-        const { queryAllByText } = render(Content, {});
+        const { queryAllByText } = render(Content, { isShared: false });
 
         const node = queryAllByText('Download');
         expect(node.length).toBe(0);

@@ -298,7 +298,7 @@ func (cs *server) getEventsHandler(w http.ResponseWriter, r *http.Request, _ htt
 	}
 }
 
-// getEventByIDHandler returns an event with a given ID.
+// getEventByIDHandler returns an event with the given ID.
 func (cs *server) getEventByIDHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	id := p.ByName("id")
 

@@ -21,6 +21,7 @@ func newRouter(cs *server) (*httprouter.Router, error) {
 	// This URL is rendered using client side rendering with routify
 	// TODO: make this solution more generic
 	r.GET("/myqueries", cs.indexHandler)
+	r.GET("/events/:id", cs.indexHandler)
 
 	build, err := fs.Sub(cs.fs, "build")
 	if err != nil {
@@ -44,10 +45,10 @@ func newRouter(cs *server) (*httprouter.Router, error) {
 	r.DELETE("/queries/:id", handlers.CorsMiddleware(bearerMiddleware(cs.deleteQueryHandler, os.Args[3])))
 
 	// event
-	r.POST("/events", handlers.CorsMiddleware(bearerMiddleware(cs.createEventHandler, os.Args[3])))
-	r.DELETE("/events/:id", handlers.CorsMiddleware(bearerMiddleware(cs.deleteEventHandler, os.Args[3])))
-	r.GET("/events", handlers.CorsMiddleware(bearerMiddleware(cs.getEventsHandler, os.Args[3])))
-	r.GET("/events/:id", handlers.CorsMiddleware(bearerMiddleware(cs.getEventByIDHandler, os.Args[3])))
+	r.POST("/api/events", handlers.CorsMiddleware(bearerMiddleware(cs.createEventHandler, os.Args[3])))
+	r.DELETE("/api/events/:id", handlers.CorsMiddleware(bearerMiddleware(cs.deleteEventHandler, os.Args[3])))
+	r.GET("/api/events", handlers.CorsMiddleware(bearerMiddleware(cs.getEventsHandler, os.Args[3])))
+	r.GET("/api/events/:id", handlers.CorsMiddleware(bearerMiddleware(cs.getEventByIDHandler, os.Args[3])))
 
 	return r, nil
 }

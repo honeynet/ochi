@@ -1,26 +1,21 @@
 module.exports = {
-    "transform": {
-        "^.+\\.svelte$": [
-            "svelte-jester",
+    transform: {
+        '^.+\\.svelte$': [
+            'svelte-jester',
             {
-                "preprocess": true
-            }
+                preprocess: true,
+            },
         ],
-        "^.+\\.js$": "babel-jest",
-        "^.+\\.ts$": "ts-jest"
+        '^.+\\.js$': 'babel-jest',
+        '^.+\\.ts$': 'ts-jest',
     },
-    "moduleFileExtensions": [
-        "js",
-        "ts",
-        "svelte"
-    ],
-    "setupFilesAfterEnv": [
-        "@testing-library/jest-dom/extend-expect"
-    ],
-    "testEnvironment": "jsdom",
+    moduleFileExtensions: ['js', 'ts', 'svelte'],
+    setupFilesAfterEnv: ['@testing-library/jest-dom/extend-expect'],
+    testEnvironment: 'jsdom',
     globals: {
         'ts-jest': {
-            tsconfig: 'tsconfig.json'
-        }
-    }
+            tsconfig: 'tsconfig.json',
+        },
+    },
+    transformIgnorePatterns: ['node_modules/(?!@ngrx|(?!deck.gl)|ng-dynamic)'],
 };
