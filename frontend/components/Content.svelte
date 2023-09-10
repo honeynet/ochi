@@ -1,6 +1,12 @@
 <script lang="ts">
     import { hexy } from 'hexy';
-    import { currentEvent } from '../store';
+    import { currentEvent, token, isAuthenticated } from '../store';
+    import { API_ENDPOINT } from '../constants';
+    import type { Event } from '../event';
+    import { url } from '@roxi/routify';
+    import { copy } from 'svelte-copy';
+
+    export let isShared: boolean;
 
     function render(payload: string) {
         const result = hexy(atob(payload), { width: 16 });
@@ -25,6 +31,89 @@
     let renderResults;
     $: if ($currentEvent && $currentEvent.payload) {
         renderResults = render($currentEvent.payload);
+        eventCreated = undefined;
+    }
+
+    async function createEvent() {
+        console.log('saving event');
+        const res = await fetch(`${API_ENDPOINT}/api/events`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${$token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                payload: $currentEvent.payload,
+                dstPort: $currentEvent.dstPort,
+                rule: $currentEvent.rule,
+                handler: $currentEvent.handler,
+                transport: $currentEvent.transport,
+                scanner: $currentEvent.scanner,
+                sensorID: $currentEvent.sensorID,
+                srcHost: $currentEvent.srcHost,
+                srcPort: $currentEvent.srcPort,
+                timestamp: $currentEvent.timestamp,
+                decoded: $currentEvent.decoded,
+            }),
+        });
+
+        if (res.ok) {
+            console.log('received success');
+            const event = await res.json();
+            return event;
+        } else {
+            console.log('failed to save ' + res.text());
+            throw new Error('Could not create an event');
+        }
+    }
+
+    async function getEventById(id): Promise<Event> {
+        console.log('fetching event');
+        const res = await fetch(`${API_ENDPOINT}/api/events/${id}`, {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${$token}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (res.ok) {
+            console.log('received success ');
+            const event = await res.json();
+            return event;
+        } else {
+            console.log('failed to save ' + res.text());
+            throw new Error('Could not fetch an event');
+        }
+    }
+
+    async function getEvents(): Promise<Event[]> {
+        console.log('fetching queries');
+        const res = await fetch(`${API_ENDPOINT}/api/events`, {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${$token}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (res.ok) {
+            console.log('received success ');
+            const data = await res.json();
+            return data;
+        } else {
+            console.log('failed to get ' + res.text());
+            throw new Error('Could not fetch events');
+        }
+    }
+
+    let eventCreated: Event;
+    let disabled = false;
+    async function share() {
+        await createEvent().then((event) => {
+            eventCreated = event;
+            disabled = true;
+        });
     }
 </script>
 
@@ -51,11 +140,30 @@
                     </div>
                 {/each}
             </div>
+        {/if}
+        {#if !isShared}
             <a
                 href={'data:text/json;charset=utf-8,' +
                     encodeURIComponent(JSON.stringify($currentEvent))}
                 download="event.json">Download</a
             >
+            {#if !eventCreated}
+                <button disabled={!$isAuthenticated} on:click={share}>Share</button>
+            {:else}
+                <p>
+                    Event is created which you can view <a
+                        target="blank"
+                        href={$url('/events/:id', { id: eventCreated.id })}>here</a
+                    >
+                    or
+                    <button
+                        use:copy={window.location.protocol +
+                            '//' +
+                            window.location.host +
+                            $url('/events/:id', { id: eventCreated.id })}>copy url</button
+                    >.
+                </p>
+            {/if}
         {/if}
         {#if $currentEvent.decoded}
             <br /><br />

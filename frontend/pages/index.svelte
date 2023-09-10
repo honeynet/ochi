@@ -83,7 +83,7 @@
     <Config />
     <div class="row">
         <MessageList bind:this={messageList} />
-        <Content />
+        <Content isShared={false} />
     </div>
 </main>
 

@@ -39,6 +39,7 @@
     "rollup-plugin-svelte": "^7.1.5",
     "svelte": "^3.49.0",
     "svelte-check": "^2.0.0",
+    "svelte-copy": "^1.4.1",
     "svelte-jester": "^2.3.2",
     "svelte-preprocess": "^4.10.7",
     "ts-jest": "^28.0.5",
