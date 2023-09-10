@@ -15,11 +15,11 @@
     });
 </script>
 
-<p on:click={click} bind:this={element}>
+<p on:click={click} on:keypress={click} bind:this={element}>
     {message.sensorID.split('-')[0]} | {message.srcHost}:{message.srcPort} -> {message.dstPort}:
     {#if message.handler}{message.handler}{:else}{message.rule}{/if}
     {#if message.scanner}"{message.scanner}"{/if}
-    {#if message.payload}: <u>Payload</u>{/if}
+    <u>Details</u>
 </p>
 
 <style>
