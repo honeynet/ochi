@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "@types/google.accounts": "^0.0.2",
+    "base64-js": "^1.5.1",
     "chevrotain": "^10.5.0",
     "hexy": "^0.3.4",
     "optionator": "^0.9.3",

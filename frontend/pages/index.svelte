@@ -1,8 +1,8 @@
 <script lang="ts">
     import { metatags } from '@roxi/routify';
 
-    metatags.title = 'My Routify app';
-    metatags.description = 'Description coming soon...';
+    metatags.title = 'Ochi';
+    metatags.description = 'Web UI for honeypot events';
     import Header from '../components/Header.svelte';
     import MessageList from '../components/MessageList.svelte';
     import Filter from '../components/Filter.svelte';

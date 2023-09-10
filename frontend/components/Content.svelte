@@ -166,8 +166,9 @@
             {/if}
         {/if}
         {#if $currentEvent.decoded}
-            <br /><br />
-            <pre>{JSON.stringify($currentEvent.decoded, null, 2)}</pre>
+            <div class="payload">
+                {JSON.stringify($currentEvent.decoded, null, 2)}
+            </div>
         {/if}
     {/if}
 </div>
@@ -194,5 +195,12 @@
 
     .odd {
         background-color: #d3d3d3;
+    }
+    .payload {
+        display: block;
+        unicode-bidi: embed;
+        font-family: monospace;
+        white-space: pre;
+        padding-top: 20px;
     }
 </style>
