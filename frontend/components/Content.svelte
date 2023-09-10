@@ -1,6 +1,6 @@
 <script lang="ts">
     import { hexy } from 'hexy';
-    import { currentEvent, token } from '../store';
+    import { currentEvent, token, isAuthenticated } from '../store';
     import { API_ENDPOINT } from '../constants';
     import type { Event } from '../event';
     import { url } from '@roxi/routify';
@@ -147,8 +147,9 @@
                     encodeURIComponent(JSON.stringify($currentEvent))}
                 download="event.json">Download</a
             >
-            <button disabled={!!eventCreated} on:click={share}>Share</button>
-            {#if eventCreated}
+            {#if !eventCreated}
+                <button disabled={!$isAuthenticated} on:click={share}>Share</button>
+            {:else}
                 <p>
                     Event is created which you can view <a
                         target="blank"

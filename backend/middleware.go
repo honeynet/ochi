@@ -28,7 +28,7 @@ func bearerMiddleware(h httprouter.Handle, secret string) httprouter.Handle {
 		authHeader := r.Header.Get("Authorization")
 		authFields := strings.Fields(authHeader)
 		if len(authFields) != 2 || strings.ToLower(authFields[0]) != "bearer" {
-			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
 		token := authFields[1]
