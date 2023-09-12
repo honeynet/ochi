@@ -1,5 +1,6 @@
 import type { Event } from './event';
 import { now } from 'svelte/internal';
+import { fromByteArray } from 'base64-js';
 
 /**
  * Debounces a callback to prevent calling it too many times.
@@ -63,6 +64,7 @@ function generateUUID() {
  */
 export function generateRandomTestEvent(): Event {
     let payload = `test ${generateRandomString(10 + Math.floor(Math.random() * 100))}`;
+    const textEncoder = new TextEncoder();
     return {
         handler: handlers[Math.floor(Math.random() * handlers.length)],
         connKey: [2, 2],
@@ -73,8 +75,12 @@ export function generateRandomTestEvent(): Event {
         srcHost: '1.1.1.1',
         srcPort: '4321',
         timestamp: now().toString(),
-        payload: btoa(payload),
-        decoded: { payload: payload },
+        payload: fromByteArray(textEncoder.encode(payload)),
+        decoded: {
+            payload: payload,
+            src_host: '1.1.1.1',
+            src_port: '4321',
+        },
     };
 }
 

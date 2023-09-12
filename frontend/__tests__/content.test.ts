@@ -4,6 +4,10 @@ import { describe, expect, test } from '@jest/globals';
 import { currentEvent } from '../store';
 import { generateRandomTestEvent } from '../util';
 
+// hack for test environment
+import { TextEncoder } from 'util';
+Object.assign(global, { TextEncoder });
+
 describe('Content', () => {
     beforeEach(() => {
         currentEvent.set(undefined);
