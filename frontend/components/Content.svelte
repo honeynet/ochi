@@ -115,6 +115,23 @@
             disabled = true;
         });
     }
+
+    function downloadEvent() {
+        const jsonData = JSON.stringify($currentEvent);
+        const blob = new Blob([jsonData], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = 'event.json';
+
+        document.body.appendChild(a);
+        a.click();
+
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    }
 </script>
 
 <div class="column" id="content">
@@ -142,11 +159,7 @@
             </div>
         {/if}
         {#if !isShared}
-            <a
-                href={'data:text/json;charset=utf-8,' +
-                    encodeURIComponent(JSON.stringify($currentEvent))}
-                download="event.json">Download</a
-            >
+            <button on:click={downloadEvent}>Download</button>
             {#if !eventCreated}
                 <button disabled={!$isAuthenticated} on:click={share}>Share</button>
             {:else}
