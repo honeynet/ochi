@@ -47,6 +47,7 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httpr
 		http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
 		return
 	}
+	defer body.Close()
 
 	cs.publish(msg)
 
