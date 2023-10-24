@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
-
+	"strings"
 	"github.com/honeynet/ochi/backend/entities"
 
 	"github.com/julienschmidt/httprouter"
@@ -38,6 +38,16 @@ func (cs *server) cssHandler(w http.ResponseWriter, r *http.Request, _ httproute
 	}
 }
 
+//Helper function which splits into two parts the sensorID by the hyphen
+func splitSensorID(sensorID string) string {
+    parts := strings.Split(sensorID, "-")
+    if len(parts) > 0 {
+        return parts[0]
+    }
+    return sensorID // Return the original sensorID if there's no hyphen
+}
+
+
 // publishHandler reads the request body with a limit of 8192 bytes and then publishes
 // the received message.
 func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -49,7 +59,33 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httpr
 	}
 	defer body.Close()
 
-	cs.publish(msg)
+	// Unmarshal the JSON message into a map
+	var data map[string]interface{}
+	if err := json.Unmarshal(msg, &data); err != nil {
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	// Check if "sensorID" key exists
+	if sensorID, ok := data["sensorID"].(string); ok {
+		// Manipulate the "sensorID"
+		sensorID = splitSensorID(sensorID)
+
+
+		// Update the map with the new "sensorID" value
+		data["sensorID"] = sensorID
+	}
+
+	// Marshal the map back to a JSON message
+	alteredMsg , err := json.Marshal(data)
+	if err != nil {
+		http.Error(w, "Error processing JSON", http.StatusInternalServerError)
+		return
+	}
+
+	
+
+	cs.publish(alteredMsg)
 
 	w.WriteHeader(http.StatusAccepted)
 }
