@@ -1,16 +1,16 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"github.com/honeynet/ochi/backend/entities"
+	"github.com/julienschmidt/httprouter"
+	"google.golang.org/api/idtoken"
 	"io"
 	"net/http"
 	"os"
-	"strings"
-	"github.com/honeynet/ochi/backend/entities"
-
-	"github.com/julienschmidt/httprouter"
-	"google.golang.org/api/idtoken"
 )
 
 func (cs *server) indexHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -38,15 +38,13 @@ func (cs *server) cssHandler(w http.ResponseWriter, r *http.Request, _ httproute
 	}
 }
 
-//Helper function which splits into two parts the sensorID by the hyphen
-func splitSensorID(sensorID string) string {
-    parts := strings.Split(sensorID, "-")
-    if len(parts) > 0 {
-        return parts[0]
-    }
-    return sensorID // Return the original sensorID if there's no hyphen
+// Helper function which splits into two parts the sensorID by the hyphen
+func extractFirst8CharactersOfSensorId(sensorID string) (string, error) {
+	if len(sensorID) < 8 {
+		return "", fmt.Errorf("Sensor ID must have at least 8 characters")
+	}
+	return sensorID[:8], nil
 }
-
 
 // publishHandler reads the request body with a limit of 8192 bytes and then publishes
 // the received message.
@@ -58,35 +56,45 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httpr
 		return
 	}
 	defer body.Close()
-
 	// Unmarshal the JSON message into a map
-	var data map[string]interface{}
-	if err := json.Unmarshal(msg, &data); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(msg))
+	// Create a new map to store the sensorDataMap
+	var sensorIDMap map[string]interface{}
+	// Decode into the sensorDataMap
+	if err := decoder.Decode(&sensorIDMap); err != nil {
 		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
 		return
 	}
-
-	// Check if "sensorID" key exists
-	if sensorID, ok := data["sensorID"].(string); ok {
-		// Manipulate the "sensorID"
-		sensorID = splitSensorID(sensorID)
-
-
-		// Update the map with the new "sensorID" value
-		data["sensorID"] = sensorID
+	if sensorIDMap == nil {
+		// Handle the case where sensorMap is nil
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
 	}
-
-	// Marshal the map back to a JSON message
-	alteredMsg , err := json.Marshal(data)
+	// Get the sensorID from the map
+	sensorID, exists := sensorIDMap["sensorID"]
+	if !exists {
+		http.Error(w, "Sensor Id does not exists.", http.StatusBadRequest)
+		return
+	}
+	sensorIDStr, ok := sensorID.(string)
+	if !ok {
+		http.Error(w, "Sensor ID is not a string.", http.StatusBadRequest)
+		return
+	}
+	sensorID, err = extractFirst8CharactersOfSensorId(sensorIDStr)
+	if err != nil {
+		http.Error(w, "Sensor ID is less than 8 characters.", http.StatusBadRequest)
+		return
+	}
+	sensorIDMap["sensorID"] = sensorID
+	// Convert the sensorID back to a JSON message
+	alteredMsg, err := json.Marshal(sensorIDMap)
 	if err != nil {
 		http.Error(w, "Error processing JSON", http.StatusInternalServerError)
 		return
 	}
-
-	
-
+	// Publish the altered JSON message
 	cs.publish(alteredMsg)
-
 	w.WriteHeader(http.StatusAccepted)
 }
 
