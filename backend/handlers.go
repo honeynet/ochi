@@ -71,7 +71,7 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httpr
 	// Convert the sensorID back to a JSON message
 	alteredMsg, err := json.Marshal(sensorIDMap)
 	if err != nil {
-		http.Error(w, "Error processing JSON", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	// Publish the altered JSON message
