@@ -31,24 +31,24 @@ func newRouter(cs *server) (*httprouter.Router, error) {
 
 	// websocket
 	r.GET("/subscribe", cs.subscribeHandler)
-	r.POST("/publish", tokenMiddleware(cs.publishHandler, os.Args[2]))
+	r.POST("/publish", handlers.TokenMiddleware(cs.publishHandler, os.Args[2]))
 
 	// user
 	r.POST("/login", cs.loginHandler)
-	r.GET("/session", handlers.CorsMiddleware(bearerMiddleware(cs.sessionHandler, os.Args[3])))
+	r.GET("/session", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.sessionHandler, os.Args[3])))
 
 	// query
 	// TODO: make CorsMiddleware more generic instead of specifying it on every handler.
-	r.GET("/queries", handlers.CorsMiddleware(bearerMiddleware(cs.getQueriesHandler, os.Args[3])))
-	r.POST("/queries", handlers.CorsMiddleware(bearerMiddleware(cs.createQueryHandler, os.Args[3])))
-	r.PATCH("/queries/:id", handlers.CorsMiddleware(bearerMiddleware(cs.updateQueryHandler, os.Args[3])))
-	r.DELETE("/queries/:id", handlers.CorsMiddleware(bearerMiddleware(cs.deleteQueryHandler, os.Args[3])))
+	r.GET("/queries", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getQueriesHandler, os.Args[3])))
+	r.POST("/queries", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.createQueryHandler, os.Args[3])))
+	r.PATCH("/queries/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.updateQueryHandler, os.Args[3])))
+	r.DELETE("/queries/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.deleteQueryHandler, os.Args[3])))
 
 	// event
-	r.POST("/api/events", handlers.CorsMiddleware(bearerMiddleware(cs.createEventHandler, os.Args[3])))
-	r.DELETE("/api/events/:id", handlers.CorsMiddleware(bearerMiddleware(cs.deleteEventHandler, os.Args[3])))
-	r.GET("/api/events", handlers.CorsMiddleware(bearerMiddleware(cs.getEventsHandler, os.Args[3])))
-	r.GET("/api/events/:id", handlers.CorsMiddleware(bearerMiddleware(cs.getEventByIDHandler, os.Args[3])))
+	r.POST("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.createEventHandler, os.Args[3])))
+	r.DELETE("/api/events/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.deleteEventHandler, os.Args[3])))
+	r.GET("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getEventsHandler, os.Args[3])))
+	r.GET("/api/events/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getEventByIDHandler, os.Args[3])))
 
 	return r, nil
 }

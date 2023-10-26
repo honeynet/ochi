@@ -1,4 +1,4 @@
-package backend
+package handlers
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func tokenMiddleware(h httprouter.Handle, secret string) httprouter.Handle {
+func TokenMiddleware(h httprouter.Handle, secret string) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		token, ok := r.URL.Query()["token"]
 		if !ok || len(token) == 0 || token[0] != secret {
@@ -21,9 +21,9 @@ func tokenMiddleware(h httprouter.Handle, secret string) httprouter.Handle {
 	}
 }
 
-type userID string
+type UserID string
 
-func bearerMiddleware(h httprouter.Handle, secret string) httprouter.Handle {
+func BearerMiddleware(h httprouter.Handle, secret string) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		authHeader := r.Header.Get("Authorization")
 		authFields := strings.Fields(authHeader)
@@ -43,7 +43,7 @@ func bearerMiddleware(h httprouter.Handle, secret string) httprouter.Handle {
 			return
 		}
 
-		r = r.WithContext(context.WithValue(r.Context(), userID("userID"), claims.UserID))
+		r = r.WithContext(context.WithValue(r.Context(), UserID("userID"), claims.UserID))
 
 		h(w, r, ps)
 	}
