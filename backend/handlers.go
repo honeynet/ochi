@@ -49,19 +49,19 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httpr
 	var sensorIDMap map[string]string
 	// Decode into the sensorDataMap
 	if err := decoder.Decode(&sensorIDMap); err != nil {
-		http.Error(w, "JSON decoding error: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	// Get the sensorID from the map
 	sensorID, exists := sensorIDMap["sensorID"]
 	if !exists {
-		http.Error(w, "Sensor Id does not exists.", http.StatusBadRequest)
+		http.Error(w, "sensor id does not exists", http.StatusBadRequest)
 		return
 	}
 
 	if len(sensorID) < 8 {
-		http.Error(w, "Sensor ID must have at least 8 characters.", http.StatusBadRequest)
+		http.Error(w, "sensor id must have at least 8 characters", http.StatusBadRequest)
 		return
 	}
 
