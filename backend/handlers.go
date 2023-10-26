@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/honeynet/ochi/backend/entities"
-
 	"github.com/julienschmidt/httprouter"
 	"google.golang.org/api/idtoken"
 )
@@ -42,15 +41,41 @@ func (cs *server) cssHandler(w http.ResponseWriter, r *http.Request, _ httproute
 // the received message.
 func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	body := http.MaxBytesReader(w, r.Body, 8192)
-	msg, err := io.ReadAll(body)
-	if err != nil {
-		http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+
+	// Unmarshal the JSON message into a map
+	decoder := json.NewDecoder(body)
+
+	// Create a new map to store the sensorDataMap
+	var sensorIDMap map[string]string
+	// Decode into the sensorDataMap
+	if err := decoder.Decode(&sensorIDMap); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	defer body.Close()
 
-	cs.publish(msg)
+	// Get the sensorID from the map
+	sensorID, exists := sensorIDMap["sensorID"]
+	if !exists {
+		http.Error(w, "sensor id does not exists", http.StatusBadRequest)
+		return
+	}
 
+	if len(sensorID) < 8 {
+		http.Error(w, "sensor id must have at least 8 characters", http.StatusBadRequest)
+		return
+	}
+
+	sensorID = sensorID[:8]
+
+	sensorIDMap["sensorID"] = sensorID
+	// Convert the sensorID back to a JSON message
+	alteredMsg, err := json.Marshal(sensorIDMap)
+	if err != nil {
+		http.Error(w, "Error processing JSON", http.StatusInternalServerError)
+		return
+	}
+	// Publish the altered JSON message
+	cs.publish(alteredMsg)
 	w.WriteHeader(http.StatusAccepted)
 }
 

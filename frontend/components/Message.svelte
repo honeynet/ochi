@@ -16,7 +16,7 @@
 </script>
 
 <p on:click={click} on:keypress={click} bind:this={element}>
-    {message.sensorID.split('-')[0]} | {message.srcHost}:{message.srcPort} -> {message.dstPort}:
+    {message.sensorID} | {message.srcHost}:{message.srcPort} -> {message.dstPort}:
     {#if message.handler}{message.handler}{:else}{message.rule}{/if}
     {#if message.scanner}"{message.scanner}"{/if}
     <u>Details</u>
