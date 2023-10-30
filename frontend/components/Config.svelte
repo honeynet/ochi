@@ -16,6 +16,6 @@
 
 <style>
     .config {
-        margin: 10px auto;
+        margin: 10px 20px;
     }
 </style>

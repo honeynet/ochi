@@ -70,11 +70,9 @@
     .column {
         flex: 50%;
         padding: 15px 20px;
-        min-width: 300px;
     }
 
     #message-log {
-        width: 100%;
         flex-grow: 1;
         overflow-y: scroll;
     }
