@@ -71,7 +71,7 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httpr
 	// Convert the sensorID back to a JSON message
 	alteredMsg, err := json.Marshal(sensorIDMap)
 	if err != nil {
-		http.Error(w, "Error processing JSON", http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	// Publish the altered JSON message
@@ -86,7 +86,7 @@ type response struct {
 
 // sessionHandler creates a new token for the user
 func (cs *server) sessionHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	userID := r.Context().Value(userID("userID")).(string)
+	userID := userIDFromCtx(r.Context())
 	user, err := cs.uRepo.Get(userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -156,7 +156,7 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request, _ httprou
 
 // getQueriesHandler returns a list of queries belonging to ther user.
 func (cs *server) getQueriesHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	userID := r.Context().Value(userID("userID")).(string)
+	userID := userIDFromCtx(r.Context())
 	queries, err := cs.queryRepo.FindByOwnerId(userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -172,7 +172,7 @@ func (cs *server) getQueriesHandler(w http.ResponseWriter, r *http.Request, _ ht
 
 // createQueryHandler creates a new query.
 func (cs *server) createQueryHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	userID := r.Context().Value(userID("userID")).(string)
+	userID := userIDFromCtx(r.Context())
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
 	var t entities.Query
@@ -196,7 +196,7 @@ func (cs *server) createQueryHandler(w http.ResponseWriter, r *http.Request, _ h
 
 // udpateQueryHandler updates an existing query making sure the user owns the query.
 func (cs *server) updateQueryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	userID := r.Context().Value(userID("userID")).(string)
+	userID := userIDFromCtx(r.Context())
 	id := p.ByName("id")
 	q, err := cs.queryRepo.GetByID(id)
 	if err != nil {
@@ -219,7 +219,7 @@ func (cs *server) updateQueryHandler(w http.ResponseWriter, r *http.Request, p h
 		return
 	}
 	if id != q.ID {
-		http.Error(w, "Ids dont match", http.StatusBadRequest)
+		http.Error(w, "Ids don't match", http.StatusBadRequest)
 		return
 	}
 	err = cs.queryRepo.Update(q.ID, q.Content, q.Description, q.Active)
@@ -232,7 +232,7 @@ func (cs *server) updateQueryHandler(w http.ResponseWriter, r *http.Request, p h
 
 // deleteQueryHandler deletes a query making sure the user owns the query.
 func (cs *server) deleteQueryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	userID := r.Context().Value(userID("userID")).(string)
+	userID := userIDFromCtx(r.Context())
 	id := p.ByName("id")
 	q, err := cs.queryRepo.GetByID(id)
 	if err != nil {
@@ -261,7 +261,7 @@ func (cs *server) deleteQueryHandler(w http.ResponseWriter, r *http.Request, p h
 
 // createEventHandler creates a new event
 func (cs *server) createEventHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	userID := r.Context().Value(userID("userID")).(string)
+	userID := userIDFromCtx(r.Context())
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
 	var event entities.Event
@@ -285,7 +285,7 @@ func (cs *server) createEventHandler(w http.ResponseWriter, r *http.Request, _ h
 
 // deleteEventHandler deletes an event making sure the user owns the query.
 func (cs *server) deleteEventHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	userID := r.Context().Value(userID("userID")).(string)
+	userID := userIDFromCtx(r.Context())
 	id := p.ByName("id")
 	event, err := cs.eventRepo.GetByID(id)
 	if err != nil {
@@ -310,7 +310,7 @@ func (cs *server) deleteEventHandler(w http.ResponseWriter, r *http.Request, p h
 
 // getEventsHandler returns a list of events belonging to ther user.
 func (cs *server) getEventsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	userID := r.Context().Value(userID("userID")).(string)
+	userID := userIDFromCtx(r.Context())
 	events, err := cs.eventRepo.FindByOwnerId(userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

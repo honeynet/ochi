@@ -8,7 +8,6 @@ import (
 
 // CorsOptionsHandler defines a global handler for HTTP OPTIONS requests.
 func CorsOptionsHandler(w http.ResponseWriter, r *http.Request) {
-
 	if r.Header.Get("Access-Control-Request-Method") != "" {
 		// Set CORS headers
 		header := w.Header()
