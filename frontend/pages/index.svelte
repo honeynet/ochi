@@ -102,4 +102,10 @@
         bottom: 0;
         right: 0;
     }
+
+    @media (width < 710px) {
+        .row {
+            flex-direction: column;
+        }
+    }
 </style>

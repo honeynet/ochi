@@ -40,6 +40,8 @@
         border-bottom-style: solid;
         padding-bottom: 10px;
         border-width: 1px;
+        margin-right: 20px;
+        margin-left: 20px;
     }
 
     .header__link {
