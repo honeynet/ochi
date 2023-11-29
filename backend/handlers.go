@@ -367,11 +367,10 @@ func (cs *server) getSensorsByUser(w http.ResponseWriter, r *http.Request, p htt
 
 }
 
-func (cs *server) addSensor(w http.ResponseWriter, r *http.Request, p httprouter.Params){
-
+func (cs *server) addSensor(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 
 	userId := userIDFromCtx(r.Context())
-	
+
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
 	var sensor entities.Sensor
@@ -394,4 +393,3 @@ func (cs *server) addSensor(w http.ResponseWriter, r *http.Request, p httprouter
 	w.WriteHeader(http.StatusOK)
 
 }
-

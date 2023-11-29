@@ -59,16 +59,16 @@ func (r *SensorRepo) GetSensorsByOwnerId(ownerId string) ([]entities.Sensor, err
 
 }
 
-func (r *SensorRepo) AddSensors(sensor entities.Sensor , userId string) error {
+func (r *SensorRepo) AddSensors(sensor entities.Sensor, userId string) error {
 
-	s:=entities.Sensor{Id: sensor.Id , OwnerId: userId, Name:sensor.Name}
+	s := entities.Sensor{Id: sensor.Id, OwnerId: userId, Name: sensor.Name}
 
-	_, err:=r.addSensor.Exec(s)
-	
+	_, err := r.addSensor.Exec(s)
+
 	if err != nil {
-		return  err
+		return err
 	}
 
-	return  nil
+	return nil
 
 }
