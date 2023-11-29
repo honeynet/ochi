@@ -9,7 +9,7 @@
     export let isShared: boolean;
 
     function render(payload: string) {
-        const result = hexy(atob(payload), { width: 16 });
+        const result = hexy(atob(payload), { width: 8 });
         const resultLines = result.split('\n');
         let addressStr = '';
         let hexStr = '';
@@ -17,8 +17,8 @@
         resultLines.forEach((item, idx) => {
             if (item) {
                 addressStr += (idx > 0 ? '\n' : '') + item.substring(0, item.indexOf(':'));
-                hexStr += (idx > 0 ? '\n' : '') + item.substring(item.indexOf(':') + 2, 51);
-                plainStr += (idx > 0 ? '\n' : '') + item.substring(51);
+                hexStr += (idx > 0 ? '\n' : '') + item.substring(item.indexOf(':') + 2, 31);
+                plainStr += (idx > 0 ? '\n' : '') + item.substring(31);
             }
         });
         return [
@@ -196,7 +196,7 @@
         display: flex;
         justify-content: flex-start;
         gap: 20px;
-        min-width: 535px;
+        min-width: 355px;
         font-family: monospace;
         padding-top: 15px;
         padding-bottom: 15px;
@@ -214,6 +214,8 @@
         unicode-bidi: embed;
         font-family: monospace;
         white-space: pre;
+        text-wrap: wrap;
         padding-top: 20px;
+        word-break: break-all;
     }
 </style>
