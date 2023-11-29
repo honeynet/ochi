@@ -50,5 +50,8 @@ func newRouter(cs *server) (*httprouter.Router, error) {
 	r.GET("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getEventsHandler, os.Args[3])))
 	r.GET("/api/events/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getEventByIDHandler, os.Args[3])))
 
+	// sensor
+	r.GET("/sensors", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getSensorsByUser, os.Args[3])))
+
 	return r, nil
 }

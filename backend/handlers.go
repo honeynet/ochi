@@ -342,3 +342,27 @@ func (cs *server) getEventByIDHandler(w http.ResponseWriter, r *http.Request, p 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
+
+func (cs *server) getSensorsByUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+
+	userId := userIDFromCtx(r.Context())
+	events, err := cs.sensorRepo.GetSensorsByOwnerId(userId)
+
+	if err != nil {
+		if isNotFoundError(err) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	if err = json.NewEncoder(w).Encode(events); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+}
