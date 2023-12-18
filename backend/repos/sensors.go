@@ -20,8 +20,10 @@ func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
 	db.Mapper = reflectx.NewMapperFunc("json", strings.ToLower)
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS sensors(
 		id TEXT PRIMARY KEY NOT NULL 
-		, ownerid TEXT NOT NULL
+		, user_id TEXT NOT NULL
 		, name TEXT NOT NULL
+		, UNIQUE (user_id, name)
+		, FOREIGN KEY (user_id) REFERENCES users(id)
 
 	)`)
 
@@ -59,16 +61,9 @@ func (r *SensorRepo) GetSensorsByOwnerId(ownerId string) ([]entities.Sensor, err
 
 }
 
-func (r *SensorRepo) AddSensors(sensor entities.Sensor, userId string) error {
+func (r *SensorRepo) AddSensors(sensor entities.Sensor) error {
 
-	s := entities.Sensor{Id: sensor.Id, OwnerId: userId, Name: sensor.Name}
-
+	s := entities.Sensor{ID: sensor.ID, User: sensor.User, Name: sensor.Name}
 	_, err := r.addSensor.Exec(s)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
-
+	return err
 }

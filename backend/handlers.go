@@ -342,12 +342,9 @@ func (cs *server) getEventByIDHandler(w http.ResponseWriter, r *http.Request, p 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
-
 func (cs *server) getSensorsByUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-
 	userId := userIDFromCtx(r.Context())
 	events, err := cs.sensorRepo.GetSensorsByOwnerId(userId)
-
 	if err != nil {
 		if isNotFoundError(err) {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -366,30 +363,24 @@ func (cs *server) getSensorsByUser(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 }
-
 func (cs *server) addSensor(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-
 	userId := userIDFromCtx(r.Context())
-
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
 	var sensor entities.Sensor
 	err := decoder.Decode(&sensor)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	sensor.User = userId
+
+	err = cs.sensorRepo.AddSensors(sensor)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-
 	}
-
-	err = cs.sensorRepo.AddSensors(sensor, userId)
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-
-	}
-
 	w.WriteHeader(http.StatusOK)
 
 }

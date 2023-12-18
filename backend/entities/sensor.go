@@ -1,7 +1,7 @@
 package entities
 
 type Sensor struct {
-	Id      string `json:"id"`
+	ID      string `json:"id"`
 	Name    string `json:"name"`
-	OwnerId string `json:"ownerid,omitempty"`
+	User string `json:"user_id,omitempty"`
 }
