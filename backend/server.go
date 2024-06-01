@@ -40,9 +40,10 @@ type server struct {
 	subscribers   map[*subscriber]struct{}
 
 	// the repositories
-	uRepo     *repos.UserRepo
-	queryRepo *repos.QueryRepo
-	eventRepo *repos.EventRepo
+	uRepo       *repos.UserRepo
+	queryRepo   *repos.QueryRepo
+	eventRepo   *repos.EventRepo
+	metricsRepo *repos.MetricsRepo
 
 	// http client
 	httpClient *http.Client
@@ -81,6 +82,11 @@ func NewServer(fsys fs.FS) (*server, error) {
 	}
 
 	cs.eventRepo, err = repos.NewEventRepo(db)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	cs.metricsRepo, err = repos.NewMetricsRepo(db)
 	if err != nil {
 		log.Fatal(err)
 	}

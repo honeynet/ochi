@@ -6,7 +6,10 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/honeynet/ochi/backend/entities"
 
 	"github.com/julienschmidt/httprouter"
@@ -69,6 +72,25 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httpr
 	sensorID = sensorID[:8]
 
 	sensorIDMap["sensorID"] = sensorID
+
+	if dstPort, ok := sensorIDMap["dstPort"]; ok {
+		port, err := strconv.Atoi(dstPort)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		metric := entities.Metric{
+			ID:       uuid.New().String(),
+			DstPort:  port,
+			Count:    1,
+			LastSeen: time.Now().Format(time.RFC3339),
+		}
+		if err := cs.metricsRepo.InsertMetric(metric); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+
 	// Convert the sensorID back to a JSON message
 	alteredMsg, err := json.Marshal(sensorIDMap)
 	if err != nil {
@@ -341,5 +363,40 @@ func (cs *server) getEventByIDHandler(w http.ResponseWriter, r *http.Request, p 
 	w.WriteHeader(http.StatusOK)
 	if err = json.NewEncoder(w).Encode(event); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+// metrics handlers
+func (cs *server) getMetricsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	metrics, err := cs.metricsRepo.GetMetrics()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err = json.NewEncoder(w).Encode(metrics); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (cs *server) getMetricHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	dstPort := p.ByName("dstPort")
+	port, err := strconv.Atoi(dstPort)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	metric, err := cs.metricsRepo.GetMetric(port)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err = json.NewEncoder(w).Encode(metric); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
