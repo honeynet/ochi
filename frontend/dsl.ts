@@ -13,8 +13,8 @@ import type { QueryCstNode } from './generated/chevrotain_dts';
 // Comparison
 const eq = createToken({ name: 'EQUAL', pattern: /eq/, label: 'eq' });
 const ne = createToken({ name: 'NOT_EQUAL', pattern: /ne/, label: 'ne' });
-const eqSmb = createToken({ name: 'EQUAL_SMB', pattern: /==/, label: 'eq_smb' });
-const neSmb = createToken({ name: 'NOT_EQUAL_SMB', pattern: /!=/, label: 'ne_smb' });
+const eqSmb = createToken({ name: 'EQUAL_SMB', pattern: /==/, label: '==' });
+const neSmb = createToken({ name: 'NOT_EQUAL_SMB', pattern: /!=/, label: '!=' });
 
 // Boolean logic
 const and = createToken({ name: 'AND', pattern: /and/, label: 'and' });
@@ -24,24 +24,27 @@ const not = createToken({ name: 'NOT', pattern: /not/, label: 'not' });
 // Search and match operators
 const contains = createToken({ name: 'CONTAINS', pattern: /contains/, label: 'contains' });
 const matches = createToken({ name: 'MATCHES', pattern: /matches/, label: 'matches' });
-const matchesSmb = createToken({ name: 'MATCHES_SMB', pattern: /~/, label: 'matches_smb' });
+const matchesSmb = createToken({ name: 'MATCHES_SMB', pattern: /~/, label: '~' });
 
 // Literals
-const port = createToken({ name: 'PORT', pattern: /(?:0|[1-9]\d*)/ });
+const port = createToken({ name: 'PORT', pattern: /(?:0|[1-9]\d*)/, label: '<PORT>' });
 const ipv4 = createToken({
     name: 'IPV4',
     pattern:
         /([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\.([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\.([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\.([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])/,
+    label: '<IP>',
 });
 
-const ipSrc = createToken({ name: 'IP_SRC', pattern: /ip\.src/ });
-const ipDst = createToken({ name: 'IP_DST', pattern: /ip\.dst/ });
+const ipSrc = createToken({ name: 'IP_SRC', pattern: /ip\.src/, label: 'ip.src' });
+const ipDst = createToken({ name: 'IP_DST', pattern: /ip\.dst/, label: 'ip.dst' });
 
-const tcpPort = createToken({ name: 'TCP_PORT', pattern: /tcp\.port/ });
-const udpPort = createToken({ name: 'UDP_PORT', pattern: /udp\.port/ });
+const tcpPort = createToken({ name: 'TCP_PORT', pattern: /tcp\.port/, label: 'tcp.port' });
+const udpPort = createToken({ name: 'UDP_PORT', pattern: /udp\.port/, label: 'udp.port' });
 
-const payload = createToken({ name: 'PAYLOAD', pattern: /payload/ });
-const string = createToken({ name: 'STRING', pattern: /\"[a-zA-Z0-9]+\"/ });
+const payload = createToken({ name: 'PAYLOAD', pattern: /payload/, label: 'payload' });
+const string = createToken({ name: 'STRING', pattern: /\"[a-zA-Z0-9]+\"/, label: '"msg"' });
+
+const partial = createToken({ name: 'PARTIAL', pattern: /[a-zA-Z0-9]+|\?/, label: 'partial' });
 
 const whiteSpace = createToken({
     name: 'WhiteSpace',
@@ -74,6 +77,8 @@ let allTokens = [
 
     payload,
     string,
+
+    partial,
 ];
 
 let queryLexer = new Lexer(allTokens);
@@ -226,7 +231,7 @@ export const productions: Record<string, Rule> = parser.getGAstProductions();
 // create the HTML Text
 export const serializedGrammar = parser.getSerializedGastProductions();
 
-export function parseDSL(text: string): ParseResult {
+export function parseDSL(text: string, filterState = { suggestions: [], partialToken: null }): ParseResult {
     const lexResult = queryLexer.tokenize(text);
 
     if (lexResult.errors.length > 0) {
@@ -236,6 +241,30 @@ export function parseDSL(text: string): ParseResult {
         };
     }
     // setting a new input will RESET the parser instance's state.
+
+    const tokens = lexResult.tokens;
+    let lastToken;
+    let partialSuggestion = false;
+
+    if (tokens[tokens.length - 1].tokenType === partial) {
+        lastToken = tokens.pop();
+        partialSuggestion = true;
+    }
+
+    let suggestions = parser.computeContentAssist("query", tokens).map(nextToken => {
+        return nextToken.nextTokenType.LABEL;
+    });
+    console.log(suggestions);
+    console.log(lastToken);
+    if (partialSuggestion && lastToken.image !== '?') {
+        suggestions = suggestions.filter(suggestion => {
+            return suggestion.startsWith(lastToken.image);
+        });
+    }
+
+    filterState.suggestions = suggestions;
+    filterState.partialToken = partialSuggestion ? lastToken.image : null;
+
     parser.input = lexResult.tokens;
     // any top level rule may be used as an entry point
     const cst = parser.query();
