@@ -140,6 +140,7 @@ func TestUpdateQuery_Existing(t *testing.T) {
 func initRepo(t *testing.T) *QueryRepo {
 	tmp := t.TempDir()
 	dbPath := fmt.Sprintf("%s/test.db", tmp)
+
 	db, err := sqlx.Connect("sqlite3", dbPath)
 	require.NoError(t, err)
 
