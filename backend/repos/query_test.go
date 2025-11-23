@@ -6,6 +6,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/require"
+
+	"github.com/honeynet/ochi/backend/entities"
 )
 
 func TestQuery(t *testing.T) {
@@ -14,14 +16,15 @@ func TestQuery(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, u1)
 
-	q, err := r.Create("123", "hello there", "this is desription", true)
+	q, err := r.Create("123", "hello there", "this is description", true, []entities.Tag{
+		{Type: "topic", Value: "golang"},
+	})
 	require.NoError(t, err)
 	require.NotEmpty(t, q.ID)
 
 	u1, err = r.FindByOwnerId("123")
 	require.NoError(t, err)
 	require.Equal(t, len(u1), 1)
-
 	require.Equal(t, u1[0], q)
 
 	err = r.Delete("Not found")
@@ -44,11 +47,14 @@ func TestGetById_Missing(t *testing.T) {
 
 func TestGetById_Existing(t *testing.T) {
 	r := initRepo(t)
-	q, err := r.Create("001", "content", "description", true)
+	q, err := r.Create("001", "content", "description", true, []entities.Tag{
+		{Type: "topic", Value: "golang"},
+	})
 	require.NoError(t, err)
 	require.Equal(t, "001", q.OwnerID)
 	require.Equal(t, "content", q.Content)
 	require.Equal(t, "description", q.Description)
+	require.Equal(t, 1, len(q.Tags))
 
 	q1, err := r.GetByID(q.ID)
 	require.NoError(t, err)
@@ -66,23 +72,20 @@ func TestFindByOwnerId_Missing(t *testing.T) {
 func TestFindByOwnerId_Existing(t *testing.T) {
 	r := initRepo(t)
 
-	q, err := r.Create("001", "content", "description", true)
+	q, err := r.Create("001", "content", "description", true, []entities.Tag{
+		{Type: "topic", Value: "golang"},
+	})
 	require.NoError(t, err)
-	require.Equal(t, "001", q.OwnerID)
-	require.Equal(t, "content", q.Content)
-	require.Equal(t, "description", q.Description)
 
-	q1, err := r.Create("001", "content1", "description1", true)
+	q1, err := r.Create("001", "content1", "description1", true, []entities.Tag{
+		{Type: "topic", Value: "db"},
+	})
 	require.NoError(t, err)
-	require.Equal(t, "001", q1.OwnerID)
-	require.Equal(t, "content1", q1.Content)
-	require.Equal(t, "description1", q1.Description)
 
-	q2, err := r.Create("001", "content2", "description2", true)
+	q2, err := r.Create("001", "content2", "description2", true, []entities.Tag{
+		{Type: "topic", Value: "api"},
+	})
 	require.NoError(t, err)
-	require.Equal(t, "001", q2.OwnerID)
-	require.Equal(t, "content2", q2.Content)
-	require.Equal(t, "description2", q2.Description)
 
 	qs, err := r.FindByOwnerId("001")
 	require.NoError(t, err)
@@ -101,7 +104,9 @@ func TestDeleteQuery_Missing(t *testing.T) {
 func TestDeleteQuery_Existing(t *testing.T) {
 	r := initRepo(t)
 
-	q, err := r.Create("001", "content", "description", true)
+	q, err := r.Create("001", "content", "description", true, []entities.Tag{
+		{Type: "topic", Value: "golang"},
+	})
 	require.NoError(t, err)
 
 	err = r.Delete(q.ID)
@@ -117,17 +122,23 @@ func TestDeleteQuery_Existing(t *testing.T) {
 func TestUpdateQuery_Missing(t *testing.T) {
 	r := initRepo(t)
 
-	err := r.Update("non-existing", "content", "description", true)
+	err := r.Update("non-existing", "content", "description", true, []entities.Tag{
+		{Type: "topic", Value: "golang"},
+	})
 	require.ErrorContains(t, err, "non-existing not found")
 }
 
 func TestUpdateQuery_Existing(t *testing.T) {
 	r := initRepo(t)
 
-	q, err := r.Create("001", "content", "description", true)
+	q, err := r.Create("001", "content", "description", true, []entities.Tag{
+		{Type: "topic", Value: "golang"},
+	})
 	require.NoError(t, err)
 
-	err = r.Update(q.ID, "content-new", "description-new", false)
+	err = r.Update(q.ID, "content-new", "description-new", false, []entities.Tag{
+		{Type: "topic", Value: "updated"},
+	})
 	require.NoError(t, err)
 
 	q1, err := r.GetByID(q.ID)
@@ -135,6 +146,8 @@ func TestUpdateQuery_Existing(t *testing.T) {
 	require.Equal(t, "content-new", q1.Content)
 	require.Equal(t, "description-new", q1.Description)
 	require.Equal(t, false, q1.Active)
+	require.Equal(t, 1, len(q1.Tags))
+	require.Equal(t, "updated", q1.Tags[0].Value)
 }
 
 func initRepo(t *testing.T) *QueryRepo {
@@ -143,7 +156,6 @@ func initRepo(t *testing.T) *QueryRepo {
 	db, err := sqlx.Connect("sqlite3", dbPath)
 	require.NoError(t, err)
 
-	// defer os.Remove("./querytest.db")
 	r, err := NewQueryRepo(db)
 	require.NoError(t, err)
 	require.NotNil(t, r)

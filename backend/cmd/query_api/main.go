@@ -13,37 +13,26 @@ import (
 )
 
 func main() {
-	// Connect to SQLite database
-	db, err := sqlx.Connect("sqlite3", "./data.db")
+	db, err := sqlx.Connect("sqlite3", "test.db")
 	if err != nil {
-		log.Fatalf("Failed to connect to DB: %v", err)
+		log.Fatal(err)
 	}
 
-	// Initialize Repositories
 	queryRepo, err := repos.NewQueryRepo(db)
 	if err != nil {
-		log.Fatalf("Failed to initialize QueryRepo: %v", err)
+		log.Fatal(err)
 	}
 
-	// Initialize Services
 	queryService := services.NewQueryService(queryRepo)
-
-	// Initialize Handlers
 	queryHandler := handlers.NewQueryHandler(queryService)
 
-	// Initialize router
 	r := mux.NewRouter()
-
-	// Register routes
 	r.HandleFunc("/queries", queryHandler.CreateQueryHandler).Methods("POST")
 	r.HandleFunc("/queries/{id}", queryHandler.GetQueryByIDHandler).Methods("GET")
 	r.HandleFunc("/queries/{id}", queryHandler.UpdateQueryHandler).Methods("PUT")
 	r.HandleFunc("/queries/{id}", queryHandler.DeleteQueryHandler).Methods("DELETE")
 	r.HandleFunc("/queries/owner/{owner_id}", queryHandler.FindQueriesByOwnerHandler).Methods("GET")
 
-	// Start server
-	log.Println("Server running at http://localhost:8080")
-	if err := http.ListenAndServe(":8080", r); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
-	}
+	log.Println("Server running at :8080")
+	http.ListenAndServe(":8080", r)
 }
