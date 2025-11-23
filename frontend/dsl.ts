@@ -1,10 +1,4 @@
-import {
-    createToken,
-    CstParser,
-    Rule,
-    Lexer,
-    EMPTY_ALT,
-} from 'chevrotain';
+import { createToken, CstParser, Rule, Lexer, EMPTY_ALT } from 'chevrotain';
 
 import type { ILexingError, IRecognitionException } from 'chevrotain';
 import type { QueryCstNode } from './generated/chevrotain_dts';

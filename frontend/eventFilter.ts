@@ -89,11 +89,7 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
             throw new Error('Missing binary operator for ip clause');
         }
 
-        return equalityCheck(
-            event.srcHost,
-            ipv4Token.image,
-            binaryOperator.children,
-        );
+        return equalityCheck(event.srcHost, ipv4Token.image, binaryOperator.children);
     } else if (children.portItemClause) {
         let portItemClause = children.portItemClause[0].children;
         const port = children.PORT?.[0];

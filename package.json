@@ -12,7 +12,7 @@
     "test": "jest",
     "test-watch": "jest --watchAll",
     "format": "prettier --write '**/*.{svelte,ts}'",
-    "generate": "npx ts-node ./scripts/generate.ts && npm run format",
+    "generate": "npx ts-node -P tsconfig.generate.json ./scripts/generate.ts && npm run format",
     "generate-check": "npm run generate && git diff --quiet"
   },
   "devDependencies": {
@@ -26,6 +26,7 @@
     "@roxi/routify": "^2.18.12",
     "@testing-library/jest-dom": "^5.16.4",
     "@testing-library/svelte": "^5.2.9",
+    "@tsconfig/node18": "^18.2.6",
     "@tsconfig/svelte": "^5.0.6",
     "@types/jest": "^27.5.1",
     "babel-jest": "^28.1.0",
@@ -43,7 +44,7 @@
     "svelte-jester": "^2.3.2",
     "svelte-preprocess": "^6.0.3",
     "ts-jest": "^28.0.5",
-    "ts-node": "^10.9.1",
+    "ts-node": "^10.9.2",
     "tslib": "^2.0.0",
     "typescript": "^5.9.3"
   },
