@@ -2,10 +2,11 @@
     import { debounce } from '../util';
     import { maxNumberOfMessages, env } from '../store';
 
-    let currentNumberOfMessages, currentEnv;
-    let dialog;
+    let currentNumberOfMessages: number = $maxNumberOfMessages;
+    let dialog: HTMLDialogElement | null = null;
 
     export function showModal() {
+        if (!dialog) return;
         if (!dialog.open) {
             dialog.showModal();
         }
@@ -13,36 +14,40 @@
     }
 
     function closeModal() {
-        if (dialog.open) {
+        if (dialog?.open) {
             dialog.close();
         }
     }
 
-    function handleInputChange() {
-        return debounce(() => {
-            if (currentNumberOfMessages > 0) {
-                maxNumberOfMessages.set(currentNumberOfMessages);
-            }
-        }, 1000);
-    }
-
-    function updateAndCloseModal() {
+    const commitMaxMessages = () => {
         if (currentNumberOfMessages > 0) {
             maxNumberOfMessages.set(currentNumberOfMessages);
         }
+    };
+
+    const debouncedCommit = debounce(commitMaxMessages, 1000);
+
+    function handleInputChange(event: Event) {
+        const target = event.target as HTMLInputElement;
+        currentNumberOfMessages = Number(target.value);
+        debouncedCommit();
+    }
+
+    function updateAndCloseModal() {
+        commitMaxMessages();
         closeModal();
     }
 </script>
 
 <dialog bind:this={dialog} on:click|self={updateAndCloseModal}>
-    <div on:click|stopPropagation>
+    <div>
         <p>Max number of messages</p>
         <input
             id="messages-input-box"
             type="number"
             min="0"
             bind:value={currentNumberOfMessages}
-            on:input={handleInputChange()}
+            on:input={handleInputChange}
             class:error-state={$maxNumberOfMessages <= 0}
         />
         <p>Model</p>

@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { token, userQueries, stringFilter, activeFilterId } from '../store';
-    import { Query, deleteQuery, getQueries } from '../query';
+    import { type Query, deleteQuery, getQueries } from '../query';
     import { parseDSL } from '../dsl';
     import QueryModal from './QueryModal.svelte';
 
@@ -12,11 +12,15 @@
     });
 
     async function reloadQueries() {
-        let updatedQueries = await getQueries($token);
+        const updatedQueries = await getQueries($token);
         userQueries.set(updatedQueries);
     }
 
-    async function deleteQueryAndReload(id: string) {
+    async function deleteQueryAndReload(id?: string) {
+        if (!id) {
+            console.warn('Cannot delete query without an id');
+            return;
+        }
         await deleteQuery(id, $token);
         await reloadQueries();
     }
@@ -24,8 +28,8 @@
     async function activate(query: Query) {
         console.log('activating query', query);
 
-        stringFilter.set(query.content);
-        activeFilterId.set(query.id);
+        stringFilter.set(query.content ?? '');
+        activeFilterId.set(query.id ?? undefined);
     }
 
     async function deactivate(query: Query) {

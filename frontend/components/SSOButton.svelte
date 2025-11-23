@@ -4,7 +4,12 @@
     import { API_ENDPOINT } from '../constants';
 
     function button() {
-        google.accounts.id.renderButton(document.getElementById('googleButton'), {
+        const buttonElement = document.getElementById('googleButton');
+        if (!buttonElement) {
+            console.warn('Google button element missing');
+            return;
+        }
+        google.accounts.id.renderButton(buttonElement, {
             type: 'icon',
             size: 'small',
         });

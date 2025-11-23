@@ -8,7 +8,9 @@
 
     export let isShared: boolean;
 
-    function render(payload: string) {
+    type RenderResult = { name: string; content: string[] };
+
+    function render(payload: string): RenderResult[] {
         const result = hexy(atob(payload), { width: 8 });
         const resultLines = result.split('\n');
         let addressStr = '';
@@ -28,14 +30,18 @@
         ];
     }
 
-    let renderResults;
-    $: if ($currentEvent && $currentEvent.payload) {
+    let renderResults: RenderResult[] = [];
+    $: if ($currentEvent?.payload) {
         renderResults = render($currentEvent.payload);
         eventCreated = undefined;
     }
 
     async function createEvent() {
+        if (!$currentEvent) {
+            throw new Error('No event selected to share');
+        }
         console.log('saving event');
+        const eventToShare = $currentEvent;
         const res = await fetch(`${API_ENDPOINT}/api/events`, {
             method: 'POST',
             headers: {
@@ -43,17 +49,17 @@
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                payload: $currentEvent.payload,
-                dstPort: $currentEvent.dstPort,
-                rule: $currentEvent.rule,
-                handler: $currentEvent.handler,
-                transport: $currentEvent.transport,
-                scanner: $currentEvent.scanner,
-                sensorID: $currentEvent.sensorID,
-                srcHost: $currentEvent.srcHost,
-                srcPort: $currentEvent.srcPort,
-                timestamp: $currentEvent.timestamp,
-                decoded: $currentEvent.decoded,
+                payload: eventToShare.payload,
+                dstPort: eventToShare.dstPort,
+                rule: eventToShare.rule,
+                handler: eventToShare.handler,
+                transport: eventToShare.transport,
+                scanner: eventToShare.scanner,
+                sensorID: eventToShare.sensorID,
+                srcHost: eventToShare.srcHost,
+                srcPort: eventToShare.srcPort,
+                timestamp: eventToShare.timestamp,
+                decoded: eventToShare.decoded,
             }),
         });
 
@@ -67,7 +73,7 @@
         }
     }
 
-    async function getEventById(id): Promise<Event> {
+    async function getEventById(id: string): Promise<Event> {
         console.log('fetching event');
         const res = await fetch(`${API_ENDPOINT}/api/events/${id}`, {
             method: 'GET',
@@ -107,7 +113,7 @@
         }
     }
 
-    let eventCreated: Event;
+    let eventCreated: Event | undefined;
     let disabled = false;
     async function share() {
         await createEvent().then((event) => {
@@ -117,6 +123,9 @@
     }
 
     function downloadEvent() {
+        if (!$currentEvent) {
+            return;
+        }
         const jsonData = JSON.stringify($currentEvent);
         const blob = new Blob([jsonData], { type: 'application/json' });
         const url = window.URL.createObjectURL(blob);

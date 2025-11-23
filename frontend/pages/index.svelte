@@ -16,14 +16,14 @@
     import { validate } from '../session';
     import { env } from '../store';
 
-    let conn: WebSocket = null;
-    let messageList: MessageList;
+    let conn: WebSocket | null = null;
+    let messageList: MessageList | null = null;
 
     function addMessage(message: Event) {
         messageList?.onNewMessage(message);
     }
 
-    function dial(conn: WebSocket) {
+    function dial() {
         if ($env == ENV_DEV) {
             return;
         }
@@ -33,21 +33,19 @@
         //     : `ws://${location.host}/subscribe`;
         conn = new WebSocket(wsUrl);
 
-        if (conn) {
-            conn.addEventListener('close', (ev) => {
-                if (ev.code !== 1001) {
-                    setTimeout(dial, 1000);
-                }
-            });
-            conn.addEventListener('open', () => {
-                console.info('websocket connected');
-            });
-            conn.addEventListener('message', (ev) => {
-                const obj = JSON.parse(ev.data);
-                console.log(obj);
-                addMessage(obj);
-            });
-        }
+        conn.addEventListener('close', (ev) => {
+            if (ev.code !== 1001) {
+                setTimeout(dial, 1000);
+            }
+        });
+        conn.addEventListener('open', () => {
+            console.info('websocket connected');
+        });
+        conn.addEventListener('message', (ev) => {
+            const obj = JSON.parse(ev.data);
+            console.log(obj);
+            addMessage(obj);
+        });
         return true;
     }
 
@@ -64,7 +62,7 @@
         if (value === ENV_DEV) {
             test();
         } else if (value === ENV_PROD) {
-            dial(conn);
+            dial();
         }
     });
 

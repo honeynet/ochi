@@ -9,7 +9,7 @@
 
     console.log($params);
 
-    async function getEventById(id): Promise<Event> {
+    async function getEventById(id: string): Promise<Event> {
         console.log('fetching event');
         const res = await fetch(`${API_ENDPOINT}/api/events/${id}`, {
             method: 'GET',

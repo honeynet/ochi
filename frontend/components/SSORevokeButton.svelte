@@ -1,14 +1,19 @@
 <script lang="ts">
+    import { onDestroy } from 'svelte';
     import { user } from '../store';
     import { logout } from '../session';
     import 'google.accounts';
 
-    let email: string;
-    user.subscribe((value) => {
-        email = value['email'];
+    let email = '';
+    const unsubscribe = user.subscribe((value) => {
+        email = value && typeof value.email === 'string' ? value.email : '';
     });
 
     function revokeSSO() {
+        if (!email) {
+            console.warn('Cannot revoke SSO without an email');
+            return;
+        }
         google.accounts.id.revoke(email, (response: google.accounts.id.RevocationResponse) => {
             if (response.successful) {
                 logout();
@@ -17,6 +22,10 @@
             }
         });
     }
+
+    onDestroy(() => {
+        unsubscribe();
+    });
 </script>
 
 <button id="revokeButton" on:click={revokeSSO}>Revoke</button>
