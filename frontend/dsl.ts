@@ -4,10 +4,9 @@ import {
     Rule,
     Lexer,
     EMPTY_ALT,
-    ILexingError,
-    IRecognitionException,
-    createSyntaxDiagramsCode,
 } from 'chevrotain';
+
+import type { ILexingError, IRecognitionException } from 'chevrotain';
 import type { QueryCstNode } from './generated/chevrotain_dts';
 
 // Comparison
