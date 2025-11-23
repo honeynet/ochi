@@ -1,6 +1,4 @@
 import type { Event } from './event';
-import { now } from 'svelte/internal';
-import { fromByteArray } from 'base64-js';
 
 /**
  * Debounces a callback to prevent calling it too many times.
@@ -13,7 +11,7 @@ import { fromByteArray } from 'base64-js';
  * @returns
  */
 export function debounce<T extends (...args: any[]) => void>(callback: T, delay: number): T {
-    let timeoutId = undefined;
+    let timeoutId: NodeJS.Timeout | undefined = undefined;
 
     return <T>((...args: any[]): void => {
         clearTimeout(timeoutId);
@@ -24,7 +22,7 @@ export function debounce<T extends (...args: any[]) => void>(callback: T, delay:
 }
 
 const ports = [80, 443, 22, 8080, 65345];
-const handlers = ['http', 'rdp', '', null];
+const handlers: (string | undefined)[] = ['http', 'rdp', '', undefined];
 
 function generateRandomString(length: number): string {
     let result = '';
@@ -74,8 +72,7 @@ export function generateRandomTestEvent(): Event {
         sensorID: generateUUID(),
         srcHost: '1.1.1.1',
         srcPort: '4321',
-        timestamp: now().toString(),
-        payload: fromByteArray(textEncoder.encode(payload)),
+        timestamp: new Date().toISOString(),
         decoded: {
             payload: payload,
             src_host: '1.1.1.1',
@@ -102,9 +99,9 @@ export function generateTestEvent(
         rule: rule,
         scanner: 'censys',
         sensorID: 'sensorID',
-        srcHost: sip,
-        srcPort: sport,
-        timestamp: now().toString(),
+        srcHost: sip ?? '',
+        srcPort: sport ?? '1234',
+        timestamp: new Date().toISOString(),
         payload: payload,
         decoded: { payload: 'test' },
     };

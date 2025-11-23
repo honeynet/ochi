@@ -1,4 +1,4 @@
-import { writable, Writable } from 'svelte/store';
+import { writable, type Writable } from 'svelte/store';
 import type { QueryCstNode } from './generated/chevrotain_dts';
 import type { Event } from './event';
 import type { Query } from './query';
@@ -36,7 +36,7 @@ export const activeFilterId: Writable<string | undefined> = writable(
     storedActiveFilterId || undefined,
 );
 activeFilterId.subscribe((value) => {
-    localStorage.setItem('activeFilterId', value);
+    localStorage.setItem('activeFilterId', value!);
 });
 
 const storedToken = localStorage.getItem('token');
