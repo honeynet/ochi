@@ -11,7 +11,7 @@ describe('parseDSL', () => {
 
         // console.log(JSON.stringify(sx, null, 2));
         expect(sx.toString()).toBeTruthy();
-        expect(filterEvent(generateTestEvent(23, '123', '1.1.1.1'), sx.cst)).toBeTruthy();
+        expect(filterEvent(generateTestEvent(23, '123', '1.1.1.1'), sx.cst!)).toBeTruthy();
     });
 
     test('parses ip.src ==', () => {
@@ -21,7 +21,7 @@ describe('parseDSL', () => {
         expect(sx.parseErrors).toHaveLength(0);
         // console.log(JSON.stringify(sx, null, 2));
         expect(sx.toString()).toBeTruthy();
-        expect(filterEvent(generateTestEvent(445, '123', '192.168.1.1'), sx.cst)).toBeTruthy();
+        expect(filterEvent(generateTestEvent(445, '123', '192.168.1.1'), sx.cst!)).toBeTruthy();
     });
 
     test('parses single query with "ne port"', () => {
@@ -30,7 +30,7 @@ describe('parseDSL', () => {
         expect(sx.parseErrors).toHaveLength(0);
         // console.log(JSON.stringify(sx, null, 2));
         expect(sx.toString()).toBeTruthy();
-        expect(filterEvent(generateTestEvent(445, '', '192.168.1.1'), sx.cst)).toBeTruthy();
+        expect(filterEvent(generateTestEvent(445, '', '192.168.1.1'), sx.cst!)).toBeTruthy();
     });
 
     test('parses single query with "ne port"', () => {
@@ -39,7 +39,7 @@ describe('parseDSL', () => {
         expect(sx.parseErrors).toHaveLength(0);
         expect(sx.toString()).toBeTruthy();
         expect(
-            filterEvent(generateTestEvent(445, '', '192.168.1.1', '', 'Rule: UDP'), sx.cst),
+            filterEvent(generateTestEvent(445, '', '192.168.1.1', '', 'Rule: UDP'), sx.cst!),
         ).toBeTruthy();
     });
 
@@ -67,7 +67,7 @@ describe('parseDSL', () => {
         expect(sx.parseErrors).toHaveLength(0);
         let payload = Buffer.from('something').toString('base64');
         expect(
-            filterEvent(generateTestEvent(445, '123', '192.168.1.1', payload), sx.cst),
+            filterEvent(generateTestEvent(445, '123', '192.168.1.1', payload), sx.cst!),
         ).toBeTruthy();
     });
 
@@ -77,7 +77,7 @@ describe('parseDSL', () => {
         expect(sx.parseErrors).toHaveLength(0);
         let payload = Buffer.from('something').toString('base64');
         expect(
-            filterEvent(generateTestEvent(445, '123', '192.168.1.1', payload), sx.cst),
+            filterEvent(generateTestEvent(445, '123', '192.168.1.1', payload), sx.cst!),
         ).toBeTruthy();
     });
 
@@ -87,7 +87,7 @@ describe('parseDSL', () => {
         expect(sx.parseErrors).toHaveLength(0);
         let payload = Buffer.from('something').toString('base64');
         expect(
-            filterEvent(generateTestEvent(445, '123', '192.168.1.1', payload), sx.cst),
+            filterEvent(generateTestEvent(445, '123', '192.168.1.1', payload), sx.cst!),
         ).toBeTruthy();
     });
 
@@ -97,7 +97,7 @@ describe('parseDSL', () => {
         expect(sx.parseErrors).toHaveLength(0);
         let payload = Buffer.from('something').toString('base64');
         expect(
-            filterEvent(generateTestEvent(445, '123', '192.168.1.1', payload), sx.cst),
+            filterEvent(generateTestEvent(445, '123', '192.168.1.1', payload), sx.cst!),
         ).toBeFalsy();
     });
 });

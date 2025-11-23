@@ -6,9 +6,10 @@
   "exclude": [
     "node_modules/*",
     "__sapper__/*",
-    "public/*"
+    "public/*",
+    ".routify/**/*"
   ],
   "compilerOptions": {
     "allowJs": true
-  }
+  },
 }

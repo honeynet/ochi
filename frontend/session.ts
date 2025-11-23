@@ -2,9 +2,9 @@ import { isAuthenticated, user, token } from './store';
 
 import { API_ENDPOINT } from './constants';
 
-let jwt: string;
+let jwt = '';
 token.subscribe((value) => {
-    jwt = value;
+    jwt = value ?? '';
 });
 
 export async function validate() {

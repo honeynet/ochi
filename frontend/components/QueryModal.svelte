@@ -1,12 +1,13 @@
 <script lang="ts">
     import { token, userQueries } from '../store';
-    import { API_ENDPOINT } from '../constants';
-    import { Query, createQuery, getQueries, updateQuery } from '../query';
+    import { createQuery, getQueries, updateQuery } from '../query';
+    import type { Query } from '../query';
 
-    let dialog;
+    let dialog: HTMLDialogElement | null = null;
     let queryToEdit: Query = {};
 
     export function showModal(objectToEdit: Query) {
+        if (!dialog) return;
         if (!dialog.open) {
             dialog.showModal();
         }
@@ -14,7 +15,7 @@
     }
 
     function closeModal() {
-        if (dialog.open) {
+        if (dialog?.open) {
             dialog.close();
         }
     }
@@ -33,7 +34,8 @@
     }
 
     async function reloadQueries() {
-        $userQueries = await getQueries($token);
+        const queries = await getQueries($token);
+        userQueries.set(queries);
     }
 
     async function updateQueryAndReload() {
@@ -63,7 +65,7 @@
 </script>
 
 <dialog bind:this={dialog}>
-    <form on:click|stopPropagation class="queryModal__form">
+    <form class="queryModal__form">
         <label
             >Content
             <input id="messages-input-box" type="text" bind:value={queryToEdit.content} />
@@ -108,11 +110,6 @@
     }
     button {
         display: block;
-    }
-
-    .error-state {
-        border: 2px red solid;
-        outline: none;
     }
 
     .queryModal__form {
