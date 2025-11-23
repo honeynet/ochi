@@ -14,7 +14,7 @@ module.exports = {
     testEnvironment: 'jsdom',
     globals: {
         'ts-jest': {
-            tsconfig: 'tsconfig.json',
+            tsconfig: 'tsconfig.jest.json',
         },
     },
     transformIgnorePatterns: ['node_modules/(?!@ngrx|(?!deck.gl)|ng-dynamic)'],
