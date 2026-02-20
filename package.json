@@ -38,7 +38,7 @@
     "rollup-plugin-css-only": "^4.3.0",
     "rollup-plugin-livereload": "^2.0.0",
     "rollup-plugin-svelte": "^7.2.3",
-    "svelte": "^5.43.14",
+    "svelte": "^5.53.0",
     "svelte-check": "^4.3.4",
     "svelte-copy": "^2",
     "svelte-jester": "^2.3.2",
