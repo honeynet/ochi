@@ -21,7 +21,7 @@
     "@chevrotain/types": "^10.5.0",
     "@rollup/plugin-commonjs": "^25.0.0",
     "@rollup/plugin-node-resolve": "^15.1.0",
-    "@rollup/plugin-terser": "^0.4.3",
+    "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^11.1.1",
     "@roxi/routify": "^2.18.12",
     "@testing-library/jest-dom": "^5.16.4",
