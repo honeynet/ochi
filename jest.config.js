@@ -18,6 +18,7 @@ module.exports = {
         '^@chevrotain/cst-dts-gen$':
             '<rootDir>/node_modules/@chevrotain/cst-dts-gen/lib/src/api.js',
     },
+    setupFiles: ['<rootDir>/jest.setup.js'],
     setupFilesAfterEnv: ['@testing-library/jest-dom/extend-expect'],
     testEnvironment: 'jsdom',
     globals: {

@@ -63,5 +63,8 @@
   "routify": {
     "pages": "./frontend/pages",
     "dynamicImports": false
+  },
+  "overrides": {
+    "picomatch": "2.3.2"
   }
 }
