@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bytes"
 	"context"
 	"strings"
 
@@ -13,4 +14,14 @@ func isNotFoundError(e error) bool {
 
 func userIDFromCtx(ctx context.Context) string {
 	return ctx.Value(handlers.UserID("userID")).(string)
+}
+
+// IndexReplace substitutes the first occurrence of old with new in b.
+func IndexReplace(b, old, new []byte) ([]byte, bool) {
+	i := bytes.Index(b, old)
+	if i == -1 {
+		return b, false
+	}
+	copy(b[i:], new)
+	return b, true
 }
