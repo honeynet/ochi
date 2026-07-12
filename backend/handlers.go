@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"os"
 
@@ -345,6 +346,52 @@ func (cs *server) getEventByIDHandler(w http.ResponseWriter, r *http.Request, p 
 	}
 }
 
+func (cs *server) getSensorsByUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	userId := userIDFromCtx(r.Context())
+	events, err := cs.sensorRepo.GetSensorsByOwnerId(userId)
+	if err != nil {
+		if isNotFoundError(err) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	if err = json.NewEncoder(w).Encode(events); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (cs *server) addSensor(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	userId := userIDFromCtx(r.Context())
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+
+	var sensor entities.Sensor
+	if err := decoder.Decode(&sensor); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	sensor.UserID = userId
+
+	if err := cs.sensorRepo.AddSensors(sensor); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(sensor); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
 // downloadBinaryHandler serves the binary for the requested architecture with a new sensor UUID injected.
 func (cs *server) downloadBinaryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	osType := p.ByName("os")
@@ -381,15 +428,18 @@ func (cs *server) downloadBinaryHandler(w http.ResponseWriter, r *http.Request, 
 	}
 
 	newUUID := uuid.New().String()
-	placeHolderUUID := "00000000-0000-0000-0000-000000000000"
+	placeholderUUID := "00000000-0000-0000-0000-000000000000"
 
-	modifiedData := IndexReplace(data, []byte(placeHolderUUID), []byte(newUUID))
+	modifiedData, ok := IndexReplace(data, []byte(placeholderUUID), []byte(newUUID))
+	if !ok {
+		http.Error(w, "Placeholder UUID not found in binary", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", "attachment; filename=\"sensor-"+osType+"-"+arch+"\"")
 
 	if _, err := w.Write(modifiedData); err != nil {
-		http.Error(w, "Failed to write binary", http.StatusInternalServerError)
-		return
+		log.Printf("failed to write binary: %v", err)
 	}
 }

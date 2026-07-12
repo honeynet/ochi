@@ -14,7 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDownloadBinaryHandler(t *testing.T) {
+func setupDownloadBinaryTest(t *testing.T, content []byte) (string, string, func()) {
+	t.Helper()
 
 	osType := "linux"
 	arch := "amd64"
@@ -27,24 +28,34 @@ func TestDownloadBinaryHandler(t *testing.T) {
 	assert.NoError(t, err)
 	err = os.Chdir(tmpDir)
 	assert.NoError(t, err)
-	defer os.Chdir(originalWD)
+
+	cleanup := func() {
+		os.Chdir(originalWD)
+	}
 
 	err = os.MkdirAll(binDir, 0755)
 	assert.NoError(t, err)
 
-	placeHolderUUID := "00000000-0000-0000-0000-000000000000"
-	prefix := "some-prefix-bytes-"
-	suffix := "-some-suffix-bytes"
-	content := []byte(prefix + placeHolderUUID + suffix)
 	filePath := filepath.Join(binDir, binaryName)
 	err = os.WriteFile(filePath, content, 0644)
 	assert.NoError(t, err)
+
+	return osType, arch, cleanup
+}
+
+func TestDownloadBinaryHandler(t *testing.T) {
+	placeholderUUID := "00000000-0000-0000-0000-000000000000"
+	prefix := "some-prefix-bytes-"
+	suffix := "-some-suffix-bytes"
+	content := []byte(prefix + placeholderUUID + suffix)
+
+	osType, arch, cleanup := setupDownloadBinaryTest(t, content)
+	defer cleanup()
 
 	cs := &server{}
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/download/"+osType+"/"+arch, nil)
-
 	params := httprouter.Params{
 		httprouter.Param{Key: "os", Value: osType},
 		httprouter.Param{Key: "arch", Value: arch},
@@ -61,7 +72,7 @@ func TestDownloadBinaryHandler(t *testing.T) {
 	assert.Equal(t, "application/octet-stream", resp.Header.Get("Content-Type"))
 	assert.Contains(t, resp.Header.Get("Content-Disposition"), "attachment; filename=\"sensor-"+osType+"-"+arch+"\"")
 	assert.Equal(t, len(content), len(body))
-	assert.False(t, bytes.Contains(body, []byte(placeHolderUUID)))
+	assert.False(t, bytes.Contains(body, []byte(placeholderUUID)))
 	assert.True(t, bytes.Contains(body, []byte(prefix)))
 	assert.True(t, bytes.Contains(body, []byte(suffix)))
 
@@ -101,4 +112,60 @@ func TestDownloadBinaryHandler_InvalidParams(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		})
 	}
+}
+
+func TestDownloadBinaryHandler_BinaryNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	originalWD, err := os.Getwd()
+	assert.NoError(t, err)
+	err = os.Chdir(tmpDir)
+	assert.NoError(t, err)
+	defer os.Chdir(originalWD)
+
+	cs := &server{}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/download/linux/amd64", nil)
+	params := httprouter.Params{
+		httprouter.Param{Key: "os", Value: "linux"},
+		httprouter.Param{Key: "arch", Value: "amd64"},
+	}
+
+	cs.downloadBinaryHandler(w, r, params)
+
+	resp := w.Result()
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+}
+
+func TestDownloadBinaryHandler_MissingPlaceholder(t *testing.T) {
+	content := []byte("binary-without-placeholder")
+
+	osType, arch, cleanup := setupDownloadBinaryTest(t, content)
+	defer cleanup()
+
+	cs := &server{}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/download/"+osType+"/"+arch, nil)
+	params := httprouter.Params{
+		httprouter.Param{Key: "os", Value: osType},
+		httprouter.Param{Key: "arch", Value: arch},
+	}
+
+	cs.downloadBinaryHandler(w, r, params)
+
+	resp := w.Result()
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+}
+
+func TestIndexReplace(t *testing.T) {
+	placeholder := "00000000-0000-0000-0000-000000000000"
+	newUUID := "11111111-2222-3333-4444-555555555555"
+	data := []byte("prefix-" + placeholder + "-suffix")
+
+	modified, ok := IndexReplace(data, []byte(placeholder), []byte(newUUID))
+	assert.True(t, ok)
+	assert.Equal(t, "prefix-"+newUUID+"-suffix", string(modified))
+
+	_, ok = IndexReplace([]byte("no-match"), []byte(placeholder), []byte(newUUID))
+	assert.False(t, ok)
 }

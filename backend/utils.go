@@ -16,12 +16,12 @@ func userIDFromCtx(ctx context.Context) string {
 	return ctx.Value(handlers.UserID("userID")).(string)
 }
 
-// IndexReplace uses the optimized offset finding
-func IndexReplace(b, old, new []byte) []byte {
+// IndexReplace substitutes the first occurrence of old with new in b.
+func IndexReplace(b, old, new []byte) ([]byte, bool) {
 	i := bytes.Index(b, old)
 	if i == -1 {
-		return b
+		return b, false
 	}
 	copy(b[i:], new)
-	return b
+	return b, true
 }
