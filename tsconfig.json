@@ -1,5 +1,5 @@
 {
-  "extends": "@tsconfig/svelte/tsconfig.json",
+  "extends": "./node_modules/@tsconfig/svelte/tsconfig.json",
   "include": [
     "frontend/**/*"
   ],
@@ -11,5 +11,5 @@
   ],
   "compilerOptions": {
     "allowJs": true
-  },
+  }
 }
