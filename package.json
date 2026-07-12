@@ -8,8 +8,8 @@
   "scripts": {
     "dev": "run-p dev:*",
     "dev:rollup": "rollup -c -w",
-    "dev:routify": "routify",
-    "build": "routify -b && rollup -c",
+    "dev:routify": "node scripts/build-routes.mjs --watch",
+    "build": "node scripts/build-routes.mjs && rollup -c",
     "start": "sirv public --single --no-clear",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "jest",
