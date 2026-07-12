@@ -15,34 +15,31 @@ type SensorRepo struct {
 }
 
 func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
-
 	r := &SensorRepo{}
 	db.Mapper = reflectx.NewMapperFunc("json", strings.ToLower)
-	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS sensors(
+	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS sensors (
 		id TEXT PRIMARY KEY NOT NULL 
 		, user_id TEXT NOT NULL
 		, name TEXT NOT NULL
 		, UNIQUE (user_id, name)
 		, FOREIGN KEY (user_id) REFERENCES users(id)
-
 	)`)
-
 	if err != nil {
 		return nil, err
 	}
 
-	r.getSensorsByUser, err = db.Preparex(` SELECT * sensors 
+	r.getSensorsByUser, err = db.Preparex(`
+	SELECT * FROM sensors 
 		WHERE 
-		WHERE ownerid=?
+		user_id=?
 	`)
-
 	if err != nil {
 
 		return nil, err
 	}
 
 	r.addSensor, err = db.PrepareNamed(`
-		INSERT INTO sensors (id , ownerid , name) VALUES (:id , :ownerid , :name)
+		INSERT INTO sensors (id , user_id , name) VALUES (:id , :user_id , :name)
 	`)
 	if err != nil {
 		return nil, err
@@ -52,18 +49,16 @@ func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
 }
 
 func (r *SensorRepo) GetSensorsByOwnerId(ownerId string) ([]entities.Sensor, error) {
-
-	ss := []entities.Sensor{}
-
-	err := r.getSensorsByUser.Select(ownerId)
-
-	return ss, err
-
+	var ss []entities.Sensor
+	if err := r.getSensorsByUser.Select(&ss, ownerId); err != nil {
+		return nil, err
+	}
+	return ss, nil
 }
 
 func (r *SensorRepo) AddSensors(sensor entities.Sensor) error {
-
-	s := entities.Sensor{ID: sensor.ID, User: sensor.User, Name: sensor.Name}
-	_, err := r.addSensor.Exec(s)
-	return err
+	if _, err := r.addSensor.Exec(sensor); err != nil {
+		return err
+	}
+	return nil
 }

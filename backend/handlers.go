@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/honeynet/ochi/backend/entities"
+
 	"github.com/julienschmidt/httprouter"
 	"google.golang.org/api/idtoken"
 )
@@ -342,6 +343,7 @@ func (cs *server) getEventByIDHandler(w http.ResponseWriter, r *http.Request, p 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
+
 func (cs *server) getSensorsByUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	userId := userIDFromCtx(r.Context())
 	events, err := cs.sensorRepo.GetSensorsByOwnerId(userId)
@@ -361,26 +363,24 @@ func (cs *server) getSensorsByUser(w http.ResponseWriter, r *http.Request, p htt
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 }
+
 func (cs *server) addSensor(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	userId := userIDFromCtx(r.Context())
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
+
 	var sensor entities.Sensor
-	err := decoder.Decode(&sensor)
-	if err != nil {
+	if err := decoder.Decode(&sensor); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	sensor.User = userId
 
-	err = cs.sensorRepo.AddSensors(sensor)
+	sensor.UserID = userId
 
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	w.WriteHeader(http.StatusOK)
-
+	if err := json.NewEncoder(w).Encode(sensor); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }

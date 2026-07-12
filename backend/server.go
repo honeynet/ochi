@@ -86,7 +86,6 @@ func NewServer(fsys fs.FS) (*server, error) {
 	}
 
 	cs.sensorRepo, err = repos.NewSensorRepo(db)
-
 	if err != nil {
 		log.Fatal(err)
 	}
