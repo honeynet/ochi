@@ -37,7 +37,7 @@ const udpPort = createToken({ name: 'UDP_PORT', pattern: /udp\.port/, label: 'ud
 const payload = createToken({ name: 'PAYLOAD', pattern: /payload/, label: 'payload' });
 const string = createToken({ name: 'STRING', pattern: /\"[a-zA-Z0-9]+\"/, label: '"msg"' });
 
-const partial = createToken({ name: 'PARTIAL', pattern: /[a-zA-Z0-9]+|\?/, label: 'partial' });
+const partial = createToken({ name: 'PARTIAL', pattern: /[a-zA-Z][a-zA-Z0-9]*|\?/, label: 'partial' });
 
 const whiteSpace = createToken({
     name: 'WhiteSpace',
@@ -213,6 +213,16 @@ class QueryParser extends CstParser {
 
 const parser = new QueryParser();
 
+export interface PartialToken {
+    image: string;
+    startOffset: number;
+}
+
+export interface FilterState {
+    suggestions: string[];
+    partialToken: PartialToken | null;
+}
+
 export interface ParseResult {
     cst?: QueryCstNode;
     lexErrors: ILexingError[];
@@ -224,7 +234,10 @@ export const productions: Record<string, Rule> = parser.getGAstProductions();
 // create the HTML Text
 export const serializedGrammar = parser.getSerializedGastProductions();
 
-export function parseDSL(text: string, filterState = { suggestions: [], partialToken: null }): ParseResult {
+export function parseDSL(
+    text: string,
+    filterState: FilterState = { suggestions: [], partialToken: null },
+): ParseResult {
     const lexResult = queryLexer.tokenize(text);
 
     if (lexResult.errors.length > 0) {
@@ -235,28 +248,29 @@ export function parseDSL(text: string, filterState = { suggestions: [], partialT
     }
     // setting a new input will RESET the parser instance's state.
 
-    const tokens = lexResult.tokens;
+    const assistTokens = lexResult.tokens.slice();
     let lastToken;
     let partialSuggestion = false;
 
-    if (tokens[tokens.length - 1].tokenType === partial) {
-        lastToken = tokens.pop();
+    if (assistTokens.length > 0 && assistTokens[assistTokens.length - 1].tokenType === partial) {
+        lastToken = assistTokens.pop();
         partialSuggestion = true;
     }
 
-    let suggestions = parser.computeContentAssist("query", tokens).map(nextToken => {
+    let suggestions = parser.computeContentAssist('query', assistTokens).map((nextToken) => {
         return nextToken.nextTokenType.LABEL;
     });
-    console.log(suggestions);
-    console.log(lastToken);
-    if (partialSuggestion && lastToken.image !== '?') {
-        suggestions = suggestions.filter(suggestion => {
+    if (partialSuggestion && lastToken && lastToken.image !== '?') {
+        suggestions = suggestions.filter((suggestion) => {
             return suggestion.startsWith(lastToken.image);
         });
     }
 
     filterState.suggestions = suggestions;
-    filterState.partialToken = partialSuggestion ? lastToken.image : null;
+    filterState.partialToken =
+        partialSuggestion && lastToken
+            ? { image: lastToken.image, startOffset: lastToken.startOffset }
+            : null;
 
     parser.input = lexResult.tokens;
     // any top level rule may be used as an entry point

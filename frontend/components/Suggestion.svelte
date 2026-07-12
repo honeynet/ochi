@@ -7,11 +7,11 @@
 </script>
 
 <div id={suggestionId} class="suggestions"
-    style="display: {(suggestions.length == 0 || hide) ? " none" : "block"};"
+    style="display: {(suggestions.length === 0 || hide) ? 'none' : 'block'};"
     bind:this={suggestionsDiv}>
     <ul>
     {#each suggestions as suggestion}
-        <p on:click={() => onSelect(suggestion)}>{suggestion}</p>
+        <li on:click={() => onSelect(suggestion)}>{suggestion}</li>
     {/each}
     </ul>
 </div>
@@ -30,7 +30,7 @@
         margin: 0;
     }
 
-    .suggestions p {
+    .suggestions li {
         padding-left: 10px;
         text-decoration: none;
         display: block;

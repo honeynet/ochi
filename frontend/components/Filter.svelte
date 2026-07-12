@@ -2,7 +2,7 @@
     import Button from './Button.svelte';
     import QueryModal from './QueryModal.svelte';
     import Suggestion from './Suggestion.svelte';
-    import { parseDSL } from '../dsl';
+    import { parseDSL, type FilterState } from '../dsl';
     import { debounce } from '../util';
     import {
         parsedFilter,
@@ -16,7 +16,7 @@
     let filterValid: boolean = false;
     let saveModal: QueryModal;
     let hideSuggestions: boolean = true;
-    let filterState = {
+    let filterState: FilterState = {
         suggestions: [],
         partialToken: null,
     };
@@ -30,7 +30,7 @@
 
     function _filterChangeHandler() {
         // TODO: validate queries as user types them.
-        if (filter == '') {
+        if (filter === '') {
             filterValid = true;
             filterState = {
                 suggestions: [],
@@ -39,7 +39,7 @@
             return;
         }
         let parseResult = parseDSL(filter, filterState);
-        filterState = filterState; // force reactivity to update suggestions
+        filterState = { ...filterState }; // force reactivity to update suggestions
         if (parseResult.lexErrors.length > 0 || parseResult.parseErrors.length > 0) {
             console.log('Found some errors', parseResult.lexErrors, parseResult.parseErrors);
             filterValid = false;
@@ -116,9 +116,8 @@
             bind:suggestionsDiv
             hide={hideSuggestions}
             onSelect={(value) => {
-                console.log('Selected', value);
                 if (filterState.partialToken) {
-                    filter = filter.slice(0, filterState.partialToken.startOffset-1) + value;
+                    filter = filter.slice(0, filterState.partialToken.startOffset - 1) + value;
                 } else {
                     filter += ' ' + value;
                 }
