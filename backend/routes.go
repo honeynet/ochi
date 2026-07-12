@@ -53,6 +53,8 @@ func newRouter(cs *server) (*httprouter.Router, error) {
 	// sensor
 	r.GET("/sensors", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getSensorsByUser, os.Args[3])))
 	r.POST("/sensors", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.addSensor, os.Args[3])))
+	r.GET("/download/:os/:arch", handlers.CorsMiddleware(
+		handlers.BearerMiddleware(cs.downloadBinaryHandler, os.Args[3])))
 
 	return r, nil
 }

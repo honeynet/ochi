@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/honeynet/ochi/backend/entities"
 
 	"github.com/julienschmidt/httprouter"
@@ -387,5 +389,57 @@ func (cs *server) addSensor(w http.ResponseWriter, r *http.Request, p httprouter
 	if err := json.NewEncoder(w).Encode(sensor); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+}
+
+// downloadBinaryHandler serves the binary for the requested architecture with a new sensor UUID injected.
+func (cs *server) downloadBinaryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	osType := p.ByName("os")
+	arch := p.ByName("arch")
+
+	validOS := map[string]bool{
+		"linux":   true,
+		"darwin":  true,
+		"windows": true,
+		"openbsd": true,
+	}
+
+	validArch := map[string]bool{
+		"amd64": true,
+		"arm64": true,
+		"386":   true,
+	}
+
+	if !validOS[osType] || !validArch[arch] {
+		http.Error(w, "Invalid parameters", http.StatusBadRequest)
+		return
+	}
+
+	binaryPath := "bin/sensor-" + osType + "-" + arch
+
+	data, err := os.ReadFile(binaryPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "Binary not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	newUUID := uuid.New().String()
+	placeholderUUID := "00000000-0000-0000-0000-000000000000"
+
+	modifiedData, ok := IndexReplace(data, []byte(placeholderUUID), []byte(newUUID))
+	if !ok {
+		http.Error(w, "Placeholder UUID not found in binary", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"sensor-"+osType+"-"+arch+"\"")
+
+	if _, err := w.Write(modifiedData); err != nil {
+		log.Printf("failed to write binary: %v", err)
 	}
 }
