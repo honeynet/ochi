@@ -20,8 +20,8 @@
         suggestions: [],
         partialToken: null,
     };
-    let suggestionsDiv;
-    let inputField;
+    let suggestionsDiv: HTMLDivElement | undefined = undefined;
+    let inputField: HTMLInputElement | undefined = undefined;
 
     stringFilter.subscribe((value) => {
         filter = value;
@@ -90,12 +90,16 @@
         });
     }
 
-    function handleClickOutsideSuggestionBox(event) {
+    function handleClickOutsideSuggestionBox(event: MouseEvent) {
+        const target = event.target;
+        if (!(target instanceof Node)) {
+            return;
+        }
         if (
             suggestionsDiv &&
-            !suggestionsDiv.contains(event.target) &&
+            !suggestionsDiv.contains(target) &&
             inputField &&
-            !inputField.contains(event.target)
+            !inputField.contains(target)
         ) {
             hideSuggestions = true;
         }
@@ -127,7 +131,7 @@
                 } else {
                     filter += ' ' + value;
                 }
-                inputField.focus();
+                inputField?.focus();
                 _filterChangeHandler();
             }}
         />

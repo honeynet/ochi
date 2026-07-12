@@ -1,9 +1,9 @@
 <script lang="ts">
     export let suggestionId: string = '';
     export let hide: boolean = true;
-    export let onSelect: (value) => void;
+    export let onSelect: (value: string) => void;
     export let suggestions: string[] = [];
-    export let suggestionsDiv;
+    export let suggestionsDiv: HTMLDivElement | undefined = undefined;
 </script>
 
 <div
@@ -14,7 +14,20 @@
 >
     <ul>
         {#each suggestions as suggestion}
-            <li on:click={() => onSelect(suggestion)}>{suggestion}</li>
+            <li
+                role="option"
+                aria-selected="false"
+                tabindex="0"
+                on:click={() => onSelect(suggestion)}
+                on:keydown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        onSelect(suggestion);
+                    }
+                }}
+            >
+                {suggestion}
+            </li>
         {/each}
     </ul>
 </div>
