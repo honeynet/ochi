@@ -378,6 +378,11 @@ func (cs *server) addSensor(w http.ResponseWriter, r *http.Request, p httprouter
 
 	sensor.UserID = userId
 
+	if err := cs.sensorRepo.AddSensors(sensor); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(sensor); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
