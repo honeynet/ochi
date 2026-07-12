@@ -1,6 +1,6 @@
 import { createToken, CstParser, Rule, Lexer, EMPTY_ALT } from 'chevrotain';
 
-import type { ILexingError, IRecognitionException } from 'chevrotain';
+import type { ILexingError, IRecognitionException, IToken, TokenType } from 'chevrotain';
 import type { QueryCstNode } from './generated/chevrotain_dts';
 
 // Comparison
@@ -37,7 +37,11 @@ const udpPort = createToken({ name: 'UDP_PORT', pattern: /udp\.port/, label: 'ud
 const payload = createToken({ name: 'PAYLOAD', pattern: /payload/, label: 'payload' });
 const string = createToken({ name: 'STRING', pattern: /\"[a-zA-Z0-9]+\"/, label: '"msg"' });
 
-const partial = createToken({ name: 'PARTIAL', pattern: /[a-zA-Z][a-zA-Z0-9]*|\?/, label: 'partial' });
+const partial = createToken({
+    name: 'PARTIAL',
+    pattern: /[a-zA-Z][a-zA-Z0-9]*|\?/,
+    label: 'partial',
+});
 
 const whiteSpace = createToken({
     name: 'WhiteSpace',
@@ -234,6 +238,62 @@ export const productions: Record<string, Rule> = parser.getGAstProductions();
 // create the HTML Text
 export const serializedGrammar = parser.getSerializedGastProductions();
 
+const QUERY_START_SUGGESTIONS = ['tcp.port', 'udp.port', 'ip.src', 'ip.dst', 'payload', 'not'];
+
+const FIELD_SUGGESTIONS = ['tcp.port', 'udp.port', 'ip.src', 'ip.dst', 'payload'];
+
+const OPERATOR_SUGGESTIONS = ['eq', 'ne', '==', '!='];
+const BOOLEAN_SUFFIX_SUGGESTIONS = ['and', 'or'];
+
+function tokenMatches(token: IToken, ...types: TokenType[]): boolean {
+    return types.includes(token.tokenType);
+}
+
+function computeSuggestions(assistTokens: IToken[]): string[] {
+    if (assistTokens.length === 0) {
+        return QUERY_START_SUGGESTIONS;
+    }
+
+    const lastToken = assistTokens[assistTokens.length - 1];
+
+    if (tokenMatches(lastToken, and, or)) {
+        return QUERY_START_SUGGESTIONS;
+    }
+
+    if (tokenMatches(lastToken, not)) {
+        return FIELD_SUGGESTIONS;
+    }
+
+    if (tokenMatches(lastToken, tcpPort, udpPort, ipSrc, ipDst)) {
+        return OPERATOR_SUGGESTIONS;
+    }
+
+    if (tokenMatches(lastToken, eq, ne, eqSmb, neSmb)) {
+        const fieldToken = assistTokens[assistTokens.length - 2];
+        if (fieldToken && tokenMatches(fieldToken, tcpPort, udpPort)) {
+            return ['<PORT>'];
+        }
+        if (fieldToken && tokenMatches(fieldToken, ipSrc, ipDst)) {
+            return ['<IP>'];
+        }
+        return [];
+    }
+
+    if (tokenMatches(lastToken, port, ipv4, string)) {
+        return BOOLEAN_SUFFIX_SUGGESTIONS;
+    }
+
+    if (tokenMatches(lastToken, payload)) {
+        return ['contains'];
+    }
+
+    if (tokenMatches(lastToken, contains)) {
+        return ['"msg"'];
+    }
+
+    return [];
+}
+
 export function parseDSL(
     text: string,
     filterState: FilterState = { suggestions: [], partialToken: null },
@@ -249,7 +309,7 @@ export function parseDSL(
     // setting a new input will RESET the parser instance's state.
 
     const assistTokens = lexResult.tokens.slice();
-    let lastToken;
+    let lastToken: IToken | undefined;
     let partialSuggestion = false;
 
     if (assistTokens.length > 0 && assistTokens[assistTokens.length - 1].tokenType === partial) {
@@ -257,13 +317,10 @@ export function parseDSL(
         partialSuggestion = true;
     }
 
-    let suggestions = parser.computeContentAssist('query', assistTokens).map((nextToken) => {
-        return nextToken.nextTokenType.LABEL;
-    });
+    let suggestions = computeSuggestions(assistTokens);
     if (partialSuggestion && lastToken && lastToken.image !== '?') {
-        suggestions = suggestions.filter((suggestion) => {
-            return suggestion.startsWith(lastToken.image);
-        });
+        const partialImage = lastToken.image;
+        suggestions = suggestions.filter((suggestion) => suggestion.startsWith(partialImage));
     }
 
     filterState.suggestions = suggestions;

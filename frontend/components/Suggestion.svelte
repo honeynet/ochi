@@ -6,15 +6,19 @@
     export let suggestionsDiv;
 </script>
 
-<div id={suggestionId} class="suggestions"
-    style="display: {(suggestions.length === 0 || hide) ? 'none' : 'block'};"
-    bind:this={suggestionsDiv}>
+<div
+    id={suggestionId}
+    class="suggestions"
+    style="display: {suggestions.length === 0 || hide ? 'none' : 'block'};"
+    bind:this={suggestionsDiv}
+>
     <ul>
-    {#each suggestions as suggestion}
-        <li on:click={() => onSelect(suggestion)}>{suggestion}</li>
-    {/each}
+        {#each suggestions as suggestion}
+            <li on:click={() => onSelect(suggestion)}>{suggestion}</li>
+        {/each}
     </ul>
 </div>
+
 <style>
     .suggestions {
         position: absolute;

@@ -91,7 +91,12 @@
     }
 
     function handleClickOutsideSuggestionBox(event) {
-        if (suggestionsDiv && !suggestionsDiv.contains(event.target) && inputField && !inputField.contains(event.target)) {
+        if (
+            suggestionsDiv &&
+            !suggestionsDiv.contains(event.target) &&
+            inputField &&
+            !inputField.contains(event.target)
+        ) {
             hideSuggestions = true;
         }
     }
@@ -108,8 +113,9 @@
             bind:this={inputField}
             placeholder="Filter destination port"
             on:input={filterChangeHandler()}
-            on:focus={() => { hideSuggestions = false; }}
-            
+            on:focus={() => {
+                hideSuggestions = false;
+            }}
         />
         <Suggestion
             suggestions={filterState.suggestions}
@@ -123,7 +129,8 @@
                 }
                 inputField.focus();
                 _filterChangeHandler();
-            }} />
+            }}
+        />
     </div>
     <Button disabled={!filterValid} onClick={applyFilter} text="Apply" />
     {#if $isAuthenticated}<QueryModal bind:this={saveModal} />
