@@ -11,7 +11,7 @@ Eventually we want to be able to enabled to quickly react to new trends, improve
 ## Development Requirements
 
 1. [Golang version > 1.17](https://go.dev/doc/install)
-2. [Node LTS version](https://nodejs.org/en/download/)
+2. [Node.js 26 or later](https://nodejs.org/en/download/)
 
 #### For windows system, some additional setup is needed (only in case of backend development)
 
