@@ -69,7 +69,7 @@ export function generateRandomTestEvent(): Event {
         dstPort: ports[Math.floor(Math.random() * ports.length)],
         rule: 'Rule: TCP',
         scanner: 'censys',
-        sensorID: generateUUID(),
+        sensorID: generateUUID().split('-')[0],
         srcHost: '1.1.1.1',
         srcPort: '4321',
         timestamp: new Date().toISOString(),

@@ -6,7 +6,11 @@
     import { url } from '@roxi/routify';
     import { copy } from 'svelte-copy';
 
-    export let isShared: boolean;
+    interface Props {
+        isShared: boolean;
+    }
+
+    let { isShared }: Props = $props();
 
     type RenderResult = { name: string; content: string[] };
 
@@ -30,11 +34,18 @@
         ];
     }
 
-    let renderResults: RenderResult[] = [];
-    $: if ($currentEvent?.payload) {
-        renderResults = render($currentEvent.payload);
-        eventCreated = undefined;
-    }
+    let eventCreated = $state<Event | undefined>(undefined);
+    let disabled = $state(false);
+
+    let renderResults = $derived(
+        $currentEvent?.payload ? render($currentEvent.payload) : ([] as RenderResult[]),
+    );
+
+    $effect(() => {
+        if ($currentEvent?.payload) {
+            eventCreated = undefined;
+        }
+    });
 
     async function createEvent() {
         if (!$currentEvent) {
@@ -73,48 +84,6 @@
         }
     }
 
-    async function getEventById(id: string): Promise<Event> {
-        console.log('fetching event');
-        const res = await fetch(`${API_ENDPOINT}/api/events/${id}`, {
-            method: 'GET',
-            headers: {
-                Authorization: `Bearer ${$token}`,
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (res.ok) {
-            console.log('received success ');
-            const event = await res.json();
-            return event;
-        } else {
-            console.log('failed to save ' + res.text());
-            throw new Error('Could not fetch an event');
-        }
-    }
-
-    async function getEvents(): Promise<Event[]> {
-        console.log('fetching queries');
-        const res = await fetch(`${API_ENDPOINT}/api/events`, {
-            method: 'GET',
-            headers: {
-                Authorization: `Bearer ${$token}`,
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (res.ok) {
-            console.log('received success ');
-            const data = await res.json();
-            return data;
-        } else {
-            console.log('failed to get ' + res.text());
-            throw new Error('Could not fetch events');
-        }
-    }
-
-    let eventCreated: Event | undefined;
-    let disabled = false;
     async function share() {
         await createEvent().then((event) => {
             eventCreated = event;
@@ -128,17 +97,17 @@
         }
         const jsonData = JSON.stringify($currentEvent);
         const blob = new Blob([jsonData], { type: 'application/json' });
-        const url = window.URL.createObjectURL(blob);
+        const objectUrl = window.URL.createObjectURL(blob);
 
         const a = document.createElement('a');
         a.style.display = 'none';
-        a.href = url;
+        a.href = objectUrl;
         a.download = 'event.json';
 
         document.body.appendChild(a);
         a.click();
 
-        window.URL.revokeObjectURL(url);
+        window.URL.revokeObjectURL(objectUrl);
         document.body.removeChild(a);
     }
 </script>
@@ -158,9 +127,9 @@
         {#if $currentEvent.payload}
             Payload:
             <div class="pre">
-                {#each renderResults as renderResult}
+                {#each renderResults as renderResult (renderResult.name)}
                     <div class={renderResult.name}>
-                        {#each renderResult.content as content, i}
+                        {#each renderResult.content as content, i (`${renderResult.name}-${i}`)}
                             <div class={i % 2 == 0 ? 'even' : 'odd'}>{content}</div>
                         {/each}
                     </div>
@@ -168,9 +137,9 @@
             </div>
         {/if}
         {#if !isShared}
-            <button on:click={downloadEvent}>Download</button>
+            <button onclick={downloadEvent}>Download</button>
             {#if !eventCreated}
-                <button disabled={!$isAuthenticated} on:click={share}>Share</button>
+                <button disabled={!$isAuthenticated || disabled} onclick={share}>Share</button>
             {:else}
                 <p>
                     Event is created which you can view <a
@@ -197,8 +166,9 @@
 
 <style>
     .column {
-        flex: 50%;
+        min-width: 0;
         padding: 15px 20px;
+        box-sizing: border-box;
     }
 
     .pre {

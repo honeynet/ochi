@@ -2,7 +2,7 @@ import { writable, type Writable } from 'svelte/store';
 import type { QueryCstNode } from './generated/chevrotain_dts';
 import type { Event } from './event';
 import type { Query } from './query';
-import { ENV_DEV } from './constants';
+import { ENV_PROD } from './constants';
 
 export type UserProfile = {
     email?: string;
@@ -33,7 +33,7 @@ stringFilter.subscribe((value) => {
 
 export const filterActive: Writable<boolean> = writable(false);
 
-export const env: Writable<string> = writable(ENV_DEV);
+export const env: Writable<string> = writable(ENV_PROD);
 export const parsedFilter: Writable<QueryCstNode | undefined> = writable(undefined);
 export const currentEvent: Writable<Event | undefined> = writable(undefined);
 

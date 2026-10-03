@@ -11,21 +11,26 @@
         isAuthenticated,
         activeFilterId,
     } from '../store';
+    import type { Query } from '../query';
+    import { untrack } from 'svelte';
 
-    let filter: string = '';
-    let filterValid: boolean = false;
-    let saveModal: QueryModal;
-    let hideSuggestions: boolean = true;
-    let filterState: FilterState = {
+    let filter = $state('');
+    let filterValid = $state(false);
+    let saveModal = $state<{ showModal: (query: Query) => void } | null>(null);
+    let hideSuggestions = $state(true);
+    let filterState = $state<FilterState>({
         suggestions: [],
         partialToken: null,
-    };
-    let suggestionsDiv: HTMLDivElement | undefined = undefined;
-    let inputField: HTMLInputElement | undefined = undefined;
+    });
+    let suggestionsDiv = $state<HTMLDivElement | undefined>(undefined);
+    let inputField = $state<HTMLInputElement | undefined>(undefined);
 
-    stringFilter.subscribe((value) => {
-        filter = value;
-        applyFilter();
+    $effect(() => {
+        const value = $stringFilter;
+        untrack(() => {
+            filter = value;
+            applyFilter();
+        });
     });
 
     function _filterChangeHandler() {
@@ -50,11 +55,9 @@
         if (hideSuggestions) hideSuggestions = false;
     }
 
-    function filterChangeHandler(): () => void {
-        return debounce(() => {
-            _filterChangeHandler();
-        }, 500);
-    }
+    const debouncedFilterChange = debounce(() => {
+        _filterChangeHandler();
+    }, 500);
 
     function applyFilter() {
         console.log(`Going to parse ${filter}`);
@@ -85,7 +88,7 @@
     }
 
     function openSaveQuery() {
-        saveModal.showModal({
+        saveModal?.showModal({
             content: filter,
         });
     }
@@ -106,7 +109,7 @@
     }
 </script>
 
-<svelte:window on:click={handleClickOutsideSuggestionBox} />
+<svelte:window onclick={handleClickOutsideSuggestionBox} />
 
 <section class="filter">
     <div style="position: relative;">
@@ -116,8 +119,8 @@
             bind:value={filter}
             bind:this={inputField}
             placeholder="Filter destination port"
-            on:input={filterChangeHandler()}
-            on:focus={() => {
+            oninput={debouncedFilterChange}
+            onfocus={() => {
                 hideSuggestions = false;
             }}
         />
@@ -144,11 +147,14 @@
 
 <style>
     .filter {
-        margin: 10px 30px 10px;
         display: flex;
-        justify-content: center;
         align-items: center;
         gap: 10px;
+    }
+
+    .filter-input {
+        width: min(360px, 40vw);
+        min-width: 160px;
     }
 
     input.input-error {
@@ -160,3 +166,4 @@
         color: #ff0000;
     }
 </style>
+

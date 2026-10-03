@@ -1,7 +1,9 @@
 {
   "extends": "./node_modules/@tsconfig/svelte/tsconfig.json",
   "include": [
-    "frontend/**/*"
+    "frontend/**/*.d.ts",
+    "frontend/**/*.ts",
+    "frontend/**/*.svelte"
   ],
   "exclude": [
     "node_modules/*",
@@ -10,6 +12,8 @@
     ".routify/**/*"
   ],
   "compilerOptions": {
-    "allowJs": true
+    "allowJs": true,
+    "noEmit": true,
+    "types": ["svelte"]
   }
 }

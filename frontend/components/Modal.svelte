@@ -2,8 +2,8 @@
     import { debounce } from '../util';
     import { maxNumberOfMessages, env } from '../store';
 
-    let currentNumberOfMessages: number = $maxNumberOfMessages;
-    let dialog: HTMLDialogElement | null = null;
+    let currentNumberOfMessages = $state($maxNumberOfMessages);
+    let dialog = $state<HTMLDialogElement | null>(null);
 
     export function showModal() {
         if (!dialog) return;
@@ -39,7 +39,14 @@
     }
 </script>
 
-<dialog bind:this={dialog} on:click|self={updateAndCloseModal}>
+<dialog
+    bind:this={dialog}
+    onclick={(event) => {
+        if (event.target === event.currentTarget) {
+            updateAndCloseModal();
+        }
+    }}
+>
     <div>
         <p>Max number of messages</p>
         <input
@@ -47,7 +54,7 @@
             type="number"
             min="0"
             bind:value={currentNumberOfMessages}
-            on:input={handleInputChange}
+            oninput={handleInputChange}
             class:error-state={$maxNumberOfMessages <= 0}
         />
         <p>Model</p>
@@ -59,7 +66,7 @@
             <input type="radio" bind:group={$env} name="currentEnv" id="prod" value="prod" />
             Production
         </label>
-        <button on:click={closeModal}>Close</button>
+        <button onclick={closeModal}>Close</button>
     </div>
 </dialog>
 

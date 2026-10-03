@@ -1,11 +1,15 @@
 <script lang="ts">
-    export let text: string = 'button';
-    export let buttonId: string = 'btn';
-    export let onClick: () => void;
-    export let disabled: boolean = false;
+    interface Props {
+        text?: string;
+        buttonId?: string;
+        onClick: () => void;
+        disabled?: boolean;
+    }
+
+    let { text = 'button', buttonId = 'btn', onClick, disabled = false }: Props = $props();
 </script>
 
-<button class="button" {disabled} id={buttonId} on:click={onClick}>{text}</button>
+<button class="button" {disabled} id={buttonId} onclick={onClick}>{text}</button>
 
 <style>
 </style>
