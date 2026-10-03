@@ -1,6 +1,7 @@
+<svelte:options runes={true} />
+
 <script lang="ts">
     import { login } from '../session';
-    import 'google.accounts';
     import { API_ENDPOINT } from '../constants';
 
     function button() {
@@ -49,7 +50,7 @@
 </script>
 
 <svelte:head>
-    <script src="https://accounts.google.com/gsi/client" on:load={initSSO} async defer></script>
+    <script src="https://accounts.google.com/gsi/client" onload={initSSO} async defer></script>
 </svelte:head>
 
 <button id="googleButton">Login with Google</button>

@@ -3,27 +3,35 @@
     import type { Event } from '../event';
     import { filterEvent } from '../eventFilter';
     import { maxNumberOfMessages, parsedFilter, env } from '../store';
-    import { onDestroy } from 'svelte';
     import { ENV_PROD } from '../constants';
+    import { untrack } from 'svelte';
 
-    let messages: Event[] = [];
-    let follow: boolean = true;
+    let messages = $state<Event[]>([]);
+    let follow = $state(true);
 
-    const parsedFilterUnsubscribe = parsedFilter.subscribe((value) => {
+    $effect(() => {
+        const value = $parsedFilter;
         if (value) {
-            messages = messages.filter((message) => filterEvent(message, value));
+            untrack(() => {
+                messages = messages.filter((message) => filterEvent(message, value));
+            });
         }
     });
 
-    const maxNumberOfMessagesUnsubscribe = maxNumberOfMessages.subscribe((value) => {
-        if (value < messages.length) {
-            messages = messages.slice(messages.length - value, messages.length);
-        }
+    $effect(() => {
+        const value = $maxNumberOfMessages;
+        untrack(() => {
+            if (value < messages.length) {
+                messages = messages.slice(messages.length - value, messages.length);
+            }
+        });
     });
 
-    const envUnsubscribe = env.subscribe((value) => {
-        if (value == ENV_PROD) {
-            messages = [];
+    $effect(() => {
+        if ($env == ENV_PROD) {
+            untrack(() => {
+                messages = [];
+            });
         }
     });
 
@@ -37,51 +45,53 @@
             }
         }
     }
-
-    onDestroy(() => {
-        parsedFilterUnsubscribe();
-        maxNumberOfMessagesUnsubscribe();
-        envUnsubscribe();
-    });
 </script>
 
-<div
-    class="column"
-    id="message-log"
-    on:wheel={() => {
-        follow = false;
-    }}
->
-    {#each messages as message (message.timestamp)}
-        <Message on:message {message} {follow} />
-    {/each}
-</div>
-
-{#if !follow}
-    <button
-        on:click={() => {
-            follow = true;
+<div class="column">
+    <div
+        id="message-log"
+        onwheel={() => {
+            follow = false;
         }}
-        id="resume-btn">Resume</button
     >
-{/if}
+        {#each messages as message (message.timestamp)}
+            <Message {message} {follow} />
+        {/each}
+    </div>
+
+    {#if !follow}
+        <button
+            onclick={() => {
+                follow = true;
+            }}
+            id="resume-btn">Resume</button
+        >
+    {/if}
+</div>
 
 <style>
     .column {
-        flex: 50%;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
         padding: 15px 20px;
     }
 
     #message-log {
-        flex-grow: 1;
-        overflow-y: scroll;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
     }
 
     #resume-btn {
-        position: fixed;
-        bottom: 2rem;
+        position: absolute;
+        bottom: 1rem;
+        left: 50%;
         z-index: 2;
-        left: 40vw;
+        transform: translateX(-50%);
         cursor: pointer;
     }
 </style>

@@ -3,8 +3,8 @@
     import { createQuery, getQueries, updateQuery } from '../query';
     import type { Query } from '../query';
 
-    let dialog: HTMLDialogElement | null = null;
-    let queryToEdit: Query = {};
+    let dialog = $state<HTMLDialogElement | null>(null);
+    let queryToEdit = $state<Query>({});
 
     export function showModal(objectToEdit: Query) {
         if (!dialog) return;
@@ -74,17 +74,13 @@
             >Description
             <input id="messages-input-box" type="text" bind:value={queryToEdit.description} />
         </label>
-        <!-- <label
-            >Active
-            <input id="messages-input-box" type="checkbox" bind:checked={queryToEdit.active} />
-        </label> -->
         {#if queryToEdit && queryToEdit.id}
-            <button type="button" on:click={updateAndCloseModal}>Update</button>
+            <button type="button" onclick={updateAndCloseModal}>Update</button>
         {:else}
-            <button type="button" on:click={confirmAndCloseModal}>Confirm</button>
+            <button type="button" onclick={confirmAndCloseModal}>Confirm</button>
         {/if}
 
-        <button type="button" on:click={closeModal}>Cancel</button>
+        <button type="button" onclick={closeModal}>Cancel</button>
     </form>
 </dialog>
 

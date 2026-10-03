@@ -2,16 +2,20 @@ package backend
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
 )
 
 func setupDownloadBinaryTest(t *testing.T, content []byte) (string, string, func()) {
@@ -168,4 +172,59 @@ func TestIndexReplace(t *testing.T) {
 
 	_, ok = IndexReplace([]byte("no-match"), []byte(placeholder), []byte(newUUID))
 	assert.False(t, ok)
+}
+
+func TestPublishHandler_AcceptsTypedGluttonEvent(t *testing.T) {
+	cs := &server{
+		subscribers:    make(map[*subscriber]struct{}),
+		publishLimiter: rate.NewLimiter(rate.Inf, 1),
+	}
+	sub := &subscriber{msgs: make(chan []byte, 1)}
+	cs.addSubscriber(sub)
+
+	payload := `{
+		"sensorID":"abcd1234-ffff-ffff-ffff-ffffffffffff",
+		"dstPort":80,
+		"srcHost":"1.1.1.1",
+		"srcPort":"4321",
+		"timestamp":"2026-01-01T00:00:00Z",
+		"payload":"dGVzdA==",
+		"rule":"Rule: TCP",
+		"transport":"tcp",
+		"decoded":{"payload":"test"}
+	}`
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/publish?token=token", bytes.NewBufferString(payload))
+	cs.publishHandler(w, r, nil)
+
+	resp := w.Result()
+	require.Equal(t, http.StatusAccepted, resp.StatusCode)
+
+	select {
+	case msg := <-sub.msgs:
+		var event map[string]any
+		require.NoError(t, json.Unmarshal(msg, &event))
+		assert.Equal(t, "abcd1234", event["sensorID"])
+		assert.Equal(t, float64(80), event["dstPort"])
+		assert.Equal(t, "1.1.1.1", event["srcHost"])
+		decoded, ok := event["decoded"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "test", decoded["payload"])
+	case <-time.After(time.Second):
+		t.Fatal("expected published message")
+	}
+}
+
+func TestPublishHandler_RejectsMissingSensorID(t *testing.T) {
+	cs := &server{
+		subscribers:    make(map[*subscriber]struct{}),
+		publishLimiter: rate.NewLimiter(rate.Inf, 1),
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/publish", bytes.NewBufferString(`{"dstPort":80}`))
+	cs.publishHandler(w, r, nil)
+
+	assert.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
 }

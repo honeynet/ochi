@@ -1,9 +1,19 @@
 <script lang="ts">
-    export let suggestionId: string = '';
-    export let hide: boolean = true;
-    export let onSelect: (value: string) => void;
-    export let suggestions: string[] = [];
-    export let suggestionsDiv: HTMLDivElement | undefined = undefined;
+    interface Props {
+        suggestionId?: string;
+        hide?: boolean;
+        onSelect: (value: string) => void;
+        suggestions?: string[];
+        suggestionsDiv?: HTMLDivElement | undefined;
+    }
+
+    let {
+        suggestionId = '',
+        hide = true,
+        onSelect,
+        suggestions = [],
+        suggestionsDiv = $bindable(undefined),
+    }: Props = $props();
 </script>
 
 <div
@@ -13,13 +23,13 @@
     bind:this={suggestionsDiv}
 >
     <ul>
-        {#each suggestions as suggestion}
+        {#each suggestions as suggestion (suggestion)}
             <li
                 role="option"
                 aria-selected="false"
                 tabindex="0"
-                on:click={() => onSelect(suggestion)}
-                on:keydown={(event) => {
+                onclick={() => onSelect(suggestion)}
+                onkeydown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault();
                         onSelect(suggestion);

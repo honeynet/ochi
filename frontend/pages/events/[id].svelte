@@ -1,13 +1,11 @@
 <script lang="ts">
     import { params } from '@roxi/routify';
-    import Header from '../../components/Header.svelte';
+    import PageShell from '../../components/PageShell.svelte';
     import Content from '../../components/Content.svelte';
     import type { Event } from '../../event';
     import { API_ENDPOINT } from '../../constants';
     import { currentEvent, token } from '../../store';
-    import { onMount } from 'svelte';
-
-    console.log($params);
+    import { untrack } from 'svelte';
 
     async function getEventById(id: string): Promise<Event> {
         console.log('fetching event');
@@ -29,12 +27,16 @@
         }
     }
 
-    onMount(() => {
-        getEventById($params.id).then((event) => {
-            currentEvent.set(event);
+    $effect(() => {
+        const id = $params.id;
+        untrack(() => {
+            getEventById(id).then((event) => {
+                currentEvent.set(event);
+            });
         });
     });
 </script>
 
-<Header path="/" pathText="Go back" />
-<Content isShared={true} />
+<PageShell path="/" pathText="Go back">
+    <Content isShared={true} />
+</PageShell>

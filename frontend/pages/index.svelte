@@ -3,21 +3,21 @@
 
     metatags.title = 'Ochi';
     metatags.description = 'Web UI for honeypot events';
-    import Header from '../components/Header.svelte';
+    import PageShell from '../components/PageShell.svelte';
+    import ColumnSplit from '../components/ColumnSplit.svelte';
     import MessageList from '../components/MessageList.svelte';
     import Filter from '../components/Filter.svelte';
-    import Config from '../components/Config.svelte';
     import Content from '../components/Content.svelte';
 
-    import { onDestroy, onMount } from 'svelte';
-    import { ENV_DEV, ENV_PROD, API_ENDPOINT, WS_ENDPOINT } from '../constants';
+    import { onMount, untrack } from 'svelte';
+    import { ENV_DEV, ENV_PROD, WS_ENDPOINT } from '../constants';
     import type { Event } from '../event';
     import { generateRandomTestEvent } from '../util';
     import { validate } from '../session';
     import { env } from '../store';
 
     let conn: WebSocket | null = null;
-    let messageList: MessageList | null = null;
+    let messageList: MessageList | null = $state(null);
 
     function addMessage(message: Event) {
         messageList?.onNewMessage(message);
@@ -58,16 +58,15 @@
         }
     };
 
-    const envUnsubscribe = env.subscribe((value) => {
-        if (value === ENV_DEV) {
-            test();
-        } else if (value === ENV_PROD) {
-            dial();
-        }
-    });
-
-    onDestroy(() => {
-        envUnsubscribe();
+    $effect(() => {
+        const mode = $env;
+        untrack(() => {
+            if (mode === ENV_DEV) {
+                test();
+            } else if (mode === ENV_PROD) {
+                dial();
+            }
+        });
     });
 
     onMount(() => {
@@ -75,35 +74,29 @@
     });
 </script>
 
-<Header path="/myqueries" pathText="My Queries" />
-<main>
-    <Filter />
-    <Config />
-    <div class="row">
-        <MessageList bind:this={messageList} />
-        <Content isShared={false} />
-    </div>
-</main>
+<PageShell path="/myqueries" pathText="My Queries">
+    {#snippet headerCenter()}
+        <Filter />
+    {/snippet}
+    <main>
+        <ColumnSplit>
+            {#snippet left()}
+                <MessageList bind:this={messageList} />
+            {/snippet}
+            {#snippet right()}
+                <Content isShared={false} />
+            {/snippet}
+        </ColumnSplit>
+    </main>
+</PageShell>
 
 <style>
     main {
-        width: 100vw;
-        min-width: 320px;
-    }
-
-    .row {
-        margin-top: 100px;
         display: flex;
-        position: absolute;
-        top: 55px;
-        left: 0;
-        bottom: 0;
-        right: 0;
-    }
-
-    @media (width < 710px) {
-        .row {
-            flex-direction: column;
-        }
+        flex-direction: column;
+        flex: 1;
+        min-width: 320px;
+        min-height: 0;
+        width: 100%;
     }
 </style>

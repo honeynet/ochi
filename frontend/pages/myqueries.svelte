@@ -1,7 +1,10 @@
+<svelte:options runes={true} />
+
 <script lang="ts">
-    import Header from '../components/Header.svelte';
+    import PageShell from '../components/PageShell.svelte';
     import QueryList from '../components/QueryList.svelte';
 </script>
 
-<Header path="/" pathText="Go back" />
-<QueryList />
+<PageShell path="/" pathText="Go back">
+    <QueryList />
+</PageShell>

@@ -1,56 +1,71 @@
 <script lang="ts">
+    import type { Snippet } from 'svelte';
     import { url } from '@roxi/routify';
     import SSOButton from './SSOButton.svelte';
     import LogoutButton from './LogoutButton.svelte';
     import SSORevokeButton from './SSORevokeButton.svelte';
+    import Config from './Config.svelte';
     import { isAuthenticated } from '../store';
-    export let path: string;
-    export let pathText: string;
-    import { onDestroy } from 'svelte';
 
-    // subscribe to the authentication status
-    let isLoggedIn: boolean;
-    const isAuthenticatedUnsubscribe = isAuthenticated.subscribe((status) => {
-        isLoggedIn = status;
-    });
+    interface Props {
+        path: string;
+        pathText: string;
+        headerCenter?: Snippet;
+    }
 
-    onDestroy(() => {
-        isAuthenticatedUnsubscribe();
-    });
+    let { path, pathText, headerCenter }: Props = $props();
 </script>
 
 <header class="header">
-    <a class="header__link" target="_blank" href="https://github.com/honeynet/ochi">Ochi</a>
-    <div class="header__container">
-        {#if !isLoggedIn}
+    <div class="header__left">
+        <a class="header__link" target="_blank" href="https://github.com/honeynet/ochi">Ochi</a>
+    </div>
+    <div class="header__center">
+        {@render headerCenter?.()}
+    </div>
+    <div class="header__right">
+        {#if !$isAuthenticated}
             <SSOButton />
         {:else}
             <a class="header__link" href={$url(path)}>{pathText}</a>
             <LogoutButton />
             <SSORevokeButton />
         {/if}
+        <Config />
     </div>
 </header>
 
 <style>
     .header {
-        display: flex;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
         align-items: center;
         border-bottom-style: solid;
+        padding-top: 10px;
         padding-bottom: 10px;
         border-width: 1px;
         margin-right: 20px;
         margin-left: 20px;
+        gap: 12px;
+    }
+
+    .header__left {
+        justify-self: start;
+    }
+
+    .header__center {
+        justify-self: center;
+        min-width: 0;
+    }
+
+    .header__right {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        justify-self: end;
     }
 
     .header__link {
         font-size: 20px;
-    }
-
-    .header__container {
-        display: flex;
-        gap: 20px;
-        align-items: center;
     }
 </style>

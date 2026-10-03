@@ -41,43 +41,38 @@ func (cs *server) cssHandler(w http.ResponseWriter, r *http.Request, _ httproute
 }
 
 // publishHandler reads the request body with a limit of 8192 bytes and then publishes
-// the received message.
+// the received message. sensorID is truncated to 8 characters for display.
 func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	body := http.MaxBytesReader(w, r.Body, 8192)
+	msg, err := io.ReadAll(body)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
+		return
+	}
 
-	// Unmarshal the JSON message into a map
-	decoder := json.NewDecoder(body)
-
-	// Create a new map to store the sensorDataMap
-	var sensorIDMap map[string]string
-	// Decode into the sensorDataMap
-	if err := decoder.Decode(&sensorIDMap); err != nil {
+	// Use map[string]any so numeric fields (dstPort) and nested objects (decoded) survive.
+	var event map[string]any
+	if err := json.Unmarshal(msg, &event); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// Get the sensorID from the map
-	sensorID, exists := sensorIDMap["sensorID"]
-	if !exists {
+	sensorID, ok := event["sensorID"].(string)
+	if !ok || sensorID == "" {
 		http.Error(w, "sensor id does not exists", http.StatusBadRequest)
 		return
 	}
-
 	if len(sensorID) < 8 {
 		http.Error(w, "sensor id must have at least 8 characters", http.StatusBadRequest)
 		return
 	}
+	event["sensorID"] = sensorID[:8]
 
-	sensorID = sensorID[:8]
-
-	sensorIDMap["sensorID"] = sensorID
-	// Convert the sensorID back to a JSON message
-	alteredMsg, err := json.Marshal(sensorIDMap)
+	alteredMsg, err := json.Marshal(event)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Publish the altered JSON message
 	cs.publish(alteredMsg)
 	w.WriteHeader(http.StatusAccepted)
 }

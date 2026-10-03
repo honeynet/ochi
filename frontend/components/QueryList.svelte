@@ -2,10 +2,9 @@
     import { onMount } from 'svelte';
     import { token, userQueries, stringFilter, activeFilterId } from '../store';
     import { type Query, deleteQuery, getQueries } from '../query';
-    import { parseDSL } from '../dsl';
     import QueryModal from './QueryModal.svelte';
 
-    let saveModal: QueryModal;
+    let saveModal = $state<{ showModal: (query: Query) => void } | null>(null);
 
     onMount(() => {
         reloadQueries();
@@ -58,12 +57,12 @@
             </div>
             <div class="queryList__buttons-container">
                 <QueryModal bind:this={saveModal} />
-                <button on:click={() => saveModal.showModal(query)}>edit</button>
-                <button on:click={() => deleteQueryAndReload(query.id)}>Delete</button>
+                <button onclick={() => saveModal?.showModal(query)}>edit</button>
+                <button onclick={() => deleteQueryAndReload(query.id)}>Delete</button>
                 {#if $activeFilterId != query.id}
-                    <button on:click={() => activate(query)}>Activate</button>
+                    <button onclick={() => activate(query)}>Activate</button>
                 {:else}
-                    <button on:click={() => deactivate(query)}>Deactivate</button>
+                    <button onclick={() => deactivate(query)}>Deactivate</button>
                 {/if}
             </div>
         </li>

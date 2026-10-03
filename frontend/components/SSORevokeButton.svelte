@@ -1,13 +1,8 @@
 <script lang="ts">
-    import { onDestroy } from 'svelte';
     import { user } from '../store';
     import { logout } from '../session';
-    import 'google.accounts';
 
-    let email = '';
-    const unsubscribe = user.subscribe((value) => {
-        email = value && typeof value.email === 'string' ? value.email : '';
-    });
+    let email = $derived($user && typeof $user.email === 'string' ? $user.email : '');
 
     function revokeSSO() {
         if (!email) {
@@ -22,13 +17,9 @@
             }
         });
     }
-
-    onDestroy(() => {
-        unsubscribe();
-    });
 </script>
 
-<button id="revokeButton" on:click={revokeSSO}>Revoke</button>
+<button id="revokeButton" onclick={revokeSSO}>Revoke</button>
 
 <style>
     #revokeButton {
