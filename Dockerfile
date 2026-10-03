@@ -34,10 +34,10 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY --from=backend /out/server /app/server
+COPY config.docker.yaml /app/config.yaml
 
 USER ochi
 EXPOSE 3000
 
-# Args: <listen-address> <publish-token> <jwt-secret>
 ENTRYPOINT ["/app/server"]
-CMD ["0.0.0.0:3000", "token", "secret"]
+CMD ["-config", "/app/config.yaml"]

@@ -2,7 +2,6 @@ package backend
 
 import (
 	"context"
-	"errors"
 	"io/fs"
 	"log"
 	"net"
@@ -21,6 +20,8 @@ import (
 )
 
 type server struct {
+	cfg Config
+
 	// subscriberMessageBuffer controls the max number
 	// of messages that can be queued for a subscriber
 	// before it is kicked.
@@ -51,8 +52,14 @@ type server struct {
 }
 
 // NewServer constructs a server with the defaults.
-func NewServer(fsys fs.FS) (*server, error) {
+func NewServer(fsys fs.FS, configPath string) (*server, error) {
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		return nil, err
+	}
+
 	cs := &server{
+		cfg:                     cfg,
 		subscriberMessageBuffer: 16,
 		subscribers:             make(map[*subscriber]struct{}),
 		publishLimiter:          rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
@@ -65,29 +72,29 @@ func NewServer(fsys fs.FS) (*server, error) {
 		fs: fsys,
 	}
 
-	db, err := sqlx.Connect("sqlite", "./data.db")
+	db, err := sqlx.Connect("sqlite", cfg.DatabasePath)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	cs.uRepo, err = repos.NewUserRepo(db)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	cs.queryRepo, err = repos.NewQueryRepo(db)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	cs.eventRepo, err = repos.NewEventRepo(db)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	cs.sensorRepo, err = repos.NewSensorRepo(db)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	cs.mux, err = newRouter(cs)
@@ -109,13 +116,9 @@ func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn,
 	return c.Write(ctx, websocket.MessageText, msg)
 }
 
-// run initializes the server
+// Run initializes the server
 func (cs *server) Run() error {
-	if len(os.Args) < 4 {
-		return errors.New("please provide an address to listen on as the first argument, token second, secret third")
-	}
-
-	l, err := net.Listen("tcp", os.Args[1])
+	l, err := net.Listen("tcp", cs.cfg.ListenAddress)
 	if err != nil {
 		return err
 	}

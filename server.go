@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"flag"
 	"io/fs"
 	"log"
 
@@ -12,12 +13,15 @@ import (
 var public embed.FS
 
 func main() {
+	configPath := flag.String("config", "config.yaml", "path to YAML config file")
+	flag.Parse()
+
 	content, err := fs.Sub(public, "public")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	srv, err := backend.NewServer(content)
+	srv, err := backend.NewServer(content, *configPath)
 	if err != nil {
 		log.Fatal(err)
 	}

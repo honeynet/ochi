@@ -1,6 +1,6 @@
 build:
 	npm run build
-	go build server.go
+	go build -o server .
 
 local:
-	./server localhost:3000 token secret
+	./server

@@ -31,13 +31,16 @@ Eventually we want to be able to enabled to quickly react to new trends, improve
 2. To start a local server, run `make local`
 3. Go to `localhost:3000` in your browser
 4. To generate fake events, follow frontend development's step 1.
+
+On first start, the server creates `config.yaml` with local defaults (`localhost:3000`, publish token `token`, JWT secret `secret`). Pass `-config path/to/config.yaml` to use a different file.
+
 ##### For using Ochi as a storage of Glutton events locally
 1. Start Ochi server with `make build && make local`
 2. Build Glutton server
 3. Update the Glutton config to include:
    1. `producers.enabled` to `true` [here](https://github.com/mushorg/glutton/blob/305a9d23a58d065f49ac25edeaeb374f4fe9c59b/config/config.yaml#L9)
    2. `producers.http.enabled` to `true` [here](https://github.com/mushorg/glutton/blob/305a9d23a58d065f49ac25edeaeb374f4fe9c59b/config/config.yaml#L11)
-   3. `producers.http.remote` to `http://localhost:3000/publish?token=token`
+   3. `producers.http.remote` to `http://localhost:3000/publish?token=token` (use the `publish_token` from your `config.yaml`)
 4. Start Glutton server.
 5. Open http://localhost:3000 and you should see Glutton events if everything is working as expected.
 

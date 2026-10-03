@@ -10,6 +10,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	golang.org/x/time v0.16.0
 	google.golang.org/api v0.300.0
+	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.60.1
 	nhooyr.io/websocket v1.8.17
 )
@@ -26,6 +27,7 @@ require (
 	github.com/google/s2a-go v0.1.11 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.22 // indirect
 	github.com/googleapis/gax-go/v2 v2.26.2 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-sqlite3 v1.14.24 // indirect
 	github.com/ncruces/go-strftime v1.1.0 // indirect

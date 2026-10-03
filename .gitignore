@@ -26,5 +26,8 @@ server
 # Databases
 data.db
 
+# Local service config (auto-created with defaults if missing)
+config.yaml
+
 # Routify generated files
 /.routify/

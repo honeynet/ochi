@@ -96,7 +96,7 @@ func (cs *server) sessionHandler(w http.ResponseWriter, r *http.Request, _ httpr
 		return
 	}
 
-	token, err := entities.NewToken(os.Args[3], user)
+	token, err := entities.NewToken(cs.cfg.JWTSecret, user)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -142,7 +142,7 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request, _ httprou
 		}
 	}
 
-	token, err := entities.NewToken(os.Args[3], user)
+	token, err := entities.NewToken(cs.cfg.JWTSecret, user)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

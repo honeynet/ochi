@@ -1,0 +1,4 @@
+listen_address: 0.0.0.0:3000
+publish_token: token
+jwt_secret: secret
+database_path: ./data.db

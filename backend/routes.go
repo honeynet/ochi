@@ -3,7 +3,6 @@ package backend
 import (
 	"io/fs"
 	"net/http"
-	"os"
 
 	"github.com/honeynet/ochi/backend/handlers"
 
@@ -31,30 +30,30 @@ func newRouter(cs *server) (*httprouter.Router, error) {
 
 	// websocket
 	r.GET("/subscribe", cs.subscribeHandler)
-	r.POST("/publish", handlers.TokenMiddleware(cs.publishHandler, os.Args[2]))
+	r.POST("/publish", handlers.TokenMiddleware(cs.publishHandler, cs.cfg.PublishToken))
 
 	// user
 	r.POST("/login", cs.loginHandler)
-	r.GET("/session", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.sessionHandler, os.Args[3])))
+	r.GET("/session", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.sessionHandler, cs.cfg.JWTSecret)))
 
 	// query
 	// TODO: make CorsMiddleware more generic instead of specifying it on every handler.
-	r.GET("/queries", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getQueriesHandler, os.Args[3])))
-	r.POST("/queries", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.createQueryHandler, os.Args[3])))
-	r.PATCH("/queries/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.updateQueryHandler, os.Args[3])))
-	r.DELETE("/queries/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.deleteQueryHandler, os.Args[3])))
+	r.GET("/queries", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getQueriesHandler, cs.cfg.JWTSecret)))
+	r.POST("/queries", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.createQueryHandler, cs.cfg.JWTSecret)))
+	r.PATCH("/queries/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.updateQueryHandler, cs.cfg.JWTSecret)))
+	r.DELETE("/queries/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.deleteQueryHandler, cs.cfg.JWTSecret)))
 
 	// event
-	r.POST("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.createEventHandler, os.Args[3])))
-	r.DELETE("/api/events/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.deleteEventHandler, os.Args[3])))
-	r.GET("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getEventsHandler, os.Args[3])))
-	r.GET("/api/events/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getEventByIDHandler, os.Args[3])))
+	r.POST("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.createEventHandler, cs.cfg.JWTSecret)))
+	r.DELETE("/api/events/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.deleteEventHandler, cs.cfg.JWTSecret)))
+	r.GET("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getEventsHandler, cs.cfg.JWTSecret)))
+	r.GET("/api/events/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getEventByIDHandler, cs.cfg.JWTSecret)))
 
 	// sensor
-	r.GET("/sensors", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getSensorsByUser, os.Args[3])))
-	r.POST("/sensors", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.addSensor, os.Args[3])))
+	r.GET("/sensors", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getSensorsByUser, cs.cfg.JWTSecret)))
+	r.POST("/sensors", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.addSensor, cs.cfg.JWTSecret)))
 	r.GET("/download/:os/:arch", handlers.CorsMiddleware(
-		handlers.BearerMiddleware(cs.downloadBinaryHandler, os.Args[3])))
+		handlers.BearerMiddleware(cs.downloadBinaryHandler, cs.cfg.JWTSecret)))
 
 	return r, nil
 }
