@@ -65,6 +65,7 @@
     "dynamicImports": false
   },
   "overrides": {
-    "picomatch": "2.3.2"
+    "picomatch": "2.3.2",
+    "@tootallnate/once": "2.0.1"
   }
 }
