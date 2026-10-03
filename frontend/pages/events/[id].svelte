@@ -4,18 +4,12 @@
     import Content from '../../components/Content.svelte';
     import type { Event } from '../../event';
     import { API_ENDPOINT } from '../../constants';
-    import { currentEvent, token } from '../../store';
+    import { currentEvent } from '../../store';
     import { untrack } from 'svelte';
 
     async function getEventById(id: string): Promise<Event> {
         console.log('fetching event');
-        const res = await fetch(`${API_ENDPOINT}/api/events/${id}`, {
-            method: 'GET',
-            headers: {
-                Authorization: `Bearer ${$token}`,
-                'Content-Type': 'application/json',
-            },
-        });
+        const res = await fetch(`${API_ENDPOINT}/api/events/${id}`);
 
         if (res.ok) {
             console.log('received success ');

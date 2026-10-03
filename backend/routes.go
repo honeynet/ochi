@@ -47,7 +47,8 @@ func newRouter(cs *server) (*httprouter.Router, error) {
 	r.POST("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.createEventHandler, cs.cfg.JWTSecret)))
 	r.DELETE("/api/events/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.deleteEventHandler, cs.cfg.JWTSecret)))
 	r.GET("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getEventsHandler, cs.cfg.JWTSecret)))
-	r.GET("/api/events/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getEventByIDHandler, cs.cfg.JWTSecret)))
+	// Shared event links are unguessable IDs and must work without login.
+	r.GET("/api/events/:id", handlers.CorsMiddleware(cs.getEventByIDHandler))
 
 	// sensor
 	r.GET("/sensors", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getSensorsByUser, cs.cfg.JWTSecret)))

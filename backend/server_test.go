@@ -12,6 +12,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/honeynet/ochi/backend/entities"
+	"github.com/honeynet/ochi/backend/repos"
+	"github.com/jmoiron/sqlx"
+	"github.com/jmoiron/sqlx/types"
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -227,4 +231,69 @@ func TestPublishHandler_RejectsMissingSensorID(t *testing.T) {
 	cs.publishHandler(w, r, nil)
 
 	assert.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
+}
+
+func TestGetSharedEventByID_NoAuth(t *testing.T) {
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+
+	eventRepo, err := repos.NewEventRepo(db)
+	require.NoError(t, err)
+
+	created, err := eventRepo.Create(entities.Event{
+		OwnerID:   "owner-1",
+		Payload:   "cGF5bG9hZA==",
+		DstPort:   80,
+		Rule:      "Rule: TCP",
+		Handler:   "http",
+		Transport: "tcp",
+		SensorID:  "sensor-1",
+		SrcHost:   "1.2.3.4",
+		SrcPort:   "4321",
+		Timestamp: "2026-01-01T00:00:00Z",
+		Decoded:   types.JSONText(`{"payload":"test"}`),
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	cs := &server{
+		eventRepo: eventRepo,
+		fs:        os.DirFS(tmp),
+		cfg:       Config{JWTSecret: "test-secret"},
+	}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events/"+created.ID, nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	resp := w.Result()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	var got entities.Event
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&got))
+	assert.Equal(t, created.ID, got.ID)
+	assert.Equal(t, created.SrcHost, got.SrcHost)
+	assert.Equal(t, created.DstPort, got.DstPort)
+}
+
+func TestGetEventsList_RequiresAuth(t *testing.T) {
+	tmp := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	cs := &server{
+		fs:  os.DirFS(tmp),
+		cfg: Config{JWTSecret: "test-secret"},
+	}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
 }
