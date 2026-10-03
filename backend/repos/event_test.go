@@ -16,7 +16,7 @@ const MOCK_USER_ID = "user1"
 func initEventRepo(t *testing.T) *EventRepo {
 	tmp := t.TempDir()
 	dbPath := fmt.Sprintf("%s/test.db", tmp)
-	db, err := sqlx.Connect("sqlite3", dbPath)
+	db, err := sqlx.Connect("sqlite", dbPath)
 	require.NoError(t, err)
 
 	// defer os.Remove("./querytest.db")

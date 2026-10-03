@@ -141,7 +141,7 @@ func initRepo(t *testing.T) *QueryRepo {
 	tmp := t.TempDir()
 	dbPath := fmt.Sprintf("%s/test.db", tmp)
 
-	db, err := sqlx.Connect("sqlite3", dbPath)
+	db, err := sqlx.Connect("sqlite", dbPath)
 	require.NoError(t, err)
 
 	// defer os.Remove("./querytest.db")

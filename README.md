@@ -10,15 +10,8 @@ Eventually we want to be able to enabled to quickly react to new trends, improve
 
 ## Development Requirements
 
-1. [Golang version > 1.17](https://go.dev/doc/install)
+1. [Golang version 1.26 or later](https://go.dev/doc/install)
 2. [Node.js 26 or later](https://nodejs.org/en/download/)
-
-#### For windows system, some additional setup is needed (only in case of backend development)
-
-> If you have `make` command working in your system and got `gcc compiler` installed already, you can directly jump to point 2.
-
-1. Follow the steps mentioned [here](https://github.com/mattn/go-sqlite3#windows)
-2. Go to your downloaded `ochi` folder, run command `go env` and check if your go environment have `CGO_ENABLED="1"` or not, if not then make appropriate changes in your system to have `CGO_ENABLED="1"`.
 
 ### Steps for development
 

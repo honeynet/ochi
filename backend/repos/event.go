@@ -9,7 +9,7 @@ import (
 	"github.com/honeynet/ochi/backend/entities"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/reflectx"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 type EventRepo struct {

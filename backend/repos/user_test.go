@@ -10,7 +10,7 @@ import (
 
 func TestUser(t *testing.T) {
 	os.Remove("./test.db")
-	db, err := sqlx.Connect("sqlite3", "./test.db")
+	db, err := sqlx.Connect("sqlite", "./test.db")
 	require.NoError(t, err)
 	defer os.Remove("./test.db")
 	r, err := NewUserRepo(db)

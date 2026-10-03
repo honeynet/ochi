@@ -65,7 +65,7 @@ func NewServer(fsys fs.FS) (*server, error) {
 		fs: fsys,
 	}
 
-	db, err := sqlx.Connect("sqlite3", "./data.db")
+	db, err := sqlx.Connect("sqlite", "./data.db")
 	if err != nil {
 		log.Fatal(err)
 	}
