@@ -68,6 +68,7 @@
         }
         lastIdentity = id;
         eventCreated = undefined;
+        disabled = false;
         expandedFrames.clear();
     });
 
@@ -126,10 +127,13 @@
     }
 
     async function share() {
-        await createEvent().then((event) => {
-            eventCreated = event;
-            disabled = true;
-        });
+        disabled = true;
+        try {
+            eventCreated = await createEvent();
+        } catch (error) {
+            disabled = false;
+            throw error;
+        }
     }
 
     function downloadEvent() {
