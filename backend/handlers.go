@@ -44,6 +44,7 @@ const publishMaxBodyBytes = 2 << 20 // 2 MiB; multi-frame decoded sessions excee
 
 // publishHandler reads the request body with a limit of 2 MiB and then publishes
 // the received message. sensorID is truncated to 8 characters for display.
+// dstHost (honeypot sensor IP) is stripped so it is never sent to subscribers.
 func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	body := http.MaxBytesReader(w, r.Body, publishMaxBodyBytes)
 	msg, err := io.ReadAll(body)
@@ -69,6 +70,7 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httpr
 		return
 	}
 	event["sensorID"] = sensorID[:8]
+	delete(event, "dstHost")
 
 	alteredMsg, err := json.Marshal(event)
 	if err != nil {
@@ -270,6 +272,7 @@ func (cs *server) createEventHandler(w http.ResponseWriter, r *http.Request, _ h
 		return
 	}
 	event.OwnerID = userID
+	event.DstHost = ""
 	var err error
 	event, err = cs.eventRepo.Create(event)
 	if err != nil {
@@ -317,6 +320,10 @@ func (cs *server) getEventsHandler(w http.ResponseWriter, r *http.Request, _ htt
 		return
 	}
 
+	for i := range events {
+		events[i].DstHost = ""
+	}
+
 	w.WriteHeader(http.StatusOK)
 	if err = json.NewEncoder(w).Encode(events); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -337,6 +344,7 @@ func (cs *server) getEventByIDHandler(w http.ResponseWriter, r *http.Request, p 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	event.DstHost = ""
 	w.WriteHeader(http.StatusOK)
 	if err = json.NewEncoder(w).Encode(event); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

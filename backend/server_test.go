@@ -263,7 +263,8 @@ func TestPublishHandler_RoundTripsNewEnvelope(t *testing.T) {
 		var event map[string]any
 		require.NoError(t, json.Unmarshal(msg, &event))
 		assert.Equal(t, "abcd1234", event["sensorID"])
-		assert.Equal(t, "198.51.100.8", event["dstHost"])
+		_, hasDstHost := event["dstHost"]
+		assert.False(t, hasDstHost)
 		assert.Equal(t, "timeout", event["endReason"])
 		assert.Equal(t, float64(2), event["frameCount"])
 		assert.Equal(t, "deadbeef", event["payloadHash"])
@@ -326,7 +327,8 @@ func TestPublishHandler_AcceptsLargeDecodedEvent(t *testing.T) {
 		decoded, ok := got["decoded"].([]any)
 		require.True(t, ok)
 		assert.Len(t, decoded, 10)
-		assert.Equal(t, "198.51.100.8", got["dstHost"])
+		_, hasDstHost := got["dstHost"]
+		assert.False(t, hasDstHost)
 	case <-time.After(time.Second):
 		t.Fatal("expected published message")
 	}
@@ -363,6 +365,7 @@ func TestGetSharedEventByID_NoAuth(t *testing.T) {
 		SensorID:  "sensor-1",
 		SrcHost:   "1.2.3.4",
 		SrcPort:   "4321",
+		DstHost:   "198.51.100.8",
 		Timestamp: "2026-01-01T00:00:00Z",
 		Decoded:   types.JSONText(`{"payload":"test"}`),
 	})
@@ -390,6 +393,7 @@ func TestGetSharedEventByID_NoAuth(t *testing.T) {
 	assert.Equal(t, created.ID, got.ID)
 	assert.Equal(t, created.SrcHost, got.SrcHost)
 	assert.Equal(t, created.DstPort, got.DstPort)
+	assert.Empty(t, got.DstHost)
 }
 
 func TestGetEventsList_RequiresAuth(t *testing.T) {
