@@ -35,7 +35,8 @@ const tcpPort = createToken({ name: 'TCP_PORT', pattern: /tcp\.port/, label: 'tc
 const udpPort = createToken({ name: 'UDP_PORT', pattern: /udp\.port/, label: 'udp.port' });
 
 const payload = createToken({ name: 'PAYLOAD', pattern: /payload/, label: 'payload' });
-const string = createToken({ name: 'STRING', pattern: /\"[a-zA-Z0-9]+\"/, label: '"msg"' });
+const endReason = createToken({ name: 'END_REASON', pattern: /end\.reason/, label: 'end.reason' });
+const string = createToken({ name: 'STRING', pattern: /\"[a-zA-Z0-9_-]+\"/, label: '"msg"' });
 
 const partial = createToken({
     name: 'PARTIAL',
@@ -71,6 +72,7 @@ let allTokens = [
     ipDst,
     tcpPort,
     udpPort,
+    endReason,
 
     payload,
     string,
@@ -202,6 +204,13 @@ class QueryParser extends CstParser {
                     this.SUBRULE(this.searchClause);
                 },
             },
+            {
+                ALT: () => {
+                    this.CONSUME(endReason);
+                    this.SUBRULE2(this.binaryOperator);
+                    this.CONSUME(string);
+                },
+            },
         ]);
     });
 
@@ -238,9 +247,17 @@ export const productions: Record<string, Rule> = parser.getGAstProductions();
 // create the HTML Text
 export const serializedGrammar = parser.getSerializedGastProductions();
 
-const QUERY_START_SUGGESTIONS = ['tcp.port', 'udp.port', 'ip.src', 'ip.dst', 'payload', 'not'];
+const QUERY_START_SUGGESTIONS = [
+    'tcp.port',
+    'udp.port',
+    'ip.src',
+    'ip.dst',
+    'end.reason',
+    'payload',
+    'not',
+];
 
-const FIELD_SUGGESTIONS = ['tcp.port', 'udp.port', 'ip.src', 'ip.dst', 'payload'];
+const FIELD_SUGGESTIONS = ['tcp.port', 'udp.port', 'ip.src', 'ip.dst', 'end.reason', 'payload'];
 
 const OPERATOR_SUGGESTIONS = ['eq', 'ne', '==', '!='];
 const BOOLEAN_SUFFIX_SUGGESTIONS = ['and', 'or'];
@@ -264,7 +281,7 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         return FIELD_SUGGESTIONS;
     }
 
-    if (tokenMatches(lastToken, tcpPort, udpPort, ipSrc, ipDst)) {
+    if (tokenMatches(lastToken, tcpPort, udpPort, ipSrc, ipDst, endReason)) {
         return OPERATOR_SUGGESTIONS;
     }
 
@@ -275,6 +292,9 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         }
         if (fieldToken && tokenMatches(fieldToken, ipSrc, ipDst)) {
             return ['<IP>'];
+        }
+        if (fieldToken && tokenMatches(fieldToken, endReason)) {
+            return ['"timeout"'];
         }
         return [];
     }

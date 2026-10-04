@@ -100,4 +100,49 @@ describe('parseDSL', () => {
             filterEvent(generateTestEvent(445, '123', '192.168.1.1', payload), sx.cst!),
         ).toBeFalsy();
     });
+
+    test('parses ip.dst against dstHost', () => {
+        let sx = parseDSL('ip.dst eq 198.51.100.8');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    dstHost: '198.51.100.8',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    dstHost: '10.0.0.1',
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+        expect(filterEvent(generateTestEvent(80, '123', '192.168.1.1'), sx.cst!)).toBeFalsy();
+    });
+
+    test('parses end.reason', () => {
+        let sx = parseDSL('end.reason eq "client_close"');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    endReason: 'client_close',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    endReason: 'timeout',
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+    });
 });

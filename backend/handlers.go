@@ -40,10 +40,12 @@ func (cs *server) cssHandler(w http.ResponseWriter, r *http.Request, _ httproute
 	}
 }
 
-// publishHandler reads the request body with a limit of 8192 bytes and then publishes
+const publishMaxBodyBytes = 2 << 20 // 2 MiB; multi-frame decoded sessions exceed 8 KiB
+
+// publishHandler reads the request body with a limit of 2 MiB and then publishes
 // the received message. sensorID is truncated to 8 characters for display.
 func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	body := http.MaxBytesReader(w, r.Body, 8192)
+	body := http.MaxBytesReader(w, r.Body, publishMaxBodyBytes)
 	msg, err := io.ReadAll(body)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)

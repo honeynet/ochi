@@ -73,12 +73,6 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
 
     const children = binaryClause.children;
     if (children.ipItemClause) {
-        if (children.ipItemClause[0].children.IP_DST) {
-            throw new Error('ip.dst is not supported yet');
-        } else if (!children.ipItemClause[0].children.IP_SRC) {
-            throw new Error('ip.src is missing');
-        }
-
         const ipv4Token = children.IPV4?.[0];
         if (!ipv4Token) {
             throw new Error('Missing IPv4 address for ip clause');
@@ -89,7 +83,25 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
             throw new Error('Missing binary operator for ip clause');
         }
 
+        if (children.ipItemClause[0].children.IP_DST) {
+            return equalityCheck(event.dstHost ?? '', ipv4Token.image, binaryOperator.children);
+        }
+        if (!children.ipItemClause[0].children.IP_SRC) {
+            throw new Error('ip.src is missing');
+        }
+
         return equalityCheck(event.srcHost, ipv4Token.image, binaryOperator.children);
+    } else if (children.END_REASON) {
+        const stringToken = children.STRING?.[0];
+        const binaryOperator = children.binaryOperator?.[0];
+        if (!stringToken) {
+            throw new Error('Missing string for end.reason clause');
+        }
+        if (!binaryOperator) {
+            throw new Error('Missing binary operator for end.reason clause');
+        }
+        const reason = stringToken.image.substring(1, stringToken.image.length - 1);
+        return equalityCheck(event.endReason ?? '', reason, binaryOperator.children);
     } else if (children.portItemClause) {
         let portItemClause = children.portItemClause[0].children;
         const port = children.PORT?.[0];

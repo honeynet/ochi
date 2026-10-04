@@ -12,5 +12,25 @@ export interface Event {
     srcHost: string; // the source IP address
     srcPort: string; // the source port
     timestamp: string; // the UTC timestamp of the connection
-    decoded?: any; // a decoded version of the payload if available
+    decoded?: unknown; // a decoded version of the payload if available
+    startedAt?: string;
+    durationMs?: number;
+    srcPtr?: string;
+    dstHost?: string;
+    sensorVersion?: string;
+    ruleName?: string;
+    payloadHash?: string;
+    frameCount?: number;
+    endReason?: string;
+}
+
+export function formatDest(event: Event): string {
+    if (event.dstHost) {
+        return `${event.dstHost}:${event.dstPort}`;
+    }
+    return `:${event.dstPort}`;
+}
+
+export function displayRule(event: Event): string | undefined {
+    return event.ruleName || event.rule;
 }

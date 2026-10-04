@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -215,6 +216,117 @@ func TestPublishHandler_AcceptsTypedGluttonEvent(t *testing.T) {
 		decoded, ok := event["decoded"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "test", decoded["payload"])
+	case <-time.After(time.Second):
+		t.Fatal("expected published message")
+	}
+}
+
+func TestPublishHandler_RoundTripsNewEnvelope(t *testing.T) {
+	cs := &server{
+		subscribers:    make(map[*subscriber]struct{}),
+		publishLimiter: rate.NewLimiter(rate.Inf, 1),
+	}
+	sub := &subscriber{msgs: make(chan []byte, 1)}
+	cs.addSubscriber(sub)
+
+	payload := `{
+		"sensorID":"abcd1234-ffff-ffff-ffff-ffffffffffff",
+		"dstPort":445,
+		"srcHost":"203.0.113.10",
+		"srcPort":"54321",
+		"dstHost":"198.51.100.8",
+		"timestamp":"2026-01-01T00:00:01Z",
+		"startedAt":"2026-01-01T00:00:00Z",
+		"durationMs":1500,
+		"srcPtr":"scanner.example.",
+		"sensorVersion":"1.2.3",
+		"rule":"Rule: SMB",
+		"ruleName":"smb",
+		"handler":"smb",
+		"transport":"tcp",
+		"payload":"dGVzdA==",
+		"payloadHash":"deadbeef",
+		"frameCount":2,
+		"endReason":"timeout",
+		"decoded":[{"direction":"read","path":"IPC$","setup":"TRANS2_SESSION_SETUP","status":"STATUS_NOT_IMPLEMENTED"}]
+	}`
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/publish?token=token", bytes.NewBufferString(payload))
+	cs.publishHandler(w, r, nil)
+
+	resp := w.Result()
+	require.Equal(t, http.StatusAccepted, resp.StatusCode)
+
+	select {
+	case msg := <-sub.msgs:
+		var event map[string]any
+		require.NoError(t, json.Unmarshal(msg, &event))
+		assert.Equal(t, "abcd1234", event["sensorID"])
+		assert.Equal(t, "198.51.100.8", event["dstHost"])
+		assert.Equal(t, "timeout", event["endReason"])
+		assert.Equal(t, float64(2), event["frameCount"])
+		assert.Equal(t, "deadbeef", event["payloadHash"])
+		assert.Equal(t, "1.2.3", event["sensorVersion"])
+		assert.Equal(t, "smb", event["ruleName"])
+		decoded, ok := event["decoded"].([]any)
+		require.True(t, ok)
+		require.Len(t, decoded, 1)
+		frame, ok := decoded[0].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "IPC$", frame["path"])
+	case <-time.After(time.Second):
+		t.Fatal("expected published message")
+	}
+}
+
+func TestPublishHandler_AcceptsLargeDecodedEvent(t *testing.T) {
+	cs := &server{
+		subscribers:    make(map[*subscriber]struct{}),
+		publishLimiter: rate.NewLimiter(rate.Inf, 1),
+	}
+	sub := &subscriber{msgs: make(chan []byte, 1)}
+	cs.addSubscriber(sub)
+
+	framePayload := strings.Repeat("A", 2048)
+	frames := make([]map[string]any, 10)
+	for i := range frames {
+		frames[i] = map[string]any{
+			"direction": "read",
+			"payload":   framePayload,
+			"path":      "IPC$",
+		}
+	}
+	event := map[string]any{
+		"sensorID":  "abcd1234-ffff-ffff-ffff-ffffffffffff",
+		"dstPort":   445,
+		"srcHost":   "203.0.113.10",
+		"srcPort":   "54321",
+		"dstHost":   "198.51.100.8",
+		"timestamp": "2026-01-01T00:00:00Z",
+		"payload":   "dGVzdA==",
+		"decoded":   frames,
+	}
+	body, err := json.Marshal(event)
+	require.NoError(t, err)
+	require.Greater(t, len(body), 8192)
+	require.Less(t, len(body), publishMaxBodyBytes)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/publish", bytes.NewReader(body))
+	cs.publishHandler(w, r, nil)
+
+	resp := w.Result()
+	require.Equal(t, http.StatusAccepted, resp.StatusCode)
+
+	select {
+	case msg := <-sub.msgs:
+		var got map[string]any
+		require.NoError(t, json.Unmarshal(msg, &got))
+		decoded, ok := got["decoded"].([]any)
+		require.True(t, ok)
+		assert.Len(t, decoded, 10)
+		assert.Equal(t, "198.51.100.8", got["dstHost"])
 	case <-time.After(time.Second):
 		t.Fatal("expected published message")
 	}

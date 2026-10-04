@@ -21,7 +21,6 @@ export function debounce<T extends (...args: any[]) => void>(callback: T, delay:
     });
 }
 
-const ports = [80, 443, 22, 8080, 65345];
 const handlers: (string | undefined)[] = ['http', 'rdp', '', undefined];
 
 function generateRandomString(length: number): string {
@@ -61,23 +60,108 @@ function generateUUID() {
  * @returns test event
  */
 export function generateRandomTestEvent(): Event {
-    let payload = `test ${generateRandomString(10 + Math.floor(Math.random() * 100))}`;
-    const textEncoder = new TextEncoder();
-    return {
-        handler: handlers[Math.floor(Math.random() * handlers.length)],
+    const payloadText = `test ${generateRandomString(10 + Math.floor(Math.random() * 40))}`;
+    const payload = btoa(payloadText);
+    const kinds = ['smb', 'http', 'rdp', 'tcp'] as const;
+    const kind = kinds[Math.floor(Math.random() * kinds.length)];
+    const base: Event = {
         connKey: [2, 2],
-        dstPort: ports[Math.floor(Math.random() * ports.length)],
+        dstPort: 80,
+        dstHost: '198.51.100.8',
         rule: 'Rule: TCP',
-        scanner: 'censys',
+        scanner: Math.random() > 0.5 ? 'censys' : undefined,
         sensorID: generateUUID().split('-')[0],
-        srcHost: '1.1.1.1',
+        sensorVersion: Math.random() > 0.3 ? '1.2.3' : undefined,
+        srcHost: '203.0.113.10',
         srcPort: '4321',
+        srcPtr: 'scanner.example.',
         timestamp: new Date().toISOString(),
-        decoded: {
-            payload: payload,
-            src_host: '1.1.1.1',
-            src_port: '4321',
-        },
+        startedAt: new Date(Date.now() - 1500).toISOString(),
+        durationMs: 1500,
+        payload,
+        payloadHash: 'deadbeef',
+        frameCount: 1,
+        endReason: 'timeout',
+        handler: kind,
+    };
+    if (kind === 'smb') {
+        return {
+            ...base,
+            dstPort: 445,
+            rule: 'Rule: SMB',
+            ruleName: 'smb',
+            frameCount: 2,
+            decoded: [
+                {
+                    direction: 'read',
+                    path: 'IPC$',
+                    setup: 'TRANS2_SESSION_SETUP',
+                    status: 'STATUS_NOT_IMPLEMENTED',
+                    header: { tid: 0, uid: 1, mid: 2, pid: 3, flags2: '0xc053' },
+                    payload,
+                },
+                {
+                    direction: 'write',
+                    path: 'IPC$',
+                    status: 'STATUS_SUCCESS',
+                    header: { flags2: [83, 192] },
+                    payload,
+                },
+            ],
+        };
+    }
+    if (kind === 'http') {
+        return {
+            ...base,
+            dstPort: 80,
+            rule: 'Rule: HTTP',
+            ruleName: 'http',
+            decoded: [
+                {
+                    direction: 'read',
+                    command: 'GET',
+                    path: '/',
+                    host: 'example.test',
+                    user_agent: 'curl/8.0',
+                    payload,
+                },
+                {
+                    direction: 'write',
+                    status: 200,
+                    session_id: 'abc',
+                    payload,
+                },
+            ],
+            frameCount: 2,
+        };
+    }
+    if (kind === 'rdp') {
+        return {
+            ...base,
+            dstPort: 3389,
+            rule: 'Rule: RDP',
+            ruleName: 'rdp',
+            decoded: [
+                {
+                    direction: 'read',
+                    command: 'ConnectionRequest',
+                    cookie: 'hello',
+                    protocols: ['tls'],
+                    payload,
+                },
+            ],
+        };
+    }
+    return {
+        ...base,
+        decoded: [
+            {
+                direction: 'read',
+                payload_hash: 'deadbeef',
+                truncated: false,
+                payload,
+            },
+        ],
     };
 }
 
@@ -91,6 +175,7 @@ export function generateTestEvent(
     sip?: string,
     payload?: string,
     rule: string = 'Rule: TCP',
+    extra: Partial<Event> = {},
 ): Event {
     return {
         handler: handlers[Math.floor(Math.random() * handlers.length)],
@@ -104,5 +189,6 @@ export function generateTestEvent(
         timestamp: new Date().toISOString(),
         payload: payload,
         decoded: { payload: 'test' },
+        ...extra,
     };
 }

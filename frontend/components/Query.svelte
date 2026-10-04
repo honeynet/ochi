@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import type { Event } from '../event';
+    import { displayRule, formatDest } from '../event';
     import { currentEvent } from '../store';
 
     interface Props {
@@ -23,9 +24,16 @@
 </script>
 
 <button type="button" class="query" onclick={click} bind:this={element}>
-    {message.sensorID.split('-')[0]} | {message.srcHost}:{message.srcPort} -> {message.dstPort}:
-    {#if message.handler}{message.handler}{:else}{message.rule}{/if}
+    {message.sensorID.split('-')[0]} |
+    <span title={message.srcPtr || ''}>{message.srcHost}</span>:{message.srcPort} -> {formatDest(
+        message,
+    )}:
+    {#if message.handler}{message.handler}{:else}{displayRule(message)}{/if}
     {#if message.scanner}"{message.scanner}"{/if}
+    {#if message.endReason}
+        {message.endReason}{/if}
+    {#if message.frameCount}
+        [{message.frameCount}]{/if}
     {#if message.payload}: <u>Payload</u>{/if}
 </button>
 

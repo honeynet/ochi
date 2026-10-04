@@ -77,6 +77,8 @@ export type BinaryClauseCstChildren = {
     ipItemClause?: IpItemClauseCstNode[];
     IPV4?: IToken[];
     searchClause?: SearchClauseCstNode[];
+    END_REASON?: IToken[];
+    STRING?: IToken[];
 };
 
 export interface BinaryOperatorCstNode extends CstNode {

@@ -3,8 +3,17 @@
     import { currentEvent, token, isAuthenticated } from '../store';
     import { API_ENDPOINT } from '../constants';
     import type { Event } from '../event';
+    import { displayRule, formatDest } from '../event';
+    import {
+        framePayload,
+        frameTableColumns,
+        formatFrameHeader,
+        formatFrameValue,
+        isFrameArray,
+    } from '../decoded';
     import { url } from '@roxi/routify';
     import { copy } from 'svelte-copy';
+    import { SvelteSet } from 'svelte/reactivity';
 
     interface Props {
         isShared: boolean;
@@ -36,16 +45,39 @@
 
     let eventCreated = $state<Event | undefined>(undefined);
     let disabled = $state(false);
+    let expandedFrames = new SvelteSet<number>();
 
-    let renderResults = $derived(
-        $currentEvent?.payload ? render($currentEvent.payload) : ([] as RenderResult[]),
+    let decodedFrames = $derived(
+        $currentEvent && isFrameArray($currentEvent.decoded) ? $currentEvent.decoded : null,
+    );
+    let decodedColumns = $derived(
+        decodedFrames ? frameTableColumns(decodedFrames, $currentEvent?.handler) : [],
+    );
+    let ruleLabel = $derived($currentEvent ? displayRule($currentEvent) : undefined);
+    let eventIdentity = $derived(
+        $currentEvent
+            ? `${$currentEvent.timestamp}|${$currentEvent.srcHost}|${$currentEvent.srcPort}|${$currentEvent.dstPort}|${$currentEvent.payload ?? ''}`
+            : '',
     );
 
+    let lastIdentity = '';
     $effect(() => {
-        if ($currentEvent?.payload) {
-            eventCreated = undefined;
+        const id = eventIdentity;
+        if (id === lastIdentity) {
+            return;
         }
+        lastIdentity = id;
+        eventCreated = undefined;
+        expandedFrames.clear();
     });
+
+    function toggleFrame(index: number) {
+        if (expandedFrames.has(index)) {
+            expandedFrames.delete(index);
+        } else {
+            expandedFrames.add(index);
+        }
+    }
 
     async function createEvent() {
         if (!$currentEvent) {
@@ -71,6 +103,15 @@
                 srcPort: eventToShare.srcPort,
                 timestamp: eventToShare.timestamp,
                 decoded: eventToShare.decoded,
+                startedAt: eventToShare.startedAt,
+                durationMs: eventToShare.durationMs,
+                srcPtr: eventToShare.srcPtr,
+                dstHost: eventToShare.dstHost,
+                sensorVersion: eventToShare.sensorVersion,
+                ruleName: eventToShare.ruleName,
+                payloadHash: eventToShare.payloadHash,
+                frameCount: eventToShare.frameCount,
+                endReason: eventToShare.endReason,
             }),
         });
 
@@ -112,29 +153,64 @@
     }
 </script>
 
+{#snippet hexdump(payload: string)}
+    {@const results = render(payload)}
+    <div class="pre">
+        {#each results as renderResult (renderResult.name)}
+            <div class={renderResult.name}>
+                {#each renderResult.content as content, i (`${renderResult.name}-${i}`)}
+                    <div class={i % 2 == 0 ? 'even' : 'odd'}>{content}</div>
+                {/each}
+            </div>
+        {/each}
+    </div>
+{/snippet}
+
 <div class="column" id="content">
     {#if $currentEvent}
-        {$currentEvent.srcHost}:{$currentEvent.srcPort} -> {$currentEvent.dstPort}<br />
+        <span title={$currentEvent.srcPtr || ''}>{$currentEvent.srcHost}</span
+        >:{$currentEvent.srcPort}
+        -> {formatDest($currentEvent)}<br />
         {#if $currentEvent.handler}
             Handler: {$currentEvent.handler}<br />
         {/if}
-        {#if $currentEvent.rule}
-            {$currentEvent.rule}<br />
+        {#if ruleLabel}
+            {ruleLabel}<br />
+        {/if}
+        {#if $currentEvent.startedAt}
+            Started: {$currentEvent.startedAt}<br />
+        {/if}
+        Timestamp: {$currentEvent.timestamp}<br />
+        {#if $currentEvent.durationMs !== undefined}
+            Duration: {$currentEvent.durationMs}ms<br />
+        {/if}
+        {#if $currentEvent.endReason}
+            End: {$currentEvent.endReason}<br />
+        {:else}
+            End: (old handler)<br />
+        {/if}
+        {#if $currentEvent.sensorVersion}
+            Sensor: {$currentEvent.sensorVersion}<br />
+        {:else}
+            Sensor: unversioned<br />
+        {/if}
+        {#if $currentEvent.payloadHash}
+            Payload hash: {$currentEvent.payloadHash} (first frame)<br />
+        {/if}
+        {#if $currentEvent.frameCount !== undefined}
+            Frames: {$currentEvent.frameCount}<br />
+        {/if}
+        {#if $currentEvent.srcPtr}
+            PTR: {$currentEvent.srcPtr}<br />
         {/if}
         {#if $currentEvent.scanner}
-            Scanner: {$currentEvent.scanner}<br /><br />
+            Scanner: {$currentEvent.scanner}<br />
+        {:else if $currentEvent.srcPtr}
+            Scanner: unknown (PTR {$currentEvent.srcPtr})<br />
         {/if}
         {#if $currentEvent.payload}
             Payload:
-            <div class="pre">
-                {#each renderResults as renderResult (renderResult.name)}
-                    <div class={renderResult.name}>
-                        {#each renderResult.content as content, i (`${renderResult.name}-${i}`)}
-                            <div class={i % 2 == 0 ? 'even' : 'odd'}>{content}</div>
-                        {/each}
-                    </div>
-                {/each}
-            </div>
+            {@render hexdump($currentEvent.payload)}
         {/if}
         {#if !isShared}
             <button onclick={downloadEvent}>Download</button>
@@ -156,7 +232,49 @@
                 </p>
             {/if}
         {/if}
-        {#if $currentEvent.decoded}
+        {#if decodedFrames}
+            <div class="frames">
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            {#each decodedColumns as column (column)}
+                                <th>{column}</th>
+                            {/each}
+                            {#if $currentEvent.handler === 'smb'}
+                                <th>header</th>
+                            {/if}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {#each decodedFrames as frame, i (i)}
+                            <tr>
+                                <td>
+                                    {#if framePayload(frame)}
+                                        <button type="button" onclick={() => toggleFrame(i)}
+                                            >{expandedFrames.has(i) ? '▾' : '▸'}</button
+                                        >
+                                    {/if}
+                                </td>
+                                {#each decodedColumns as column (column)}
+                                    <td>{formatFrameValue(frame[column])}</td>
+                                {/each}
+                                {#if $currentEvent.handler === 'smb'}
+                                    <td>{formatFrameHeader(frame.header)}</td>
+                                {/if}
+                            </tr>
+                            {#if expandedFrames.has(i) && framePayload(frame)}
+                                <tr>
+                                    <td colspan="20">
+                                        {@render hexdump(framePayload(frame)!)}
+                                    </td>
+                                </tr>
+                            {/if}
+                        {/each}
+                    </tbody>
+                </table>
+            </div>
+        {:else if $currentEvent.decoded}
             <div class="payload">
                 {JSON.stringify($currentEvent.decoded, null, 2)}
             </div>
@@ -196,5 +314,21 @@
         text-wrap: wrap;
         padding-top: 20px;
         word-break: break-all;
+    }
+    .frames {
+        padding-top: 20px;
+        overflow-x: auto;
+    }
+    table {
+        border-collapse: collapse;
+        font-family: monospace;
+        font-size: 12px;
+    }
+    th,
+    td {
+        border: 1px solid #ccc;
+        padding: 4px 8px;
+        text-align: left;
+        vertical-align: top;
     }
 </style>

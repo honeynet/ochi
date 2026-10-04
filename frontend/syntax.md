@@ -17,7 +17,7 @@ booleanClause
    : binaryClause || unaryClause
 
 binaryClause
-   : portItemClause binaryOperator integer || ipItemClause binaryOperator ipv4 || searchClause
+   : portItemClause binaryOperator integer || ipItemClause binaryOperator ipv4 || searchClause || "end.reason" binaryOperator string
 
 binaryOperator
    : "eq" || "==" || "ne" || "!="
