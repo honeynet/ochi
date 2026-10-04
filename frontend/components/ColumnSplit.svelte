@@ -1,8 +1,8 @@
 <script lang="ts">
     import type { Snippet } from 'svelte';
 
-    const STACK_BREAKPOINT = 710;
-    const MIN_RATIO = 0.2;
+    const STACK_BREAKPOINT = 980;
+    const MIN_RATIO = 0.35;
     const MAX_RATIO = 0.8;
 
     interface Props {
@@ -13,7 +13,7 @@
     let { left, right }: Props = $props();
 
     let width = $state(0);
-    let leftRatio = $state(0.2);
+    let leftRatio = $state(0.5);
     let dragging = $state(false);
 
     let stacked = $derived(width > 0 && width < STACK_BREAKPOINT);
@@ -98,8 +98,8 @@
             role="slider"
             aria-orientation="vertical"
             aria-valuenow={leftPercent}
-            aria-valuemin={20}
-            aria-valuemax={80}
+            aria-valuemin={Math.round(MIN_RATIO * 100)}
+            aria-valuemax={Math.round(MAX_RATIO * 100)}
             aria-label="Resize columns"
             tabindex="0"
             onpointerdown={onPointerDown}
@@ -137,6 +137,11 @@
 
     .pane-left {
         flex: 0 0 calc(var(--left-ratio) * 100%);
+        min-width: 44rem;
+    }
+
+    .stacked .pane-left {
+        min-width: 0;
     }
 
     .pane-right {
