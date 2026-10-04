@@ -57,6 +57,10 @@
 
 <style>
     #googleButton {
-        float: right;
+        display: inline-flex;
+        align-items: center;
+        padding: 0;
+        border: none;
+        background: transparent;
     }
 </style>

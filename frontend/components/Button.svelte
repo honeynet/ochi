@@ -12,4 +12,7 @@
 <button class="button" {disabled} id={buttonId} onclick={onClick}>{text}</button>
 
 <style>
+    .button {
+        margin: 0;
+    }
 </style>

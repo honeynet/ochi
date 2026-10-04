@@ -155,6 +155,7 @@
     .filter-input {
         width: min(360px, 40vw);
         min-width: 160px;
+        margin: 0;
     }
 
     input.input-error {

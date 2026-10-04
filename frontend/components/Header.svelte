@@ -49,6 +49,11 @@
         gap: 12px;
     }
 
+    .header :global(input),
+    .header :global(button) {
+        margin: 0;
+    }
+
     .header__left {
         justify-self: start;
     }
