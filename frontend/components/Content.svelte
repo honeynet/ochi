@@ -23,8 +23,13 @@
 
     type RenderResult = { name: string; content: string[] };
 
+    const HEX_BYTES_PER_LINE = 24;
+    // hexy default grouping is 2 bytes (4 hex chars). Address is 8 chars + ": "
+    // (10); hex column is 2.5 chars per byte, then 1 space before ASCII.
+    const HEX_COLUMN_END = 10 + Math.floor(HEX_BYTES_PER_LINE * 2.5) + 1;
+
     function render(payload: string): RenderResult[] {
-        const result = hexy(atob(payload), { width: 8 });
+        const result = hexy(atob(payload), { width: HEX_BYTES_PER_LINE });
         const resultLines = result.split('\n');
         let addressStr = '';
         let hexStr = '';
@@ -32,8 +37,9 @@
         resultLines.forEach((item, idx) => {
             if (item) {
                 addressStr += (idx > 0 ? '\n' : '') + item.substring(0, item.indexOf(':'));
-                hexStr += (idx > 0 ? '\n' : '') + item.substring(item.indexOf(':') + 2, 31);
-                plainStr += (idx > 0 ? '\n' : '') + item.substring(31);
+                hexStr +=
+                    (idx > 0 ? '\n' : '') + item.substring(item.indexOf(':') + 2, HEX_COLUMN_END);
+                plainStr += (idx > 0 ? '\n' : '') + item.substring(HEX_COLUMN_END);
             }
         });
         return [
@@ -297,8 +303,9 @@
         display: flex;
         justify-content: flex-start;
         gap: 20px;
-        min-width: 355px;
+        overflow-x: auto;
         font-family: monospace;
+        white-space: pre;
         padding-top: 15px;
         padding-bottom: 15px;
     }
