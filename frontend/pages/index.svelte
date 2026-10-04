@@ -74,7 +74,7 @@
     });
 </script>
 
-<PageShell path="/queries" pathText="Queries">
+<PageShell path="/myqueries" pathText="Queries">
     {#snippet headerCenter()}
         <Filter />
     {/snippet}
