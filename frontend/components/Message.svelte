@@ -1,7 +1,8 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import type { Event } from '../event';
-    import { displayRule } from '../event';
+    import { END_REASONS, displayRule, formatPort } from '../event';
+    import { formatFrameCount } from '../decoded';
     import { currentEvent } from '../store';
 
     interface Props {
@@ -13,7 +14,7 @@
     let element = $state<HTMLButtonElement | null>(null);
 
     let source = $derived(`${message.srcHost}:${message.srcPort}`);
-    let destPort = $derived(`:${message.dstPort}`);
+    let destPort = $derived(formatPort(message));
     let handlerLabel = $derived(message.handler || displayRule(message) || '');
     let selected = $derived($currentEvent === message);
 
@@ -40,8 +41,15 @@
     <span class="cell dest">{destPort}</span>
     <span class="cell handler" title={handlerLabel || undefined}>{handlerLabel}</span>
     <span class="cell scanner" title={message.scanner}>{message.scanner ?? ''}</span>
-    <span class="cell end" title={message.endReason}>{message.endReason ?? ''}</span>
-    <span class="cell frames">{message.frameCount ?? ''}</span>
+    <span
+        class="cell end"
+        title={message.endReason
+            ? (END_REASONS[message.endReason] ?? message.endReason)
+            : undefined}>{message.endReason ?? ''}</span
+    >
+    <span class="cell frames" title="received/sent"
+        >{formatFrameCount(message.decoded, message.frameCount)}</span
+    >
     <span class="cell details">Details</span>
 </button>
 
@@ -74,6 +82,11 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+
+    .dest {
+        overflow: visible;
+        text-overflow: clip;
     }
 
     .frames {

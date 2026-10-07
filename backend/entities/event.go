@@ -27,4 +27,5 @@ type Event struct {
 	PayloadHash   string         `json:"payloadHash,omitempty"`
 	FrameCount    *int           `json:"frameCount,omitempty"`
 	EndReason     string         `json:"endReason,omitempty"`
+	TLS           OptionalJSON   `json:"tls,omitempty"` // set when the sensor terminated TLS
 }

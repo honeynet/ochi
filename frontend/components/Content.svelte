@@ -3,11 +3,11 @@
     import { currentEvent, token, isAuthenticated } from '../store';
     import { API_ENDPOINT } from '../constants';
     import type { Event } from '../event';
-    import { displayRule, formatDest } from '../event';
+    import { END_REASONS, displayRule, formatDest, formatDuration, hasTime } from '../event';
     import {
+        formatFrameCount,
         framePayload,
         frameTableColumns,
-        formatFrameHeader,
         formatFrameValue,
         isFrameArray,
     } from '../decoded';
@@ -52,6 +52,7 @@
     let eventCreated = $state<Event | undefined>(undefined);
     let disabled = $state(false);
     let expandedFrames = new SvelteSet<number>();
+    let showClientHello = $state(false);
 
     let decodedFrames = $derived(
         $currentEvent && isFrameArray($currentEvent.decoded) ? $currentEvent.decoded : null,
@@ -76,6 +77,7 @@
         eventCreated = undefined;
         disabled = false;
         expandedFrames.clear();
+        showClientHello = false;
     });
 
     function toggleFrame(index: number) {
@@ -98,28 +100,7 @@
                 Authorization: `Bearer ${$token}`,
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                payload: eventToShare.payload,
-                dstPort: eventToShare.dstPort,
-                rule: eventToShare.rule,
-                handler: eventToShare.handler,
-                transport: eventToShare.transport,
-                scanner: eventToShare.scanner,
-                sensorID: eventToShare.sensorID,
-                srcHost: eventToShare.srcHost,
-                srcPort: eventToShare.srcPort,
-                timestamp: eventToShare.timestamp,
-                decoded: eventToShare.decoded,
-                startedAt: eventToShare.startedAt,
-                durationMs: eventToShare.durationMs,
-                srcPtr: eventToShare.srcPtr,
-                dstHost: eventToShare.dstHost,
-                sensorVersion: eventToShare.sensorVersion,
-                ruleName: eventToShare.ruleName,
-                payloadHash: eventToShare.payloadHash,
-                frameCount: eventToShare.frameCount,
-                endReason: eventToShare.endReason,
-            }),
+            body: JSON.stringify({ ...eventToShare, id: undefined, ownerID: undefined }),
         });
 
         if (res.ok) {
@@ -187,17 +168,20 @@
         {#if ruleLabel}
             {ruleLabel}<br />
         {/if}
-        {#if $currentEvent.startedAt}
+        {#if hasTime($currentEvent.startedAt)}
             Started: {$currentEvent.startedAt}<br />
         {/if}
         Timestamp: {$currentEvent.timestamp}<br />
         {#if $currentEvent.durationMs !== undefined}
-            Duration: {$currentEvent.durationMs}ms<br />
+            Duration: <span title={`${$currentEvent.durationMs}ms`}
+                >{formatDuration($currentEvent.durationMs)}</span
+            ><br />
         {/if}
         {#if $currentEvent.endReason}
-            End: {$currentEvent.endReason}<br />
+            End: <span title={END_REASONS[$currentEvent.endReason]}>{$currentEvent.endReason}</span
+            ><br />
         {:else}
-            End: (old handler)<br />
+            End: not set<br />
         {/if}
         {#if $currentEvent.sensorVersion}
             Sensor: {$currentEvent.sensorVersion}<br />
@@ -207,8 +191,10 @@
         {#if $currentEvent.payloadHash}
             Payload hash: {$currentEvent.payloadHash} (first frame)<br />
         {/if}
-        {#if $currentEvent.frameCount !== undefined}
-            Frames: {$currentEvent.frameCount}<br />
+        {#if formatFrameCount($currentEvent.decoded, $currentEvent.frameCount)}
+            Frames: <span title="received/sent"
+                >{formatFrameCount($currentEvent.decoded, $currentEvent.frameCount)}</span
+            ><br />
         {/if}
         {#if $currentEvent.srcPtr}
             PTR: {$currentEvent.srcPtr}<br />
@@ -217,6 +203,31 @@
             Scanner: {$currentEvent.scanner}<br />
         {:else if $currentEvent.srcPtr}
             Scanner: unknown (PTR {$currentEvent.srcPtr})<br />
+        {/if}
+        {#if $currentEvent.tls}
+            {@const tls = $currentEvent.tls}
+            <div class="tls">
+                TLS terminated by sensor (payload and frames are decrypted)<br />
+                {#if tls.serverName}
+                    SNI: {tls.serverName}<br />
+                {/if}
+                {#if tls.alpn?.length}
+                    ALPN: {tls.alpn.join(', ')}<br />
+                {/if}
+                {#if tls.version}
+                    Version: {tls.version}<br />
+                {/if}
+                Cipher: {tls.cipher || '(handshake failed)'}<br />
+                {#if tls.clientHello}
+                    <button type="button" onclick={() => (showClientHello = !showClientHello)}
+                        >{showClientHello ? '▾' : '▸'}</button
+                    >
+                    ClientHello{tls.truncated ? ' (truncated at 4 KiB)' : ''}
+                    {#if showClientHello}
+                        {@render hexdump(tls.clientHello)}
+                    {/if}
+                {/if}
+            </div>
         {/if}
         {#if $currentEvent.payload}
             Payload:
@@ -242,7 +253,9 @@
                 </p>
             {/if}
         {/if}
-        {#if decodedFrames}
+        {#if decodedFrames && decodedFrames.length === 0}
+            <p>No frames.</p>
+        {:else if decodedFrames}
             <div class="frames">
                 <table>
                     <thead>
@@ -251,14 +264,11 @@
                             {#each decodedColumns as column (column)}
                                 <th>{column}</th>
                             {/each}
-                            {#if $currentEvent.handler === 'smb'}
-                                <th>header</th>
-                            {/if}
                         </tr>
                     </thead>
                     <tbody>
                         {#each decodedFrames as frame, i (i)}
-                            <tr>
+                            <tr class={frame.direction === 'write' ? 'write' : undefined}>
                                 <td>
                                     {#if framePayload(frame)}
                                         <button type="button" onclick={() => toggleFrame(i)}
@@ -267,15 +277,12 @@
                                     {/if}
                                 </td>
                                 {#each decodedColumns as column (column)}
-                                    <td>{formatFrameValue(frame[column])}</td>
+                                    <td>{formatFrameValue(frame[column], column)}</td>
                                 {/each}
-                                {#if $currentEvent.handler === 'smb'}
-                                    <td>{formatFrameHeader(frame.header)}</td>
-                                {/if}
                             </tr>
                             {#if expandedFrames.has(i) && framePayload(frame)}
                                 <tr>
-                                    <td colspan="20">
+                                    <td colspan={decodedColumns.length + 1}>
                                         {@render hexdump(framePayload(frame)!)}
                                     </td>
                                 </tr>
@@ -334,6 +341,15 @@
         border-collapse: collapse;
         font-family: monospace;
         font-size: 12px;
+    }
+    tr.write {
+        background-color: #eef4fb;
+    }
+    .tls {
+        margin: 8px 0;
+        padding: 6px 8px;
+        border-left: 3px solid #4a7fb5;
+        background-color: #f4f8fc;
     }
     th,
     td {

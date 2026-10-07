@@ -2,6 +2,7 @@
     import { onMount } from 'svelte';
     import type { Event } from '../event';
     import { displayRule, formatDest } from '../event';
+    import { formatFrameCount } from '../decoded';
     import { currentEvent } from '../store';
 
     interface Props {
@@ -32,8 +33,8 @@
     {#if message.scanner}"{message.scanner}"{/if}
     {#if message.endReason}
         {message.endReason}{/if}
-    {#if message.frameCount}
-        [{message.frameCount}]{/if}
+    {#if formatFrameCount(message.decoded, message.frameCount)}
+        [{formatFrameCount(message.decoded, message.frameCount)}]{/if}
     {#if message.payload}: <u>Payload</u>{/if}
 </button>
 

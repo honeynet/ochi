@@ -30,6 +30,7 @@ var eventEnvelopeColumns = []string{
 	"durationMs INTEGER",
 	"srcPtr TEXT",
 	"ruleName TEXT",
+	"tls JSON",
 }
 
 func addColumnIfMissing(db *sqlx.DB, table, columnDef string) error {
@@ -70,6 +71,7 @@ func NewEventRepo(db *sqlx.DB) (*EventRepo, error) {
 		, durationMs INTEGER
 		, srcPtr TEXT
 		, ruleName TEXT
+		, tls JSON
 		, CONSTRAINT id_unique UNIQUE (id)
 	)`)
 	if err != nil {
@@ -84,9 +86,9 @@ func NewEventRepo(db *sqlx.DB) (*EventRepo, error) {
 		return nil, err
 	}
 	r.createEvent, err = db.PrepareNamed(`INSERT INTO events
-			(id, ownerID, payload, dstPort, rule, handler, transport, scanner, sensorID, srcHost, srcPort, timestamp, decoded, dstHost, endReason, frameCount, payloadHash, sensorVersion, startedAt, durationMs, srcPtr, ruleName)
+			(id, ownerID, payload, dstPort, rule, handler, transport, scanner, sensorID, srcHost, srcPort, timestamp, decoded, dstHost, endReason, frameCount, payloadHash, sensorVersion, startedAt, durationMs, srcPtr, ruleName, tls)
 			VALUES
-			(:id, :ownerID, :payload, :dstPort, :rule, :handler, :transport, :scanner, :sensorID, :srcHost, :srcPort, :timestamp, :decoded, :dstHost, :endReason, :frameCount, :payloadHash, :sensorVersion, :startedAt, :durationMs, :srcPtr, :ruleName)`)
+			(:id, :ownerID, :payload, :dstPort, :rule, :handler, :transport, :scanner, :sensorID, :srcHost, :srcPort, :timestamp, :decoded, :dstHost, :endReason, :frameCount, :payloadHash, :sensorVersion, :startedAt, :durationMs, :srcPtr, :ruleName, :tls)`)
 	if err != nil {
 		return nil, err
 	}

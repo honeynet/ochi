@@ -61,7 +61,7 @@
             <span>Handler</span>
             <span>Scanner</span>
             <span>End</span>
-            <span class="frames">Frames</span>
+            <span class="frames" title="received/sent">Frames</span>
             <span></span>
         </div>
         {#each messages as message (message.timestamp)}
@@ -91,11 +91,12 @@
     }
 
     #message-log {
-        --event-cols: 8ch minmax(14ch, 1.4fr) 5ch 8ch minmax(8ch, 0.9fr) 10ch 6ch 7ch;
+        --event-cols: 8ch minmax(14ch, 1.4fr) 9ch 8ch minmax(8ch, 0.9fr) 20ch 6ch 7ch;
         flex: 1;
         min-height: 0;
         overflow-y: auto;
         overflow-x: hidden;
+        scrollbar-gutter: stable;
     }
 
     .event-head {

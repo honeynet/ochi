@@ -59,6 +59,7 @@ func TestEvent(t *testing.T) {
 	require.Empty(t, saved[0].DstHost)
 	require.Nil(t, saved[0].DurationMs)
 	require.Nil(t, saved[0].FrameCount)
+	require.Empty(t, saved[0].TLS)
 
 	err = r.Delete("Not found")
 	require.Error(t, err)
@@ -96,6 +97,7 @@ func TestEvent_NewEnvelopeFields(t *testing.T) {
 		PayloadHash:   "deadbeef",
 		FrameCount:    &frameCount,
 		EndReason:     "timeout",
+		TLS:           entities.OptionalJSON(`{"serverName":"example.com","alpn":["h2"],"cipher":""}`),
 	}
 	event, err := r.Create(event)
 	require.NoError(t, err)
@@ -109,6 +111,7 @@ func TestEvent_NewEnvelopeFields(t *testing.T) {
 	require.Equal(t, 4, *got.FrameCount)
 	require.NotNil(t, got.DurationMs)
 	require.Equal(t, 1500, *got.DurationMs)
+	require.JSONEq(t, `{"serverName":"example.com","alpn":["h2"],"cipher":""}`, string(got.TLS))
 }
 
 func TestEventRepo_MigratesLegacySchema(t *testing.T) {

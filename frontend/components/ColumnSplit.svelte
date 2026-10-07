@@ -13,11 +13,14 @@
     let { left, right }: Props = $props();
 
     let width = $state(0);
-    let leftRatio = $state(0.5);
+    let leftWidth = $state(0);
+    // null = auto: size the left pane to its full content width, capped at 50%.
+    let leftRatio = $state<number | null>(null);
     let dragging = $state(false);
 
     let stacked = $derived(width > 0 && width < STACK_BREAKPOINT);
-    let leftPercent = $derived(Math.round(leftRatio * 100));
+    let currentRatio = $derived(leftRatio ?? (width > 0 ? leftWidth / width : 0.5));
+    let leftPercent = $derived(Math.round(currentRatio * 100));
 
     function clampRatio(value: number) {
         return Math.min(MAX_RATIO, Math.max(MIN_RATIO, value));
@@ -35,7 +38,7 @@
     function ratioFromClientX(clientX: number, split: HTMLElement) {
         const rect = split.getBoundingClientRect();
         if (rect.width <= 0) {
-            return leftRatio;
+            return currentRatio;
         }
         return clampRatio((clientX - rect.left) / rect.width);
     }
@@ -80,16 +83,16 @@
         const step = event.shiftKey ? 0.1 : 0.02;
         if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
             event.preventDefault();
-            leftRatio = clampRatio(leftRatio - step);
+            leftRatio = clampRatio(currentRatio - step);
         } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
             event.preventDefault();
-            leftRatio = clampRatio(leftRatio + step);
+            leftRatio = clampRatio(currentRatio + step);
         }
     }
 </script>
 
 <div class={['split', { stacked }]} style:--left-ratio={leftRatio} bind:clientWidth={width}>
-    <div class="pane pane-left">
+    <div class={['pane', 'pane-left', { auto: leftRatio === null }]} bind:clientWidth={leftWidth}>
         {@render left()}
     </div>
     {#if !stacked}
@@ -138,6 +141,13 @@
     .pane-left {
         flex: 0 0 calc(var(--left-ratio) * 100%);
         min-width: 44rem;
+    }
+
+    .split:not(.stacked) .pane-left.auto {
+        flex: 0 0 auto;
+        width: max-content;
+        max-width: 50%;
+        min-width: 0;
     }
 
     .stacked .pane-left {
