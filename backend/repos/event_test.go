@@ -159,3 +159,66 @@ func TestEventRepo_MigratesLegacySchema(t *testing.T) {
 	require.Equal(t, "10.0.0.9", got.DstHost)
 	require.Equal(t, "client_close", got.EndReason)
 }
+
+func newTestEvent(owner, ts string) entities.Event {
+	return entities.Event{
+		OwnerID:   owner,
+		Payload:   "payload",
+		DstPort:   80,
+		Transport: "tcp",
+		SensorID:  "sensorID",
+		SrcHost:   "srcHost",
+		SrcPort:   "srcPort",
+		Timestamp: ts,
+	}
+}
+
+func TestEvent_Paging(t *testing.T) {
+	r := initEventRepo(t)
+	for i := 1; i <= 5; i++ {
+		_, err := r.Create(newTestEvent(MOCK_USER_ID, fmt.Sprintf("2026-01-0%dT00:00:00Z", i)))
+		require.NoError(t, err)
+	}
+	_, err := r.Create(newTestEvent("other", "2026-01-09T00:00:00Z"))
+	require.NoError(t, err)
+
+	total, err := r.CountByOwnerId(MOCK_USER_ID)
+	require.NoError(t, err)
+	require.Equal(t, 5, total)
+
+	first, err := r.FindPageByOwnerId(MOCK_USER_ID, 2, 0)
+	require.NoError(t, err)
+	require.Len(t, first, 2)
+	require.Equal(t, "2026-01-05T00:00:00Z", first[0].Timestamp)
+
+	last, err := r.FindPageByOwnerId(MOCK_USER_ID, 2, 4)
+	require.NoError(t, err)
+	require.Len(t, last, 1)
+	require.Equal(t, "2026-01-01T00:00:00Z", last[0].Timestamp)
+}
+
+func TestEvent_DeleteByOwner(t *testing.T) {
+	r := initEventRepo(t)
+	mine1, err := r.Create(newTestEvent(MOCK_USER_ID, "2026-01-01T00:00:00Z"))
+	require.NoError(t, err)
+	mine2, err := r.Create(newTestEvent(MOCK_USER_ID, "2026-01-02T00:00:00Z"))
+	require.NoError(t, err)
+	theirs, err := r.Create(newTestEvent("other", "2026-01-03T00:00:00Z"))
+	require.NoError(t, err)
+
+	deleted, err := r.DeleteByOwner(MOCK_USER_ID, []string{mine1.ID, theirs.ID, "missing"})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
+
+	left, err := r.FindByOwnerId(MOCK_USER_ID)
+	require.NoError(t, err)
+	require.Len(t, left, 1)
+	require.Equal(t, mine2.ID, left[0].ID)
+
+	_, err = r.GetByID(theirs.ID)
+	require.NoError(t, err)
+
+	deleted, err = r.DeleteByOwner(MOCK_USER_ID, nil)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, deleted)
+}

@@ -16,6 +16,8 @@ type EventRepo struct {
 	createEvent      *sqlx.NamedStmt
 	getByIdEvent     *sqlx.Stmt
 	findByOwnerEvent *sqlx.Stmt
+	findPageEvent    *sqlx.Stmt
+	countByOwner     *sqlx.Stmt
 	deleteEvent      *sqlx.Stmt
 	db               *sqlx.DB
 }
@@ -46,7 +48,7 @@ func addColumnIfMissing(db *sqlx.DB, table, columnDef string) error {
 
 // NewEventRepo creates an event repo and migrates the events table.
 func NewEventRepo(db *sqlx.DB) (*EventRepo, error) {
-	r := &EventRepo{}
+	r := &EventRepo{db: db}
 	db.Mapper = reflectx.NewMapperFunc("json", strings.ToLower)
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS events (
 		id TEXT PRIMARY KEY NOT NULL
@@ -85,6 +87,9 @@ func NewEventRepo(db *sqlx.DB) (*EventRepo, error) {
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_events_payloadHash ON events (payloadHash)`); err != nil {
 		return nil, err
 	}
+	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_events_owner_timestamp ON events (ownerID, timestamp, id)`); err != nil {
+		return nil, err
+	}
 	r.createEvent, err = db.PrepareNamed(`INSERT INTO events
 			(id, ownerID, payload, dstPort, rule, handler, transport, scanner, sensorID, srcHost, srcPort, timestamp, decoded, dstHost, endReason, frameCount, payloadHash, sensorVersion, startedAt, durationMs, srcPtr, ruleName, tls)
 			VALUES
@@ -100,6 +105,14 @@ func NewEventRepo(db *sqlx.DB) (*EventRepo, error) {
 	if err != nil {
 		return nil, err
 	}
+	r.findPageEvent, err = db.Preparex("SELECT * FROM events WHERE ownerID=? ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?")
+	if err != nil {
+		return nil, err
+	}
+	r.countByOwner, err = db.Preparex("SELECT COUNT(*) FROM events WHERE ownerID=?")
+	if err != nil {
+		return nil, err
+	}
 	r.deleteEvent, err = db.Preparex("DELETE FROM events WHERE id=?")
 	if err != nil {
 		return nil, err
@@ -112,6 +125,18 @@ func (r *EventRepo) FindByOwnerId(ownerId string) ([]entities.Event, error) {
 	evs := []entities.Event{}
 	err := r.findByOwnerEvent.Select(&evs, ownerId)
 	return evs, err
+}
+
+func (r *EventRepo) FindPageByOwnerId(ownerId string, limit, offset int) ([]entities.Event, error) {
+	evs := []entities.Event{}
+	err := r.findPageEvent.Select(&evs, ownerId, limit, offset)
+	return evs, err
+}
+
+func (r *EventRepo) CountByOwnerId(ownerId string) (int, error) {
+	var n int
+	err := r.countByOwner.Get(&n, ownerId)
+	return n, err
 }
 
 // Create creates a new event
@@ -147,6 +172,21 @@ func (r *EventRepo) Delete(id string) error {
 		return fmt.Errorf("%s not found", id)
 	}
 	return nil
+}
+
+func (r *EventRepo) DeleteByOwner(ownerId string, ids []string) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	query, args, err := sqlx.In("DELETE FROM events WHERE ownerID=? AND id IN (?)", ownerId, ids)
+	if err != nil {
+		return 0, err
+	}
+	res, err := r.db.Exec(r.db.Rebind(query), args...)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 // Close closes DB connection held by this repo.

@@ -3,6 +3,7 @@ package backend
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -412,4 +413,85 @@ func TestGetEventsList_RequiresAuth(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+}
+
+func TestEventsList_PagedAndBulkDelete(t *testing.T) {
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	eventRepo, err := repos.NewEventRepo(db)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	var ids []string
+	for i := 1; i <= 3; i++ {
+		ev, err := eventRepo.Create(entities.Event{
+			OwnerID:   "owner-1",
+			Payload:   "cGF5bG9hZA==",
+			DstPort:   80,
+			Transport: "tcp",
+			SensorID:  "sensor-1",
+			SrcHost:   "1.2.3.4",
+			SrcPort:   "4321",
+			Timestamp: fmt.Sprintf("2026-01-0%dT00:00:00Z", i),
+		})
+		require.NoError(t, err)
+		ids = append(ids, ev.ID)
+	}
+
+	foreign, err := eventRepo.Create(entities.Event{
+		OwnerID:   "owner-2",
+		Payload:   "cGF5bG9hZA==",
+		DstPort:   80,
+		Transport: "tcp",
+		SensorID:  "sensor-1",
+		SrcHost:   "1.2.3.4",
+		SrcPort:   "4321",
+		Timestamp: "2026-01-09T00:00:00Z",
+	})
+	require.NoError(t, err)
+
+	cs := &server{
+		eventRepo: eventRepo,
+		fs:        os.DirFS(tmp),
+		cfg:       Config{JWTSecret: "test-secret"},
+	}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+	token, err := entities.NewToken("test-secret", entities.User{ID: "owner-1"})
+	require.NoError(t, err)
+
+	do := func(method, target, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, target, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+
+	w := do(http.MethodGet, "/api/events?limit=2&offset=0", "")
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "3", w.Header().Get("X-Total-Count"))
+	var page []entities.Event
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&page))
+	assert.Len(t, page, 2)
+
+	assert.Equal(t, http.StatusBadRequest, do(http.MethodGet, "/api/events?limit=0", "").Code)
+	assert.Equal(t, http.StatusBadRequest, do(http.MethodGet, "/api/events?offset=-1", "").Code)
+
+	assert.Equal(t, http.StatusBadRequest, do(http.MethodDelete, "/api/events", `{"ids":[]}`).Code)
+
+	w = do(http.MethodDelete, "/api/events", `{"ids":["`+foreign.ID+`"]}`)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"deleted":0}`, w.Body.String())
+	_, err = eventRepo.GetByID(foreign.ID)
+	require.NoError(t, err)
+
+	w = do(http.MethodDelete, "/api/events", `{"ids":["`+ids[0]+`","`+ids[1]+`"]}`)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"deleted":2}`, w.Body.String())
+
+	w = do(http.MethodGet, "/api/events", "")
+	assert.Equal(t, "1", w.Header().Get("X-Total-Count"))
 }
