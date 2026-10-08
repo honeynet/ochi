@@ -1,3 +1,5 @@
+<svelte:options runes={true} />
+
 <script lang="ts">
     import { onMount } from 'svelte';
     import { url } from '@roxi/routify';
@@ -6,6 +8,7 @@
 
     let events = $state<Event[]>([]);
     let error = $state('');
+    let loading = $state(true);
 
     onMount(() => {
         reloadEvents();
@@ -17,6 +20,8 @@
             error = '';
         } catch (e) {
             error = e instanceof Error ? e.message : 'Could not fetch events';
+        } finally {
+            loading = false;
         }
     }
 
@@ -36,7 +41,9 @@
 </script>
 
 <h2 class="eventList__title">Saved Events</h2>
-{#if error}
+{#if loading}
+    <p class="eventList__empty">Loading...</p>
+{:else if error}
     <p class="eventList__empty">{error}</p>
 {:else if events.length === 0}
     <p class="eventList__empty">No saved events</p>
