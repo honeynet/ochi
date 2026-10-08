@@ -272,7 +272,7 @@ func (cs *server) createEventHandler(w http.ResponseWriter, r *http.Request, _ h
 		return
 	}
 	event.OwnerID = userID
-	event.DstHost = ""
+	event.DstHost = nil
 	var err error
 	event, err = cs.eventRepo.Create(event)
 	if err != nil {
@@ -321,7 +321,7 @@ func (cs *server) getEventsHandler(w http.ResponseWriter, r *http.Request, _ htt
 	}
 
 	for i := range events {
-		events[i].DstHost = ""
+		events[i].DstHost = nil
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -344,7 +344,7 @@ func (cs *server) getEventByIDHandler(w http.ResponseWriter, r *http.Request, p 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	event.DstHost = ""
+	event.DstHost = nil
 	w.WriteHeader(http.StatusOK)
 	if err = json.NewEncoder(w).Encode(event); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
