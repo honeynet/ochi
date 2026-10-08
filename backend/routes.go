@@ -18,6 +18,7 @@ func newRouter(cs *server) (*httprouter.Router, error) {
 	r.GET("/", cs.indexHandler)
 	r.GET("/global.css", cs.cssHandler)
 	r.GET("/myqueries", cs.indexHandler)
+	r.GET("/myevents", cs.indexHandler)
 	r.GET("/events/:id", cs.indexHandler)
 
 	build, err := fs.Sub(cs.fs, "build")

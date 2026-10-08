@@ -6,14 +6,15 @@
         path: string;
         pathText: string;
         headerCenter?: Snippet;
+        showEvents?: boolean;
         children: Snippet;
     }
 
-    let { path, pathText, headerCenter, children }: Props = $props();
+    let { path, pathText, headerCenter, showEvents, children }: Props = $props();
 </script>
 
 <div class="shell">
-    <Header {path} {pathText} {headerCenter} />
+    <Header {path} {pathText} {headerCenter} {showEvents} />
     <div class="shell__body">
         {@render children()}
     </div>
