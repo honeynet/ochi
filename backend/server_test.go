@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,172 +12,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/honeynet/ochi/backend/entities"
+	"github.com/honeynet/ochi/backend/handlers"
 	"github.com/honeynet/ochi/backend/repos"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/types"
-	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 )
-
-func setupDownloadBinaryTest(t *testing.T, content []byte) (string, string, func()) {
-	t.Helper()
-
-	osType := "linux"
-	arch := "amd64"
-	binaryName := "sensor-" + osType + "-" + arch
-	binDir := "bin"
-
-	tmpDir := t.TempDir()
-
-	originalWD, err := os.Getwd()
-	assert.NoError(t, err)
-	err = os.Chdir(tmpDir)
-	assert.NoError(t, err)
-
-	cleanup := func() {
-		os.Chdir(originalWD)
-	}
-
-	err = os.MkdirAll(binDir, 0755)
-	assert.NoError(t, err)
-
-	filePath := filepath.Join(binDir, binaryName)
-	err = os.WriteFile(filePath, content, 0644)
-	assert.NoError(t, err)
-
-	return osType, arch, cleanup
-}
-
-func TestDownloadBinaryHandler(t *testing.T) {
-	placeholderUUID := "00000000-0000-0000-0000-000000000000"
-	prefix := "some-prefix-bytes-"
-	suffix := "-some-suffix-bytes"
-	content := []byte(prefix + placeholderUUID + suffix)
-
-	osType, arch, cleanup := setupDownloadBinaryTest(t, content)
-	defer cleanup()
-
-	cs := &server{}
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/download/"+osType+"/"+arch, nil)
-	params := httprouter.Params{
-		httprouter.Param{Key: "os", Value: osType},
-		httprouter.Param{Key: "arch", Value: arch},
-	}
-
-	cs.downloadBinaryHandler(w, r, params)
-
-	resp := w.Result()
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-	body, err := io.ReadAll(resp.Body)
-	assert.NoError(t, err)
-
-	assert.Equal(t, "application/octet-stream", resp.Header.Get("Content-Type"))
-	assert.Contains(t, resp.Header.Get("Content-Disposition"), "attachment; filename=\"sensor-"+osType+"-"+arch+"\"")
-	assert.Equal(t, len(content), len(body))
-	assert.False(t, bytes.Contains(body, []byte(placeholderUUID)))
-	assert.True(t, bytes.Contains(body, []byte(prefix)))
-	assert.True(t, bytes.Contains(body, []byte(suffix)))
-
-	start := len(prefix)
-	uuidLen := 36
-	assert.GreaterOrEqual(t, len(body), start+uuidLen, "Response body is too short to contain the UUID")
-	extractedUUID := string(body[start : start+uuidLen])
-	_, err = uuid.Parse(extractedUUID)
-	assert.NoError(t, err, "The injected string should be a valid UUID")
-}
-
-func TestDownloadBinaryHandler_InvalidParams(t *testing.T) {
-	tests := []struct {
-		name string
-		os   string
-		arch string
-	}{
-		{"InvalidOS", "invalid", "amd64"},
-		{"InvalidArch", "linux", "invalid"},
-		{"BothInvalid", "invalid", "invalid"},
-	}
-
-	cs := &server{}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			w := httptest.NewRecorder()
-			r := httptest.NewRequest("GET", "/download/"+tc.os+"/"+tc.arch, nil)
-			params := httprouter.Params{
-				httprouter.Param{Key: "os", Value: tc.os},
-				httprouter.Param{Key: "arch", Value: tc.arch},
-			}
-
-			cs.downloadBinaryHandler(w, r, params)
-
-			resp := w.Result()
-			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		})
-	}
-}
-
-func TestDownloadBinaryHandler_BinaryNotFound(t *testing.T) {
-	tmpDir := t.TempDir()
-
-	originalWD, err := os.Getwd()
-	assert.NoError(t, err)
-	err = os.Chdir(tmpDir)
-	assert.NoError(t, err)
-	defer os.Chdir(originalWD)
-
-	cs := &server{}
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/download/linux/amd64", nil)
-	params := httprouter.Params{
-		httprouter.Param{Key: "os", Value: "linux"},
-		httprouter.Param{Key: "arch", Value: "amd64"},
-	}
-
-	cs.downloadBinaryHandler(w, r, params)
-
-	resp := w.Result()
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-}
-
-func TestDownloadBinaryHandler_MissingPlaceholder(t *testing.T) {
-	content := []byte("binary-without-placeholder")
-
-	osType, arch, cleanup := setupDownloadBinaryTest(t, content)
-	defer cleanup()
-
-	cs := &server{}
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/download/"+osType+"/"+arch, nil)
-	params := httprouter.Params{
-		httprouter.Param{Key: "os", Value: osType},
-		httprouter.Param{Key: "arch", Value: arch},
-	}
-
-	cs.downloadBinaryHandler(w, r, params)
-
-	resp := w.Result()
-	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-}
-
-func TestIndexReplace(t *testing.T) {
-	placeholder := "00000000-0000-0000-0000-000000000000"
-	newUUID := "11111111-2222-3333-4444-555555555555"
-	data := []byte("prefix-" + placeholder + "-suffix")
-
-	modified, ok := IndexReplace(data, []byte(placeholder), []byte(newUUID))
-	assert.True(t, ok)
-	assert.Equal(t, "prefix-"+newUUID+"-suffix", string(modified))
-
-	_, ok = IndexReplace([]byte("no-match"), []byte(placeholder), []byte(newUUID))
-	assert.False(t, ok)
-}
 
 func TestPublishHandler_AcceptsTypedGluttonEvent(t *testing.T) {
 	cs := &server{
@@ -202,7 +44,7 @@ func TestPublishHandler_AcceptsTypedGluttonEvent(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/publish?token=token", bytes.NewBufferString(payload))
-	cs.publishHandler(w, r, nil)
+	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r, nil)
 
 	resp := w.Result()
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
@@ -254,7 +96,7 @@ func TestPublishHandler_RoundTripsNewEnvelope(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/publish?token=token", bytes.NewBufferString(payload))
-	cs.publishHandler(w, r, nil)
+	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r, nil)
 
 	resp := w.Result()
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
@@ -312,11 +154,11 @@ func TestPublishHandler_AcceptsLargeDecodedEvent(t *testing.T) {
 	body, err := json.Marshal(event)
 	require.NoError(t, err)
 	require.Greater(t, len(body), 8192)
-	require.Less(t, len(body), publishMaxBodyBytes)
+	require.Less(t, len(body), handlers.PublishMaxBodyBytes)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/publish", bytes.NewReader(body))
-	cs.publishHandler(w, r, nil)
+	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r, nil)
 
 	resp := w.Result()
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
@@ -343,7 +185,7 @@ func TestPublishHandler_RejectsMissingSensorID(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/publish", bytes.NewBufferString(`{"dstPort":80}`))
-	cs.publishHandler(w, r, nil)
+	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r, nil)
 
 	assert.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
 }
@@ -356,7 +198,7 @@ func TestPublishHandler_RateLimited(t *testing.T) {
 	payload := `{"sensorID":"abcd1234-ffff-ffff-ffff-ffffffffffff","dstPort":80}`
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/publish", bytes.NewBufferString(payload))
-	cs.publishHandler(w, r, nil)
+	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r, nil)
 	assert.Equal(t, http.StatusTooManyRequests, w.Result().StatusCode)
 }
 

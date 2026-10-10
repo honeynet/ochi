@@ -1,10 +1,11 @@
-package backend
+package handlers
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -12,13 +13,29 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/honeynet/ochi/backend/entities"
+	"github.com/honeynet/ochi/backend/repos"
 
 	"github.com/julienschmidt/httprouter"
 	"google.golang.org/api/idtoken"
 )
 
-func (cs *server) indexHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fh, err := cs.fs.Open("index.html")
+// Handlers holds the dependencies shared by the HTTP handlers.
+type Handlers struct {
+	FS         fs.FS
+	JWTSecret  string
+	HTTPClient *http.Client
+
+	Users   *repos.UserRepo
+	Queries *repos.QueryRepo
+	Events  *repos.EventRepo
+	Sensors *repos.SensorRepo
+
+	// Publish fans a message out to subscribers; it returns false when rate limited.
+	Publish func(msg []byte) bool
+}
+
+func (h *Handlers) IndexHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	fh, err := h.FS.Open("index.html")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -29,8 +46,8 @@ func (cs *server) indexHandler(w http.ResponseWriter, r *http.Request, _ httprou
 	}
 }
 
-func (cs *server) cssHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	fh, err := cs.fs.Open("global.css")
+func (h *Handlers) CSSHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	fh, err := h.FS.Open("global.css")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -42,13 +59,13 @@ func (cs *server) cssHandler(w http.ResponseWriter, r *http.Request, _ httproute
 	}
 }
 
-const publishMaxBodyBytes = 2 << 20 // 2 MiB; multi-frame decoded sessions exceed 8 KiB
+const PublishMaxBodyBytes = 2 << 20 // 2 MiB; multi-frame decoded sessions exceed 8 KiB
 
-// publishHandler reads the request body with a limit of 2 MiB and then publishes
+// PublishHandler reads the request body with a limit of 2 MiB and then publishes
 // the received message. sensorID is truncated to 8 characters for display.
 // dstHost (honeypot sensor IP) is stripped so it is never sent to subscribers.
-func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	body := http.MaxBytesReader(w, r.Body, publishMaxBodyBytes)
+func (h *Handlers) PublishHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	body := http.MaxBytesReader(w, r.Body, PublishMaxBodyBytes)
 	msg, err := io.ReadAll(body)
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusRequestEntityTooLarge), http.StatusRequestEntityTooLarge)
@@ -79,7 +96,7 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httpr
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if !cs.publish(alteredMsg) {
+	if !h.Publish(alteredMsg) {
 		http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 		return
 	}
@@ -91,16 +108,16 @@ type response struct {
 	Token string        `json:"token,omitempty"`
 }
 
-// sessionHandler creates a new token for the user
-func (cs *server) sessionHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+// SessionHandler creates a new token for the user
+func (h *Handlers) SessionHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	userID := userIDFromCtx(r.Context())
-	user, err := cs.uRepo.Get(userID)
+	user, err := h.Users.Get(userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	token, err := entities.NewToken(cs.cfg.JWTSecret, user)
+	token, err := entities.NewToken(h.JWTSecret, user)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -113,8 +130,8 @@ func (cs *server) sessionHandler(w http.ResponseWriter, r *http.Request, _ httpr
 	}
 }
 
-// loginHandler validates a token with Google
-func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+// LoginHandler validates a token with Google
+func (h *Handlers) LoginHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	body := http.MaxBytesReader(w, r.Body, 8192)
 	data, err := io.ReadAll(body)
 	if err != nil {
@@ -123,7 +140,7 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request, _ httprou
 	}
 
 	ctx := context.Background()
-	val, err := idtoken.NewValidator(ctx, idtoken.WithHTTPClient(cs.httpClient))
+	val, err := idtoken.NewValidator(ctx, idtoken.WithHTTPClient(h.HTTPClient))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -138,7 +155,7 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request, _ httprou
 	var user entities.User
 	if emailInt, ok := payload.Claims["email"]; ok {
 		if email, ok := emailInt.(string); ok {
-			user, err = cs.uRepo.Find(email)
+			user, err = h.Users.Find(email)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -146,7 +163,7 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request, _ httprou
 		}
 	}
 
-	token, err := entities.NewToken(cs.cfg.JWTSecret, user)
+	token, err := entities.NewToken(h.JWTSecret, user)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -161,10 +178,10 @@ func (cs *server) loginHandler(w http.ResponseWriter, r *http.Request, _ httprou
 
 // query handlers
 
-// getQueriesHandler returns a list of queries belonging to ther user.
-func (cs *server) getQueriesHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+// GetQueriesHandler returns a list of queries belonging to ther user.
+func (h *Handlers) GetQueriesHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	userID := userIDFromCtx(r.Context())
-	queries, err := cs.queryRepo.FindByOwnerId(userID)
+	queries, err := h.Queries.FindByOwnerId(userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -177,8 +194,8 @@ func (cs *server) getQueriesHandler(w http.ResponseWriter, r *http.Request, _ ht
 	}
 }
 
-// createQueryHandler creates a new query.
-func (cs *server) createQueryHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+// CreateQueryHandler creates a new query.
+func (h *Handlers) CreateQueryHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	userID := userIDFromCtx(r.Context())
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
@@ -188,7 +205,7 @@ func (cs *server) createQueryHandler(w http.ResponseWriter, r *http.Request, _ h
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	query, err := cs.queryRepo.Create(userID, t.Content, t.Description, t.Active)
+	query, err := h.Queries.Create(userID, t.Content, t.Description, t.Active)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -202,10 +219,10 @@ func (cs *server) createQueryHandler(w http.ResponseWriter, r *http.Request, _ h
 }
 
 // udpateQueryHandler updates an existing query making sure the user owns the query.
-func (cs *server) updateQueryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (h *Handlers) UpdateQueryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	userID := userIDFromCtx(r.Context())
 	id := p.ByName("id")
-	q, err := cs.queryRepo.GetByID(id)
+	q, err := h.Queries.GetByID(id)
 	if err != nil {
 		if isNotFoundError(err) {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -229,7 +246,7 @@ func (cs *server) updateQueryHandler(w http.ResponseWriter, r *http.Request, p h
 		http.Error(w, "Ids don't match", http.StatusBadRequest)
 		return
 	}
-	err = cs.queryRepo.Update(q.ID, q.Content, q.Description, q.Active)
+	err = h.Queries.Update(q.ID, q.Content, q.Description, q.Active)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -237,11 +254,11 @@ func (cs *server) updateQueryHandler(w http.ResponseWriter, r *http.Request, p h
 	w.WriteHeader(http.StatusOK)
 }
 
-// deleteQueryHandler deletes a query making sure the user owns the query.
-func (cs *server) deleteQueryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+// DeleteQueryHandler deletes a query making sure the user owns the query.
+func (h *Handlers) DeleteQueryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	userID := userIDFromCtx(r.Context())
 	id := p.ByName("id")
-	q, err := cs.queryRepo.GetByID(id)
+	q, err := h.Queries.GetByID(id)
 	if err != nil {
 
 		if isNotFoundError(err) {
@@ -256,7 +273,7 @@ func (cs *server) deleteQueryHandler(w http.ResponseWriter, r *http.Request, p h
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	err = cs.queryRepo.Delete(id)
+	err = h.Queries.Delete(id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -266,8 +283,8 @@ func (cs *server) deleteQueryHandler(w http.ResponseWriter, r *http.Request, p h
 
 // event handlers
 
-// createEventHandler creates a new event
-func (cs *server) createEventHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+// CreateEventHandler creates a new event
+func (h *Handlers) CreateEventHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	userID := userIDFromCtx(r.Context())
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
@@ -279,7 +296,7 @@ func (cs *server) createEventHandler(w http.ResponseWriter, r *http.Request, _ h
 	event.OwnerID = userID
 	event.DstHost = nil
 	var err error
-	event, err = cs.eventRepo.Create(event)
+	event, err = h.Events.Create(event)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -291,11 +308,11 @@ func (cs *server) createEventHandler(w http.ResponseWriter, r *http.Request, _ h
 	}
 }
 
-// deleteEventHandler deletes an event making sure the user owns the event.
-func (cs *server) deleteEventHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+// DeleteEventHandler deletes an event making sure the user owns the event.
+func (h *Handlers) DeleteEventHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	userID := userIDFromCtx(r.Context())
 	id := p.ByName("id")
-	ownerID, err := cs.eventRepo.OwnerID(id)
+	ownerID, err := h.Events.OwnerID(id)
 	if err != nil {
 		if isNotFoundError(err) {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -308,7 +325,7 @@ func (cs *server) deleteEventHandler(w http.ResponseWriter, r *http.Request, p h
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	err = cs.eventRepo.Delete(id)
+	err = h.Events.Delete(id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -322,8 +339,8 @@ const (
 	maxBulkDeleteIDs   = 100
 )
 
-// getEventsHandler returns one page of the user's events; the overall count goes in X-Total-Count.
-func (cs *server) getEventsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+// GetEventsHandler returns one page of the user's events; the overall count goes in X-Total-Count.
+func (h *Handlers) GetEventsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	userID := userIDFromCtx(r.Context())
 	q := r.URL.Query()
 
@@ -346,12 +363,12 @@ func (cs *server) getEventsHandler(w http.ResponseWriter, r *http.Request, _ htt
 		offset = n
 	}
 
-	total, err := cs.eventRepo.CountByOwnerId(userID)
+	total, err := h.Events.CountByOwnerId(userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	events, err := cs.eventRepo.FindPageByOwnerId(userID, limit, offset)
+	events, err := h.Events.FindPageByOwnerId(userID, limit, offset)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -369,7 +386,7 @@ func (cs *server) getEventsHandler(w http.ResponseWriter, r *http.Request, _ htt
 	}
 }
 
-func (cs *server) deleteEventsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *Handlers) DeleteEventsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	userID := userIDFromCtx(r.Context())
 
 	var req struct {
@@ -384,7 +401,7 @@ func (cs *server) deleteEventsHandler(w http.ResponseWriter, r *http.Request, _ 
 		return
 	}
 
-	deleted, err := cs.eventRepo.DeleteByOwner(userID, req.IDs)
+	deleted, err := h.Events.DeleteByOwner(userID, req.IDs)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -397,11 +414,11 @@ func (cs *server) deleteEventsHandler(w http.ResponseWriter, r *http.Request, _ 
 	}
 }
 
-// getEventByIDHandler returns an event with the given ID.
-func (cs *server) getEventByIDHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+// GetEventByIDHandler returns an event with the given ID.
+func (h *Handlers) GetEventByIDHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	id := p.ByName("id")
 
-	event, err := cs.eventRepo.GetByID(id)
+	event, err := h.Events.GetByID(id)
 	if err != nil {
 		if isNotFoundError(err) {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -417,9 +434,9 @@ func (cs *server) getEventByIDHandler(w http.ResponseWriter, r *http.Request, p 
 	}
 }
 
-func (cs *server) getSensorsByUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (h *Handlers) GetSensorsByUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	userId := userIDFromCtx(r.Context())
-	events, err := cs.sensorRepo.GetSensorsByOwnerId(userId)
+	events, err := h.Sensors.GetSensorsByOwnerId(userId)
 	if err != nil {
 		if isNotFoundError(err) {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -438,7 +455,7 @@ func (cs *server) getSensorsByUser(w http.ResponseWriter, r *http.Request, p htt
 	}
 }
 
-func (cs *server) addSensor(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (h *Handlers) AddSensor(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	userId := userIDFromCtx(r.Context())
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
@@ -451,7 +468,7 @@ func (cs *server) addSensor(w http.ResponseWriter, r *http.Request, p httprouter
 
 	sensor.UserID = userId
 
-	if err := cs.sensorRepo.AddSensors(sensor); err != nil {
+	if err := h.Sensors.AddSensors(sensor); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -463,8 +480,8 @@ func (cs *server) addSensor(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 }
 
-// downloadBinaryHandler serves the binary for the requested architecture with a new sensor UUID injected.
-func (cs *server) downloadBinaryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+// DownloadBinaryHandler serves the binary for the requested architecture with a new sensor UUID injected.
+func (h *Handlers) DownloadBinaryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	osType := p.ByName("os")
 	arch := p.ByName("arch")
 

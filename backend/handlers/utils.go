@@ -1,11 +1,9 @@
-package backend
+package handlers
 
 import (
 	"bytes"
 	"context"
 	"strings"
-
-	"github.com/honeynet/ochi/backend/handlers"
 )
 
 func isNotFoundError(e error) bool {
@@ -13,7 +11,7 @@ func isNotFoundError(e error) bool {
 }
 
 func userIDFromCtx(ctx context.Context) string {
-	return ctx.Value(handlers.UserID("userID")).(string)
+	return ctx.Value(UserID("userID")).(string)
 }
 
 // IndexReplace substitutes the first occurrence of old with new in b.
