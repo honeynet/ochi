@@ -1,3 +1,5 @@
+import { API_ENDPOINT } from './constants';
+
 export interface TLSInfo {
     serverName?: string; // SNI
     alpn?: string[]; // offered protocols
@@ -80,4 +82,57 @@ export const END_REASONS: Record<string, string> = {
 
 export function displayRule(event: Event): string | undefined {
     return event.ruleName || event.rule;
+}
+
+export interface EventPage {
+    events: Event[];
+    total: number;
+}
+
+export async function getEvents(token: string, limit: number, offset: number): Promise<EventPage> {
+    const res = await fetch(`${API_ENDPOINT}/api/events?limit=${limit}&offset=${offset}`, {
+        method: 'GET',
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error('Could not fetch events');
+    }
+    const total = Number.parseInt(res.headers.get('X-Total-Count') ?? '', 10);
+    if (Number.isNaN(total)) {
+        throw new Error('Missing event count');
+    }
+    return { events: (await res.json()) ?? [], total };
+}
+
+export async function deleteEvent(id: string, token: string): Promise<void> {
+    const res = await fetch(`${API_ENDPOINT}/api/events/${id}`, {
+        method: 'DELETE',
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!res.ok) {
+        throw new Error('Could not delete an event');
+    }
+}
+
+export async function deleteEvents(ids: string[], token: string): Promise<void> {
+    const res = await fetch(`${API_ENDPOINT}/api/events`, {
+        method: 'DELETE',
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids }),
+    });
+
+    if (!res.ok) {
+        throw new Error('Could not delete events');
+    }
 }

@@ -27,6 +27,7 @@ func CorsOptionsHandler(w http.ResponseWriter, r *http.Request) {
 func CorsMiddleware(next httprouter.Handle) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Expose-Headers", "X-Total-Count")
 		next(w, r, ps)
 	}
 }

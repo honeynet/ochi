@@ -3,10 +3,12 @@ package backend
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/honeynet/ochi/backend/entities"
@@ -311,10 +313,42 @@ func (cs *server) deleteEventHandler(w http.ResponseWriter, r *http.Request, p h
 	w.WriteHeader(http.StatusOK)
 }
 
-// getEventsHandler returns a list of events belonging to ther user.
+const (
+	defaultEventsLimit = 20
+	maxEventsLimit     = 100
+	maxBulkDeleteIDs   = 100
+)
+
+// getEventsHandler returns one page of the user's events; the overall count goes in X-Total-Count.
 func (cs *server) getEventsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	userID := userIDFromCtx(r.Context())
-	events, err := cs.eventRepo.FindByOwnerId(userID)
+	q := r.URL.Query()
+
+	limit := defaultEventsLimit
+	if v := q.Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > maxEventsLimit {
+			http.Error(w, "invalid limit", http.StatusBadRequest)
+			return
+		}
+		limit = n
+	}
+	offset := 0
+	if v := q.Get("offset"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			http.Error(w, "invalid offset", http.StatusBadRequest)
+			return
+		}
+		offset = n
+	}
+
+	total, err := cs.eventRepo.CountByOwnerId(userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	events, err := cs.eventRepo.FindPageByOwnerId(userID, limit, offset)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -324,8 +358,37 @@ func (cs *server) getEventsHandler(w http.ResponseWriter, r *http.Request, _ htt
 		events[i].DstHost = nil
 	}
 
+	w.Header().Set("X-Total-Count", strconv.Itoa(total))
 	w.WriteHeader(http.StatusOK)
 	if err = json.NewEncoder(w).Encode(events); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+func (cs *server) deleteEventsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	userID := userIDFromCtx(r.Context())
+
+	var req struct {
+		IDs []string `json:"ids"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if len(req.IDs) == 0 || len(req.IDs) > maxBulkDeleteIDs {
+		http.Error(w, fmt.Sprintf("ids must contain between 1 and %d entries", maxBulkDeleteIDs), http.StatusBadRequest)
+		return
+	}
+
+	deleted, err := cs.eventRepo.DeleteByOwner(userID, req.IDs)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err = json.NewEncoder(w).Encode(map[string]int64{"deleted": deleted}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

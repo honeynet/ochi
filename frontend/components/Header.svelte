@@ -11,9 +11,10 @@
         path: string;
         pathText: string;
         headerCenter?: Snippet;
+        showEvents?: boolean;
     }
 
-    let { path, pathText, headerCenter }: Props = $props();
+    let { path, pathText, headerCenter, showEvents = false }: Props = $props();
 </script>
 
 <header class="header">
@@ -28,6 +29,7 @@
             <SSOButton />
         {:else}
             <a class="header__link" href={$url(path)}>{pathText}</a>
+            {#if showEvents}<a class="header__link" href={$url('/myevents')}>Events</a>{/if}
             <LogoutButton />
             <SSORevokeButton />
         {/if}

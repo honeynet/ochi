@@ -18,6 +18,7 @@ func newRouter(cs *server) (*httprouter.Router, error) {
 	r.GET("/", cs.indexHandler)
 	r.GET("/global.css", cs.cssHandler)
 	r.GET("/myqueries", cs.indexHandler)
+	r.GET("/myevents", cs.indexHandler)
 	r.GET("/events/:id", cs.indexHandler)
 
 	build, err := fs.Sub(cs.fs, "build")
@@ -43,6 +44,7 @@ func newRouter(cs *server) (*httprouter.Router, error) {
 
 	// event
 	r.POST("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.createEventHandler, cs.cfg.JWTSecret)))
+	r.DELETE("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.deleteEventsHandler, cs.cfg.JWTSecret)))
 	r.DELETE("/api/events/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.deleteEventHandler, cs.cfg.JWTSecret)))
 	r.GET("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(cs.getEventsHandler, cs.cfg.JWTSecret)))
 	// Shared event links are unguessable IDs and must work without login.
