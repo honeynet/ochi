@@ -14,6 +14,7 @@ type SensorRepo struct {
 	getSensor        *sqlx.Stmt
 	addSensor        *sqlx.NamedStmt
 	deleteSensor     *sqlx.Stmt
+	sensorExists     *sqlx.Stmt
 }
 
 func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
@@ -61,6 +62,11 @@ func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
 		return nil, err
 	}
 
+	r.sensorExists, err = db.Preparex(`SELECT EXISTS(SELECT 1 FROM sensors WHERE id=?)`)
+	if err != nil {
+		return nil, err
+	}
+
 	return r, nil
 }
 
@@ -98,4 +104,14 @@ func (r *SensorRepo) DeleteByOwner(id, userID string) (int64, error) {
 		return 0, err
 	}
 	return res.RowsAffected()
+}
+
+// Exists reports whether a sensor with the given UUID is registered. It takes the
+// full UUID, not the truncated form published to subscribers.
+func (r *SensorRepo) Exists(id string) (bool, error) {
+	var found bool
+	if err := r.sensorExists.Get(&found, id); err != nil {
+		return false, err
+	}
+	return found, nil
 }

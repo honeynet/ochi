@@ -17,16 +17,22 @@ type Config struct {
 	DatabasePath      string  `yaml:"database_path"`
 	PublishRatePerSec float64 `yaml:"publish_rate_per_sec"`
 	PublishBurst      int     `yaml:"publish_burst"`
+	// RequireRegisteredSensors rejects published events whose sensor UUID is not
+	// in the sensors table. Off by default: sensors that were never registered
+	// through /sensors, including ones provisioned by /download, would stop being
+	// accepted.
+	RequireRegisteredSensors bool `yaml:"require_registered_sensors"`
 }
 
 func defaultConfig() Config {
 	return Config{
-		ListenAddress:     "localhost:3000",
-		PublishToken:      "token",
-		JWTSecret:         "secret",
-		DatabasePath:      "./data.db",
-		PublishRatePerSec: 100,
-		PublishBurst:      50,
+		ListenAddress:            "localhost:3000",
+		PublishToken:             "token",
+		JWTSecret:                "secret",
+		DatabasePath:             "./data.db",
+		PublishRatePerSec:        100,
+		PublishBurst:             50,
+		RequireRegisteredSensors: false,
 	}
 }
 
