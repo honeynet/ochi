@@ -145,4 +145,34 @@ describe('parseDSL', () => {
             ),
         ).toBeFalsy();
     });
+
+    test('parses handler', () => {
+        let sx = parseDSL('handler eq "http"');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    handler: 'http',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    handler: 'smb',
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    handler: undefined,
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+    });
 });

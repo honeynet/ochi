@@ -79,6 +79,7 @@ export type BinaryClauseCstChildren = {
     searchClause?: SearchClauseCstNode[];
     END_REASON?: IToken[];
     STRING?: IToken[];
+    HANDLER?: IToken[];
 };
 
 export interface BinaryOperatorCstNode extends CstNode {

@@ -36,6 +36,7 @@ const udpPort = createToken({ name: 'UDP_PORT', pattern: /udp\.port/, label: 'ud
 
 const payload = createToken({ name: 'PAYLOAD', pattern: /payload/, label: 'payload' });
 const endReason = createToken({ name: 'END_REASON', pattern: /end\.reason/, label: 'end.reason' });
+const handler = createToken({ name: 'HANDLER', pattern: /handler/, label: 'handler' });
 const string = createToken({ name: 'STRING', pattern: /\"[a-zA-Z0-9_-]+\"/, label: '"msg"' });
 
 const partial = createToken({
@@ -73,6 +74,7 @@ let allTokens = [
     tcpPort,
     udpPort,
     endReason,
+    handler,
 
     payload,
     string,
@@ -211,6 +213,13 @@ class QueryParser extends CstParser {
                     this.CONSUME(string);
                 },
             },
+            {
+                ALT: () => {
+                    this.CONSUME(handler);
+                    this.SUBRULE3(this.binaryOperator);
+                    this.CONSUME1(string);
+                },
+            },
         ]);
     });
 
@@ -253,11 +262,20 @@ const QUERY_START_SUGGESTIONS = [
     'ip.src',
     'ip.dst',
     'end.reason',
+    'handler',
     'payload',
     'not',
 ];
 
-const FIELD_SUGGESTIONS = ['tcp.port', 'udp.port', 'ip.src', 'ip.dst', 'end.reason', 'payload'];
+const FIELD_SUGGESTIONS = [
+    'tcp.port',
+    'udp.port',
+    'ip.src',
+    'ip.dst',
+    'end.reason',
+    'handler',
+    'payload',
+];
 
 const OPERATOR_SUGGESTIONS = ['eq', 'ne', '==', '!='];
 const BOOLEAN_SUFFIX_SUGGESTIONS = ['and', 'or'];
@@ -281,7 +299,7 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         return FIELD_SUGGESTIONS;
     }
 
-    if (tokenMatches(lastToken, tcpPort, udpPort, ipSrc, ipDst, endReason)) {
+    if (tokenMatches(lastToken, tcpPort, udpPort, ipSrc, ipDst, endReason, handler)) {
         return OPERATOR_SUGGESTIONS;
     }
 
@@ -295,6 +313,9 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         }
         if (fieldToken && tokenMatches(fieldToken, endReason)) {
             return ['"timeout"'];
+        }
+        if (fieldToken && tokenMatches(fieldToken, handler)) {
+            return ['"http"'];
         }
         return [];
     }

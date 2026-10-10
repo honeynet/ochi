@@ -37,10 +37,9 @@
         // TODO: validate queries as user types them.
         if (filter === '') {
             filterValid = true;
-            filterState = {
-                suggestions: [],
-                partialToken: null,
-            };
+            parseDSL('', filterState);
+            filterState = { ...filterState }; // force reactivity to update suggestions
+            if (hideSuggestions) hideSuggestions = false;
             return;
         }
         let parseResult = parseDSL(filter, filterState);
@@ -122,6 +121,7 @@
             oninput={debouncedFilterChange}
             onfocus={() => {
                 hideSuggestions = false;
+                _filterChangeHandler();
             }}
         />
         <Suggestion

@@ -102,6 +102,17 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
         }
         const reason = stringToken.image.substring(1, stringToken.image.length - 1);
         return equalityCheck(event.endReason ?? '', reason, binaryOperator.children);
+    } else if (children.HANDLER) {
+        const stringToken = children.STRING?.[0];
+        const binaryOperator = children.binaryOperator?.[0];
+        if (!stringToken) {
+            throw new Error('Missing string for handler clause');
+        }
+        if (!binaryOperator) {
+            throw new Error('Missing binary operator for handler clause');
+        }
+        const handlerName = stringToken.image.substring(1, stringToken.image.length - 1);
+        return equalityCheck(event.handler ?? '', handlerName, binaryOperator.children);
     } else if (children.portItemClause) {
         let portItemClause = children.portItemClause[0].children;
         const port = children.PORT?.[0];

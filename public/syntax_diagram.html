@@ -343,6 +343,30 @@
                 "pattern": "\\\"[a-zA-Z0-9_-]+\\\""
               }
             ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "HANDLER",
+                "label": "handler",
+                "idx": 0,
+                "pattern": "handler"
+              },
+              {
+                "type": "NonTerminal",
+                "name": "binaryOperator",
+                "idx": 3
+              },
+              {
+                "type": "Terminal",
+                "name": "STRING",
+                "label": "\"msg\"",
+                "idx": 1,
+                "pattern": "\\\"[a-zA-Z0-9_-]+\\\""
+              }
+            ]
           }
         ]
       }
