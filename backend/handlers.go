@@ -79,7 +79,10 @@ func (cs *server) publishHandler(w http.ResponseWriter, r *http.Request, _ httpr
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	cs.publish(alteredMsg)
+	if !cs.publish(alteredMsg) {
+		http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
+		return
+	}
 	w.WriteHeader(http.StatusAccepted)
 }
 
@@ -288,11 +291,11 @@ func (cs *server) createEventHandler(w http.ResponseWriter, r *http.Request, _ h
 	}
 }
 
-// deleteEventHandler deletes an event making sure the user owns the query.
+// deleteEventHandler deletes an event making sure the user owns the event.
 func (cs *server) deleteEventHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	userID := userIDFromCtx(r.Context())
 	id := p.ByName("id")
-	event, err := cs.eventRepo.GetByID(id)
+	ownerID, err := cs.eventRepo.OwnerID(id)
 	if err != nil {
 		if isNotFoundError(err) {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -301,7 +304,7 @@ func (cs *server) deleteEventHandler(w http.ResponseWriter, r *http.Request, p h
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if userID != event.OwnerID {
+	if userID != ownerID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}

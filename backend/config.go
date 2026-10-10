@@ -11,18 +11,22 @@ const defaultConfigPath = "config.yaml"
 
 // Config holds service configuration loaded from a YAML file.
 type Config struct {
-	ListenAddress string `yaml:"listen_address"`
-	PublishToken  string `yaml:"publish_token"`
-	JWTSecret     string `yaml:"jwt_secret"`
-	DatabasePath  string `yaml:"database_path"`
+	ListenAddress     string  `yaml:"listen_address"`
+	PublishToken      string  `yaml:"publish_token"`
+	JWTSecret         string  `yaml:"jwt_secret"`
+	DatabasePath      string  `yaml:"database_path"`
+	PublishRatePerSec float64 `yaml:"publish_rate_per_sec"`
+	PublishBurst      int     `yaml:"publish_burst"`
 }
 
 func defaultConfig() Config {
 	return Config{
-		ListenAddress: "localhost:3000",
-		PublishToken:  "token",
-		JWTSecret:     "secret",
-		DatabasePath:  "./data.db",
+		ListenAddress:     "localhost:3000",
+		PublishToken:      "token",
+		JWTSecret:         "secret",
+		DatabasePath:      "./data.db",
+		PublishRatePerSec: 100,
+		PublishBurst:      50,
 	}
 }
 
@@ -38,6 +42,12 @@ func (c Config) validate() error {
 	}
 	if c.DatabasePath == "" {
 		return fmt.Errorf("database_path is required")
+	}
+	if c.PublishRatePerSec <= 0 {
+		return fmt.Errorf("publish_rate_per_sec must be positive")
+	}
+	if c.PublishBurst < 1 {
+		return fmt.Errorf("publish_burst must be at least 1")
 	}
 	return nil
 }

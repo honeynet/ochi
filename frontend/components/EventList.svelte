@@ -31,10 +31,7 @@
         if (!cur?.id) {
             return;
         }
-        const match = events.find((e) => e.id === cur.id);
-        if (match) {
-            currentEvent.set(match);
-        } else {
+        if (!events.some((e) => e.id === cur.id)) {
             currentEvent.set(undefined);
         }
     }

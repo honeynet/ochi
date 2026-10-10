@@ -108,6 +108,20 @@ export async function getEvents(token: string, limit: number, offset: number): P
     return { events: (await res.json()) ?? [], total };
 }
 
+/** Full event by id (list pages omit payload/decoded/tls). */
+export async function getEventById(id: string): Promise<Event> {
+    const res = await fetch(`${API_ENDPOINT}/api/events/${id}`, {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+    if (!res.ok) {
+        throw new Error('Could not fetch event');
+    }
+    return res.json();
+}
+
 export async function deleteEvent(id: string, token: string): Promise<void> {
     const res = await fetch(`${API_ENDPOINT}/api/events/${id}`, {
         method: 'DELETE',

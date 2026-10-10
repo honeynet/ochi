@@ -208,11 +208,40 @@ func TestEvent_Paging(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, first, 2)
 	require.Equal(t, "2026-01-05T00:00:00Z", first[0].Timestamp)
+	require.Empty(t, first[0].Payload)
+	require.Empty(t, first[0].Decoded)
 
 	last, err := r.FindPageByOwnerId(MOCK_USER_ID, 2, 4)
 	require.NoError(t, err)
 	require.Len(t, last, 1)
 	require.Equal(t, "2026-01-01T00:00:00Z", last[0].Timestamp)
+}
+
+func TestEvent_OwnerID(t *testing.T) {
+	r := initEventRepo(t)
+	ev, err := r.Create(newTestEvent(MOCK_USER_ID, "2026-01-01T00:00:00Z"))
+	require.NoError(t, err)
+
+	owner, err := r.OwnerID(ev.ID)
+	require.NoError(t, err)
+	require.Equal(t, MOCK_USER_ID, owner)
+
+	_, err = r.OwnerID("missing")
+	require.Error(t, err)
+}
+
+func TestEventRepo_DropsPayloadHashIndex(t *testing.T) {
+	r := initEventRepo(t)
+	_, err := r.db.Exec(`CREATE INDEX idx_events_payloadHash ON events (payloadHash)`)
+	require.NoError(t, err)
+
+	_, err = NewEventRepo(r.db)
+	require.NoError(t, err)
+
+	var n int
+	err = r.db.Get(&n, `SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_events_payloadHash'`)
+	require.NoError(t, err)
+	require.Equal(t, 0, n)
 }
 
 func TestEvent_DeleteByOwner(t *testing.T) {

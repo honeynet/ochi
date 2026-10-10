@@ -14,7 +14,7 @@
     import type { Event } from '../event';
     import { generateRandomTestEvent } from '../util';
     import { validate } from '../session';
-    import { env } from '../store';
+    import { currentEvent, env } from '../store';
 
     let conn: WebSocket | null = null;
     let messageList: MessageList | null = $state(null);
@@ -70,6 +70,7 @@
     });
 
     onMount(() => {
+        currentEvent.set(undefined);
         validate();
     });
 </script>

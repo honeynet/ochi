@@ -72,19 +72,27 @@ func (cs *server) subscribe(ctx context.Context, c *websocket.Conn) error {
 }
 
 // publish publishes the msg to all subscribers.
-func (cs *server) publish(msg []byte) {
+// It returns false when the publish rate limit is exceeded (caller should 429).
+func (cs *server) publish(msg []byte) bool {
+	if !cs.publishLimiter.Allow() {
+		return false
+	}
+
 	cs.subscribersMu.Lock()
-	defer cs.subscribersMu.Unlock()
-
-	cs.publishLimiter.Wait(context.Background())
-
+	subs := make([]*subscriber, 0, len(cs.subscribers))
 	for s := range cs.subscribers {
+		subs = append(subs, s)
+	}
+	cs.subscribersMu.Unlock()
+
+	for _, s := range subs {
 		select {
 		case s.msgs <- msg:
 		default:
 			go s.closeSlow()
 		}
 	}
+	return true
 }
 
 // addSubscriber registers a subscriber.

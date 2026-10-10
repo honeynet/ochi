@@ -348,6 +348,61 @@ func TestPublishHandler_RejectsMissingSensorID(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
 }
 
+func TestPublishHandler_RateLimited(t *testing.T) {
+	cs := &server{
+		subscribers:    make(map[*subscriber]struct{}),
+		publishLimiter: rate.NewLimiter(0, 0),
+	}
+	payload := `{"sensorID":"abcd1234-ffff-ffff-ffff-ffffffffffff","dstPort":80}`
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/publish", bytes.NewBufferString(payload))
+	cs.publishHandler(w, r, nil)
+	assert.Equal(t, http.StatusTooManyRequests, w.Result().StatusCode)
+}
+
+func TestPublish_DoesNotHoldLockWhileRateLimited(t *testing.T) {
+	cs := &server{
+		subscribers:    make(map[*subscriber]struct{}),
+		publishLimiter: rate.NewLimiter(0, 0),
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		assert.False(t, cs.publish([]byte(`{"ok":true}`)))
+	}()
+	select {
+	case <-done:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("publish blocked while rate limited; limiter must use Allow outside the subscriber lock")
+	}
+	// subscribe registry remains usable while publishes are rejected
+	sub := &subscriber{msgs: make(chan []byte, 1)}
+	cs.addSubscriber(sub)
+	cs.deleteSubscriber(sub)
+}
+
+func TestPublish_FanoutUnderBurst(t *testing.T) {
+	cs := &server{
+		subscribers:             make(map[*subscriber]struct{}),
+		subscriberMessageBuffer: 64,
+		publishLimiter:          rate.NewLimiter(rate.Limit(1000), 50),
+	}
+	sub := &subscriber{msgs: make(chan []byte, 64)}
+	cs.addSubscriber(sub)
+
+	const n = 40
+	for i := 0; i < n; i++ {
+		require.True(t, cs.publish([]byte(fmt.Sprintf(`{"i":%d}`, i))))
+	}
+	for i := 0; i < n; i++ {
+		select {
+		case <-sub.msgs:
+		case <-time.After(time.Second):
+			t.Fatalf("missing message %d", i)
+		}
+	}
+}
+
 func TestGetSharedEventByID_NoAuth(t *testing.T) {
 	tmp := t.TempDir()
 	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
@@ -475,6 +530,11 @@ func TestEventsList_Paginated(t *testing.T) {
 	var page []entities.Event
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&page))
 	assert.Len(t, page, 2)
+	for _, ev := range page {
+		assert.Empty(t, ev.Payload, "list rows should omit payload")
+		assert.Empty(t, ev.Decoded, "list rows should omit decoded")
+		assert.Empty(t, ev.TLS, "list rows should omit tls")
+	}
 
 	w = do(http.MethodGet, "/api/events?limit=2&offset=2", "")
 	require.Equal(t, http.StatusOK, w.Code)
@@ -485,6 +545,21 @@ func TestEventsList_Paginated(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, do(http.MethodGet, "/api/events?limit=0", "").Code)
 	assert.Equal(t, http.StatusBadRequest, do(http.MethodGet, "/api/events?limit=101", "").Code)
 	assert.Equal(t, http.StatusBadRequest, do(http.MethodGet, "/api/events?offset=-1", "").Code)
+}
+
+func TestOpenSQLite_EnablesWAL(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "wal.db")
+	db, err := openSQLite(path)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	var mode string
+	require.NoError(t, db.Get(&mode, "PRAGMA journal_mode"))
+	assert.Equal(t, "wal", strings.ToLower(mode))
+
+	var busy int
+	require.NoError(t, db.Get(&busy, "PRAGMA busy_timeout"))
+	assert.Equal(t, 5000, busy)
 }
 
 func TestEventsDelete_Bulk(t *testing.T) {

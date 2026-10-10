@@ -15,12 +15,16 @@ import (
 type EventRepo struct {
 	createEvent      *sqlx.NamedStmt
 	getByIdEvent     *sqlx.Stmt
+	getOwnerID       *sqlx.Stmt
 	findByOwnerEvent *sqlx.Stmt
 	findPageEvent    *sqlx.Stmt
 	countByOwner     *sqlx.Stmt
 	deleteEvent      *sqlx.Stmt
 	db               *sqlx.DB
 }
+
+// eventListColumns omits heavy payload/decoded/tls blobs used only on detail views.
+const eventListColumns = `id, ownerID, dstPort, rule, handler, transport, scanner, sensorID, srcHost, srcPort, timestamp, dstHost, endReason, frameCount, payloadHash, sensorVersion, startedAt, durationMs, srcPtr, ruleName`
 
 var eventEnvelopeColumns = []string{
 	"dstHost TEXT",
@@ -84,7 +88,8 @@ func NewEventRepo(db *sqlx.DB) (*EventRepo, error) {
 			return nil, err
 		}
 	}
-	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_events_payloadHash ON events (payloadHash)`); err != nil {
+	// Drop unused payloadHash index (write amplification with no readers).
+	if _, err := db.Exec(`DROP INDEX IF EXISTS idx_events_payloadHash`); err != nil {
 		return nil, err
 	}
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_events_owner_timestamp ON events (ownerID, timestamp, id)`); err != nil {
@@ -101,11 +106,17 @@ func NewEventRepo(db *sqlx.DB) (*EventRepo, error) {
 	if err != nil {
 		return nil, err
 	}
+	r.getOwnerID, err = db.Preparex("SELECT ownerID FROM events WHERE id=?")
+	if err != nil {
+		return nil, err
+	}
 	r.findByOwnerEvent, err = db.Preparex("SELECT * FROM events WHERE ownerID=?")
 	if err != nil {
 		return nil, err
 	}
-	r.findPageEvent, err = db.Preparex("SELECT * FROM events WHERE ownerID=? ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?")
+	r.findPageEvent, err = db.Preparex(
+		"SELECT " + eventListColumns + " FROM events WHERE ownerID=? ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?",
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -158,6 +169,13 @@ func (r *EventRepo) GetByID(id string) (entities.Event, error) {
 	ev := entities.Event{}
 	err := r.getByIdEvent.Get(&ev, id)
 	return ev, err
+}
+
+// OwnerID returns the owner of an event without loading heavy columns.
+func (r *EventRepo) OwnerID(id string) (string, error) {
+	var ownerID string
+	err := r.getOwnerID.Get(&ownerID, id)
+	return ownerID, err
 }
 
 // Delete removes an event by ID

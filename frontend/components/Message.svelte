@@ -2,7 +2,7 @@
     import { untrack } from 'svelte';
     import type { Attachment } from 'svelte/attachments';
     import type { Event } from '../event';
-    import { END_REASONS, displayRule, formatPort } from '../event';
+    import { END_REASONS, displayRule, formatPort, getEventById } from '../event';
     import { formatFrameCount } from '../decoded';
     import { currentEvent } from '../store';
 
@@ -23,9 +23,20 @@
     let source = $derived(`${message.srcHost}:${message.srcPort}`);
     let destPort = $derived(formatPort(message));
     let handlerLabel = $derived(message.handler || displayRule(message) || '');
-    let selected = $derived($currentEvent === message);
+    let selected = $derived(
+        message.id ? $currentEvent?.id === message.id : $currentEvent === message,
+    );
 
-    function click() {
+    async function click() {
+        if (selectable && message.id) {
+            try {
+                const full = await getEventById(message.id);
+                currentEvent.set(full);
+            } catch {
+                currentEvent.set(message);
+            }
+            return;
+        }
         currentEvent.set(message);
     }
 

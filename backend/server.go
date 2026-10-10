@@ -26,12 +26,11 @@ type server struct {
 	// of messages that can be queued for a subscriber
 	// before it is kicked.
 	//
-	// Defaults to 16.
+	// Defaults to 64.
 	subscriberMessageBuffer int
 
 	// publishLimiter controls the rate limit applied to the publish endpoint.
-	//
-	// Defaults to one publish every 100ms with a burst of 8.
+	// Configured from publish_rate_per_sec / publish_burst (defaults 100/s, burst 50).
 	publishLimiter *rate.Limiter
 
 	// mux routes the various endpoints to the appropriate handler.
@@ -51,6 +50,24 @@ type server struct {
 	fs fs.FS
 }
 
+func openSQLite(path string) (*sqlx.DB, error) {
+	db, err := sqlx.Connect("sqlite", path)
+	if err != nil {
+		return nil, err
+	}
+	for _, pragma := range []string{
+		"PRAGMA journal_mode=WAL",
+		"PRAGMA busy_timeout=5000",
+		"PRAGMA synchronous=NORMAL",
+	} {
+		if _, err := db.Exec(pragma); err != nil {
+			_ = db.Close()
+			return nil, err
+		}
+	}
+	return db, nil
+}
+
 // NewServer constructs a server with the defaults.
 func NewServer(fsys fs.FS, configPath string) (*server, error) {
 	cfg, err := LoadConfig(configPath)
@@ -60,9 +77,9 @@ func NewServer(fsys fs.FS, configPath string) (*server, error) {
 
 	cs := &server{
 		cfg:                     cfg,
-		subscriberMessageBuffer: 16,
+		subscriberMessageBuffer: 64,
 		subscribers:             make(map[*subscriber]struct{}),
-		publishLimiter:          rate.NewLimiter(rate.Every(time.Millisecond*100), 8),
+		publishLimiter:          rate.NewLimiter(rate.Limit(cfg.PublishRatePerSec), cfg.PublishBurst),
 		httpClient: &http.Client{
 			Timeout: time.Second,
 			Transport: &http.Transport{
@@ -72,7 +89,7 @@ func NewServer(fsys fs.FS, configPath string) (*server, error) {
 		fs: fsys,
 	}
 
-	db, err := sqlx.Connect("sqlite", cfg.DatabasePath)
+	db, err := openSQLite(cfg.DatabasePath)
 	if err != nil {
 		return nil, err
 	}

@@ -38,10 +38,12 @@ database_path: /tmp/ochi.db
 	require.NoError(t, err)
 
 	assert.Equal(t, Config{
-		ListenAddress: "0.0.0.0:4000",
-		PublishToken:  "my-token",
-		JWTSecret:     "my-secret",
-		DatabasePath:  "/tmp/ochi.db",
+		ListenAddress:     "0.0.0.0:4000",
+		PublishToken:      "my-token",
+		JWTSecret:         "my-secret",
+		DatabasePath:      "/tmp/ochi.db",
+		PublishRatePerSec: 100,
+		PublishBurst:      50,
 	}, cfg)
 }
 
@@ -67,6 +69,22 @@ database_path: ./data.db
 	_, err := LoadConfig(path)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "publish_token")
+}
+
+func TestLoadConfig_RejectsInvalidPublishRate(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(`
+listen_address: localhost:3000
+publish_token: token
+jwt_secret: secret
+database_path: ./data.db
+publish_rate_per_sec: 0
+`), 0o600))
+
+	_, err := LoadConfig(path)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "publish_rate_per_sec")
 }
 
 func TestLoadConfig_EmptyPathUsesDefaultName(t *testing.T) {
