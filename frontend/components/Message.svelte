@@ -1,5 +1,6 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { untrack } from 'svelte';
+    import type { Attachment } from 'svelte/attachments';
     import type { Event } from '../event';
     import { END_REASONS, displayRule, formatPort } from '../event';
     import { formatFrameCount } from '../decoded';
@@ -7,11 +8,17 @@
 
     interface Props {
         message: Event;
-        follow: boolean;
+        follow?: boolean;
+        selectable?: boolean;
+        selectedIds?: string[];
     }
 
-    let { message, follow }: Props = $props();
-    let element = $state<HTMLButtonElement | null>(null);
+    let {
+        message,
+        follow = false,
+        selectable = false,
+        selectedIds = $bindable([]),
+    }: Props = $props();
 
     let source = $derived(`${message.srcHost}:${message.srcPort}`);
     let destPort = $derived(formatPort(message));
@@ -22,20 +29,26 @@
         currentEvent.set(message);
     }
 
-    onMount(() => {
-        if (follow) {
-            element?.scrollIntoView();
+    function onKeydown(e: KeyboardEvent) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            click();
         }
-    });
+    }
+
+    function stopRowActivation(e: MouseEvent) {
+        e.stopPropagation();
+    }
+
+    // untrack so Resume (follow toggled later) does not re-scroll existing rows.
+    const scrollIntoViewIfFollowing: Attachment = (element) => {
+        if (untrack(() => follow)) {
+            element.scrollIntoView();
+        }
+    };
 </script>
 
-<button
-    type="button"
-    class={['message', { selected }]}
-    onclick={click}
-    bind:this={element}
-    aria-pressed={selected}
->
+{#snippet cells()}
     <span class="cell sensor" title={message.sensorID}>{message.sensorID}</span>
     <span class="cell source" title={message.srcPtr || source}>{source}</span>
     <span class="cell dest">{destPort}</span>
@@ -51,7 +64,42 @@
         >{formatFrameCount(message.decoded, message.frameCount)}</span
     >
     <span class="cell details">Details</span>
-</button>
+{/snippet}
+
+{#if selectable}
+    <div
+        class={['message', { selected }]}
+        role="button"
+        tabindex="0"
+        onclick={click}
+        onkeydown={onKeydown}
+        {@attach scrollIntoViewIfFollowing}
+        aria-pressed={selected}
+    >
+        <span class="cell check">
+            {#if message.id}
+                <input
+                    type="checkbox"
+                    value={message.id}
+                    bind:group={selectedIds}
+                    aria-label="Select event"
+                    onclick={stopRowActivation}
+                />
+            {/if}
+        </span>
+        {@render cells()}
+    </div>
+{:else}
+    <button
+        type="button"
+        class={['message', { selected }]}
+        onclick={click}
+        {@attach scrollIntoViewIfFollowing}
+        aria-pressed={selected}
+    >
+        {@render cells()}
+    </button>
+{/if}
 
 <style>
     .message {
@@ -82,6 +130,18 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+
+    .check {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: visible;
+    }
+
+    .check input {
+        margin: 0;
+        cursor: pointer;
     }
 
     .dest {

@@ -2,16 +2,10 @@
 
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { url } from '@roxi/routify';
-    import { token } from '../store';
-    import {
-        type Event,
-        deleteEvent,
-        deleteEvents,
-        displayRule,
-        formatPort,
-        getEvents,
-    } from '../event';
+    import { get } from 'svelte/store';
+    import { token, currentEvent } from '../store';
+    import { type Event, deleteEvents, getEvents } from '../event';
+    import Message from './Message.svelte';
 
     const PAGE_SIZE = 20;
 
@@ -32,6 +26,19 @@
 
     let requestId = 0;
 
+    function syncCurrentEvent() {
+        const cur = get(currentEvent);
+        if (!cur?.id) {
+            return;
+        }
+        const match = events.find((e) => e.id === cur.id);
+        if (match) {
+            currentEvent.set(match);
+        } else {
+            currentEvent.set(undefined);
+        }
+    }
+
     async function reloadEvents(target = page) {
         const id = ++requestId;
         try {
@@ -48,6 +55,7 @@
             total = result.total;
             page = target;
             error = '';
+            syncCurrentEvent();
         } catch (e) {
             if (id === requestId) {
                 error = e instanceof Error ? e.message : 'Could not fetch events';
@@ -64,21 +72,6 @@
         reloadEvents(next);
     }
 
-    async function deleteAndReload(id?: string) {
-        if (!id) {
-            console.warn('Cannot delete event without an id');
-            return;
-        }
-        try {
-            await deleteEvent(id, $token);
-        } catch (e) {
-            error = e instanceof Error ? e.message : 'Could not delete an event';
-            return;
-        }
-        selected = selected.filter((s) => s !== id);
-        await reloadEvents();
-    }
-
     function toggleAll() {
         selected = allSelected
             ? selected.filter((id) => !pageIds.includes(id))
@@ -86,123 +79,152 @@
     }
 
     async function deleteSelected() {
+        const toDelete = [...selected];
         try {
-            await deleteEvents(selected, $token);
+            await deleteEvents(toDelete, $token);
         } catch (e) {
             error = e instanceof Error ? e.message : 'Could not delete events';
             return;
         }
         selected = [];
+        const cur = get(currentEvent);
+        if (cur?.id && toDelete.includes(cur.id)) {
+            currentEvent.set(undefined);
+        }
         await reloadEvents();
     }
 </script>
 
-<h2 class="eventList__title">Saved Events</h2>
-{#if loading}
-    <p class="eventList__empty">Loading...</p>
-{:else if error}
-    <p class="eventList__empty">{error}</p>
-{:else if total === 0}
-    <p class="eventList__empty">No saved events</p>
-{/if}
-{#if total > 0}
-    <div class="eventList__toolbar">
-        <label>
-            <input type="checkbox" checked={allSelected} onchange={toggleAll} />
-            Select page
-        </label>
-        <button disabled={selected.length === 0} onclick={deleteSelected}>
-            Delete selected ({selected.length})
-        </button>
+<div class="column">
+    <div class="toolbar">
+        <span class="toolbar-label">Saved Events</span>
+        {#if total > 0}
+            <label class="select-page">
+                <input type="checkbox" checked={allSelected} onchange={toggleAll} />
+                Select page
+            </label>
+            <button disabled={selected.length === 0} onclick={deleteSelected}>
+                Delete selected ({selected.length})
+            </button>
+        {/if}
     </div>
-{/if}
-<ul class="eventList__items">
-    {#each events as event, index (event.id)}
-        <li class="eventList__item">
-            <div class="eventList__item-container">
-                {#if event.id}
-                    <input type="checkbox" value={event.id} bind:group={selected} />
-                {/if}
-                {page * PAGE_SIZE + index + 1}.
-                <div class="eventList__info-container">
-                    <p class="eventList__info-field eventList__content">
-                        {event.srcHost}:{event.srcPort} to {formatPort(event)}
-                    </p>
-                    <p class="eventList__info-field eventList__meta">
-                        {event.timestamp}
-                        {#if displayRule(event)}| {displayRule(event)}{/if}
-                    </p>
-                </div>
+
+    {#if loading}
+        <p class="status">Loading...</p>
+    {:else if error}
+        <p class="status">{error}</p>
+    {:else if total === 0}
+        <p class="status">No saved events</p>
+    {:else}
+        <div id="message-log">
+            <div class="event-head">
+                <span></span>
+                <span>Sensor</span>
+                <span>Source</span>
+                <span>Port</span>
+                <span>Handler</span>
+                <span>Scanner</span>
+                <span>End</span>
+                <span class="frames" title="received/sent">Frames</span>
+                <span></span>
             </div>
-            <div class="eventList__buttons-container">
-                <a href={$url('/events/:id', { id: event.id })}>Open</a>
-                <button onclick={() => deleteAndReload(event.id)}>Delete</button>
-            </div>
-        </li>
-    {/each}
-</ul>
-{#if pageCount > 1}
-    <div class="eventList__pager">
-        <button disabled={page === 0} onclick={() => goTo(page - 1)}>Previous</button>
-        <span>Page {page + 1} of {pageCount}</span>
-        <button disabled={page >= pageCount - 1} onclick={() => goTo(page + 1)}>Next</button>
-    </div>
-{/if}
+            {#each events as event (event.id)}
+                <Message message={event} follow={false} selectable bind:selectedIds={selected} />
+            {/each}
+        </div>
+    {/if}
+
+    {#if pageCount > 1}
+        <div class="pager">
+            <button disabled={page === 0} onclick={() => goTo(page - 1)}>Previous</button>
+            <span>Page {page + 1} of {pageCount}</span>
+            <button disabled={page >= pageCount - 1} onclick={() => goTo(page + 1)}>Next</button>
+        </div>
+    {/if}
+</div>
 
 <style>
-    .eventList__items {
+    .column {
+        position: relative;
         display: flex;
         flex-direction: column;
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+        padding: 8px 12px;
+    }
+
+    .toolbar {
+        display: flex;
+        flex-wrap: wrap;
         align-items: center;
-        gap: 15px;
+        gap: 12px;
+        margin-bottom: 6px;
+        font-size: 12px;
     }
 
-    .eventList__item {
-        width: 40%;
+    .toolbar-label {
+        font-weight: 600;
+        margin-right: auto;
+    }
+
+    .select-page {
         display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-    }
-
-    .eventList__item-container {
-        display: flex;
-        justify-content: flex-start;
-        gap: 10px;
-        font-size: 20px;
-    }
-
-    .eventList__info-field {
-        margin: 0;
-    }
-
-    .eventList__meta {
-        font-style: italic;
-        font-size: 14px;
-    }
-
-    .eventList__info-container {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    .eventList__buttons-container {
-        align-self: center;
-        display: flex;
-        gap: 10px;
         align-items: center;
+        gap: 4px;
+        cursor: pointer;
     }
 
-    .eventList__toolbar,
-    .eventList__pager {
+    .status {
+        margin: 12px 0;
+        font-family: monospace;
+        font-size: 12px;
+        color: #555;
+    }
+
+    #message-log {
+        --event-cols: 2ch 8ch minmax(14ch, 1.4fr) 9ch 8ch minmax(8ch, 0.9fr) 20ch 6ch 7ch;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-gutter: stable;
+    }
+
+    .event-head {
+        display: grid;
+        grid-template-columns: var(--event-cols);
+        column-gap: 6px;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        padding: 0 0 2px;
+        font-family: monospace;
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.2;
+        color: #555;
+        background: #fff;
+        border-bottom: 1px solid #ccc;
+    }
+
+    .event-head span {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .frames {
+        text-align: right;
+    }
+
+    .pager {
         display: flex;
         justify-content: center;
         align-items: center;
         gap: 15px;
-    }
-
-    .eventList__title,
-    .eventList__empty {
-        text-align: center;
+        padding-top: 8px;
+        font-size: 12px;
     }
 </style>
