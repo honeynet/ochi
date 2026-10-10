@@ -177,6 +177,84 @@ func TestPublishHandler_AcceptsLargeDecodedEvent(t *testing.T) {
 	}
 }
 
+func newPublishTestHandlers(t *testing.T, requireRegistered bool) (*handlers.Handlers, *repos.SensorRepo, *subscriber) {
+	t.Helper()
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	sensorRepo, err := repos.NewSensorRepo(db)
+	require.NoError(t, err)
+
+	cs := &server{
+		subscribers:    make(map[*subscriber]struct{}),
+		publishLimiter: rate.NewLimiter(rate.Inf, 1),
+	}
+	sub := &subscriber{msgs: make(chan []byte, 1)}
+	cs.addSubscriber(sub)
+
+	h := &handlers.Handlers{
+		Publish:                  cs.publish,
+		Sensors:                  sensorRepo,
+		RequireRegisteredSensors: requireRegistered,
+	}
+	return h, sensorRepo, sub
+}
+
+func TestPublishHandler_RequiresRegisteredSensor(t *testing.T) {
+	const registered = "abcd1234-ffff-ffff-ffff-ffffffffffff"
+	const unknown = "99999999-0000-0000-0000-000000000000"
+	body := func(sensorID string) string {
+		return `{"sensorID":"` + sensorID + `","dstPort":80,"transport":"tcp"}`
+	}
+	publish := func(h *handlers.Handlers, sensorID string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/publish", strings.NewReader(body(sensorID)))
+		h.PublishHandler(w, r)
+		return w
+	}
+
+	t.Run("RejectsUnregisteredSensor", func(t *testing.T) {
+		h, _, sub := newPublishTestHandlers(t, true)
+
+		w := publish(h, unknown)
+		assert.Equal(t, http.StatusForbidden, w.Code)
+		assert.NotContains(t, w.Body.String(), unknown, "must not reveal which sensor ids exist")
+		assert.Empty(t, sub.msgs, "a rejected event must not reach subscribers")
+	})
+
+	t.Run("AcceptsRegisteredSensor", func(t *testing.T) {
+		h, sensorRepo, sub := newPublishTestHandlers(t, true)
+		require.NoError(t, sensorRepo.AddSensors(entities.Sensor{
+			ID: registered, Name: "sensor-1", UserID: "owner-1",
+		}))
+
+		require.Equal(t, http.StatusAccepted, publish(h, registered).Code)
+
+		select {
+		case msg := <-sub.msgs:
+			var got map[string]any
+			require.NoError(t, json.Unmarshal(msg, &got))
+			assert.Equal(t, "abcd1234", got["sensorID"], "the uuid is still truncated for display")
+		case <-time.After(time.Second):
+			t.Fatal("expected published message")
+		}
+	})
+
+	t.Run("DisabledByDefault", func(t *testing.T) {
+		h, _, sub := newPublishTestHandlers(t, false)
+
+		require.Equal(t, http.StatusAccepted, publish(h, unknown).Code)
+
+		select {
+		case <-sub.msgs:
+		case <-time.After(time.Second):
+			t.Fatal("unregistered sensors must still be accepted while the check is off")
+		}
+	})
+}
+
 func TestPublishHandler_RejectsMissingSensorID(t *testing.T) {
 	cs := &server{
 		subscribers:    make(map[*subscriber]struct{}),
