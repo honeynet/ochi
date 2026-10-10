@@ -15,7 +15,7 @@ import (
 	"github.com/honeynet/ochi/backend/entities"
 	"github.com/honeynet/ochi/backend/repos"
 
-	"github.com/julienschmidt/httprouter"
+	"github.com/go-chi/chi/v5"
 	"google.golang.org/api/idtoken"
 )
 
@@ -34,7 +34,7 @@ type Handlers struct {
 	Publish func(msg []byte) bool
 }
 
-func (h *Handlers) IndexHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *Handlers) IndexHandler(w http.ResponseWriter, r *http.Request) {
 	fh, err := h.FS.Open("index.html")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -46,7 +46,7 @@ func (h *Handlers) IndexHandler(w http.ResponseWriter, r *http.Request, _ httpro
 	}
 }
 
-func (h *Handlers) CSSHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *Handlers) CSSHandler(w http.ResponseWriter, r *http.Request) {
 	fh, err := h.FS.Open("global.css")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -64,7 +64,7 @@ const PublishMaxBodyBytes = 2 << 20 // 2 MiB; multi-frame decoded sessions excee
 // PublishHandler reads the request body with a limit of 2 MiB and then publishes
 // the received message. sensorID is truncated to 8 characters for display.
 // dstHost (honeypot sensor IP) is stripped so it is never sent to subscribers.
-func (h *Handlers) PublishHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *Handlers) PublishHandler(w http.ResponseWriter, r *http.Request) {
 	body := http.MaxBytesReader(w, r.Body, PublishMaxBodyBytes)
 	msg, err := io.ReadAll(body)
 	if err != nil {
@@ -109,7 +109,7 @@ type response struct {
 }
 
 // SessionHandler creates a new token for the user
-func (h *Handlers) SessionHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *Handlers) SessionHandler(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromCtx(r.Context())
 	user, err := h.Users.Get(userID)
 	if err != nil {
@@ -131,7 +131,7 @@ func (h *Handlers) SessionHandler(w http.ResponseWriter, r *http.Request, _ http
 }
 
 // LoginHandler validates a token with Google
-func (h *Handlers) LoginHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *Handlers) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	body := http.MaxBytesReader(w, r.Body, 8192)
 	data, err := io.ReadAll(body)
 	if err != nil {
@@ -179,7 +179,7 @@ func (h *Handlers) LoginHandler(w http.ResponseWriter, r *http.Request, _ httpro
 // query handlers
 
 // GetQueriesHandler returns a list of queries belonging to ther user.
-func (h *Handlers) GetQueriesHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *Handlers) GetQueriesHandler(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromCtx(r.Context())
 	queries, err := h.Queries.FindByOwnerId(userID)
 	if err != nil {
@@ -195,7 +195,7 @@ func (h *Handlers) GetQueriesHandler(w http.ResponseWriter, r *http.Request, _ h
 }
 
 // CreateQueryHandler creates a new query.
-func (h *Handlers) CreateQueryHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *Handlers) CreateQueryHandler(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromCtx(r.Context())
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
@@ -219,9 +219,9 @@ func (h *Handlers) CreateQueryHandler(w http.ResponseWriter, r *http.Request, _ 
 }
 
 // udpateQueryHandler updates an existing query making sure the user owns the query.
-func (h *Handlers) UpdateQueryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (h *Handlers) UpdateQueryHandler(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromCtx(r.Context())
-	id := p.ByName("id")
+	id := chi.URLParam(r, "id")
 	q, err := h.Queries.GetByID(id)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -255,9 +255,9 @@ func (h *Handlers) UpdateQueryHandler(w http.ResponseWriter, r *http.Request, p 
 }
 
 // DeleteQueryHandler deletes a query making sure the user owns the query.
-func (h *Handlers) DeleteQueryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (h *Handlers) DeleteQueryHandler(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromCtx(r.Context())
-	id := p.ByName("id")
+	id := chi.URLParam(r, "id")
 	q, err := h.Queries.GetByID(id)
 	if err != nil {
 
@@ -284,7 +284,7 @@ func (h *Handlers) DeleteQueryHandler(w http.ResponseWriter, r *http.Request, p 
 // event handlers
 
 // CreateEventHandler creates a new event
-func (h *Handlers) CreateEventHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *Handlers) CreateEventHandler(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromCtx(r.Context())
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
@@ -309,9 +309,9 @@ func (h *Handlers) CreateEventHandler(w http.ResponseWriter, r *http.Request, _ 
 }
 
 // DeleteEventHandler deletes an event making sure the user owns the event.
-func (h *Handlers) DeleteEventHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (h *Handlers) DeleteEventHandler(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromCtx(r.Context())
-	id := p.ByName("id")
+	id := chi.URLParam(r, "id")
 	ownerID, err := h.Events.OwnerID(id)
 	if err != nil {
 		if isNotFoundError(err) {
@@ -340,7 +340,7 @@ const (
 )
 
 // GetEventsHandler returns one page of the user's events; the overall count goes in X-Total-Count.
-func (h *Handlers) GetEventsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *Handlers) GetEventsHandler(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromCtx(r.Context())
 	q := r.URL.Query()
 
@@ -386,7 +386,7 @@ func (h *Handlers) GetEventsHandler(w http.ResponseWriter, r *http.Request, _ ht
 	}
 }
 
-func (h *Handlers) DeleteEventsHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (h *Handlers) DeleteEventsHandler(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromCtx(r.Context())
 
 	var req struct {
@@ -415,8 +415,8 @@ func (h *Handlers) DeleteEventsHandler(w http.ResponseWriter, r *http.Request, _
 }
 
 // GetEventByIDHandler returns an event with the given ID.
-func (h *Handlers) GetEventByIDHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	id := p.ByName("id")
+func (h *Handlers) GetEventByIDHandler(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
 
 	event, err := h.Events.GetByID(id)
 	if err != nil {
@@ -434,7 +434,7 @@ func (h *Handlers) GetEventByIDHandler(w http.ResponseWriter, r *http.Request, p
 	}
 }
 
-func (h *Handlers) GetSensorsByUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (h *Handlers) GetSensorsByUser(w http.ResponseWriter, r *http.Request) {
 	userId := userIDFromCtx(r.Context())
 	events, err := h.Sensors.GetSensorsByOwnerId(userId)
 	if err != nil {
@@ -455,7 +455,7 @@ func (h *Handlers) GetSensorsByUser(w http.ResponseWriter, r *http.Request, p ht
 	}
 }
 
-func (h *Handlers) AddSensor(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+func (h *Handlers) AddSensor(w http.ResponseWriter, r *http.Request) {
 	userId := userIDFromCtx(r.Context())
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
@@ -481,9 +481,9 @@ func (h *Handlers) AddSensor(w http.ResponseWriter, r *http.Request, p httproute
 }
 
 // DownloadBinaryHandler serves the binary for the requested architecture with a new sensor UUID injected.
-func (h *Handlers) DownloadBinaryHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	osType := p.ByName("os")
-	arch := p.ByName("arch")
+func (h *Handlers) DownloadBinaryHandler(w http.ResponseWriter, r *http.Request) {
+	osType := chi.URLParam(r, "os")
+	arch := chi.URLParam(r, "arch")
 
 	validOS := map[string]bool{
 		"linux":   true,

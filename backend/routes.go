@@ -6,10 +6,11 @@ import (
 
 	"github.com/honeynet/ochi/backend/handlers"
 
-	"github.com/julienschmidt/httprouter"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/cors"
 )
 
-func newRouter(cs *server) (*httprouter.Router, error) {
+func newRouter(cs *server) (*chi.Mux, error) {
 	h := &handlers.Handlers{
 		FS:         cs.fs,
 		JWTSecret:  cs.cfg.JWTSecret,
@@ -21,51 +22,59 @@ func newRouter(cs *server) (*httprouter.Router, error) {
 		Publish:    cs.publish,
 	}
 
-	r := httprouter.New()
-	// Set CORS headers
-	r.GlobalOPTIONS = http.HandlerFunc(handlers.CorsOptionsHandler)
+	r := chi.NewRouter()
+	// CORS is useful when running backend and frontend on different ports.
+	// TODO: possibly make AllowedOrigins more restrictive by using a
+	// configurable list of hosts instead of *.
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{
+			http.MethodGet, http.MethodHead, http.MethodPost,
+			http.MethodPut, http.MethodPatch, http.MethodDelete,
+		},
+		AllowedHeaders: []string{"Content-Type", "Authorization"},
+		ExposedHeaders: []string{"X-Total-Count"},
+	}))
 
 	// static
-	r.GET("/", h.IndexHandler)
-	r.GET("/global.css", h.CSSHandler)
-	r.GET("/myqueries", h.IndexHandler)
-	r.GET("/myevents", h.IndexHandler)
-	r.GET("/events/:id", h.IndexHandler)
+	r.Get("/", h.IndexHandler)
+	r.Get("/global.css", h.CSSHandler)
+	r.Get("/myqueries", h.IndexHandler)
+	r.Get("/myevents", h.IndexHandler)
+	r.Get("/events/{id}", h.IndexHandler)
 
 	build, err := fs.Sub(cs.fs, "build")
 	if err != nil {
 		return nil, err
 	}
-	r.ServeFiles("/build/*filepath", http.FS(build))
+	r.Get("/build/*", http.StripPrefix("/build", http.FileServer(http.FS(build))).ServeHTTP)
 
 	// websocket
-	r.GET("/subscribe", cs.subscribeHandler)
-	r.POST("/publish", handlers.TokenMiddleware(h.PublishHandler, cs.cfg.PublishToken))
+	r.Get("/subscribe", cs.subscribeHandler)
+	r.Post("/publish", handlers.TokenMiddleware(h.PublishHandler, cs.cfg.PublishToken))
 
 	// user
-	r.POST("/login", h.LoginHandler)
-	r.GET("/session", handlers.CorsMiddleware(handlers.BearerMiddleware(h.SessionHandler, cs.cfg.JWTSecret)))
+	r.Post("/login", h.LoginHandler)
+	r.Get("/session", handlers.BearerMiddleware(h.SessionHandler, cs.cfg.JWTSecret))
 
 	// query
-	// TODO: make CorsMiddleware more generic instead of specifying it on every handler.
-	r.GET("/queries", handlers.CorsMiddleware(handlers.BearerMiddleware(h.GetQueriesHandler, cs.cfg.JWTSecret)))
-	r.POST("/queries", handlers.CorsMiddleware(handlers.BearerMiddleware(h.CreateQueryHandler, cs.cfg.JWTSecret)))
-	r.PATCH("/queries/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(h.UpdateQueryHandler, cs.cfg.JWTSecret)))
-	r.DELETE("/queries/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(h.DeleteQueryHandler, cs.cfg.JWTSecret)))
+	r.Get("/queries", handlers.BearerMiddleware(h.GetQueriesHandler, cs.cfg.JWTSecret))
+	r.Post("/queries", handlers.BearerMiddleware(h.CreateQueryHandler, cs.cfg.JWTSecret))
+	r.Patch("/queries/{id}", handlers.BearerMiddleware(h.UpdateQueryHandler, cs.cfg.JWTSecret))
+	r.Delete("/queries/{id}", handlers.BearerMiddleware(h.DeleteQueryHandler, cs.cfg.JWTSecret))
 
 	// event
-	r.POST("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(h.CreateEventHandler, cs.cfg.JWTSecret)))
-	r.DELETE("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(h.DeleteEventsHandler, cs.cfg.JWTSecret)))
-	r.DELETE("/api/events/:id", handlers.CorsMiddleware(handlers.BearerMiddleware(h.DeleteEventHandler, cs.cfg.JWTSecret)))
-	r.GET("/api/events", handlers.CorsMiddleware(handlers.BearerMiddleware(h.GetEventsHandler, cs.cfg.JWTSecret)))
+	r.Post("/api/events", handlers.BearerMiddleware(h.CreateEventHandler, cs.cfg.JWTSecret))
+	r.Delete("/api/events", handlers.BearerMiddleware(h.DeleteEventsHandler, cs.cfg.JWTSecret))
+	r.Delete("/api/events/{id}", handlers.BearerMiddleware(h.DeleteEventHandler, cs.cfg.JWTSecret))
+	r.Get("/api/events", handlers.BearerMiddleware(h.GetEventsHandler, cs.cfg.JWTSecret))
 	// Shared event links are unguessable IDs and must work without login.
-	r.GET("/api/events/:id", handlers.CorsMiddleware(h.GetEventByIDHandler))
+	r.Get("/api/events/{id}", h.GetEventByIDHandler)
 
 	// sensor
-	r.GET("/sensors", handlers.CorsMiddleware(handlers.BearerMiddleware(h.GetSensorsByUser, cs.cfg.JWTSecret)))
-	r.POST("/sensors", handlers.CorsMiddleware(handlers.BearerMiddleware(h.AddSensor, cs.cfg.JWTSecret)))
-	r.GET("/download/:os/:arch", handlers.CorsMiddleware(
-		handlers.BearerMiddleware(h.DownloadBinaryHandler, cs.cfg.JWTSecret)))
+	r.Get("/sensors", handlers.BearerMiddleware(h.GetSensorsByUser, cs.cfg.JWTSecret))
+	r.Post("/sensors", handlers.BearerMiddleware(h.AddSensor, cs.cfg.JWTSecret))
+	r.Get("/download/{os}/{arch}", handlers.BearerMiddleware(h.DownloadBinaryHandler, cs.cfg.JWTSecret))
 
 	return r, nil
 }

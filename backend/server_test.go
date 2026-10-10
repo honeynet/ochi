@@ -44,7 +44,7 @@ func TestPublishHandler_AcceptsTypedGluttonEvent(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/publish?token=token", bytes.NewBufferString(payload))
-	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r, nil)
+	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r)
 
 	resp := w.Result()
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
@@ -96,7 +96,7 @@ func TestPublishHandler_RoundTripsNewEnvelope(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/publish?token=token", bytes.NewBufferString(payload))
-	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r, nil)
+	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r)
 
 	resp := w.Result()
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
@@ -158,7 +158,7 @@ func TestPublishHandler_AcceptsLargeDecodedEvent(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/publish", bytes.NewReader(body))
-	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r, nil)
+	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r)
 
 	resp := w.Result()
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
@@ -185,7 +185,7 @@ func TestPublishHandler_RejectsMissingSensorID(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/publish", bytes.NewBufferString(`{"dstPort":80}`))
-	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r, nil)
+	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r)
 
 	assert.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
 }
@@ -198,7 +198,7 @@ func TestPublishHandler_RateLimited(t *testing.T) {
 	payload := `{"sensorID":"abcd1234-ffff-ffff-ffff-ffffffffffff","dstPort":80}`
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/publish", bytes.NewBufferString(payload))
-	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r, nil)
+	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r)
 	assert.Equal(t, http.StatusTooManyRequests, w.Result().StatusCode)
 }
 
@@ -423,4 +423,38 @@ func TestEventsDelete_Bulk(t *testing.T) {
 
 	w = do(http.MethodGet, "/api/events", "")
 	assert.Equal(t, "1", w.Header().Get("X-Total-Count"))
+}
+
+func TestRouter_CorsPreflightAndStaticFiles(t *testing.T) {
+	tmp := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "build", "bundle.js"), []byte("console.log(1)"), 0644))
+
+	cs := &server{fs: os.DirFS(tmp), cfg: Config{JWTSecret: "test-secret"}}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodOptions, "/api/events/abc", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	req.Header.Set("Access-Control-Request-Method", http.MethodDelete)
+	req.Header.Set("Access-Control-Request-Headers", "Authorization")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, http.MethodDelete, w.Header().Get("Access-Control-Allow-Methods"))
+	assert.Equal(t, "Authorization", w.Header().Get("Access-Control-Allow-Headers"))
+	assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
+
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest(http.MethodOptions, "/nope", nil))
+	assert.Equal(t, http.StatusNotFound, w.Code)
+
+	w = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/build/bundle.js", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
+	mux.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "X-Total-Count", w.Header().Get("Access-Control-Expose-Headers"))
+	assert.Equal(t, "console.log(1)", w.Body.String())
 }

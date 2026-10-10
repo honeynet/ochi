@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/honeynet/ochi/backend/repos"
-	"nhooyr.io/websocket"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
-	"github.com/julienschmidt/httprouter"
 	"golang.org/x/time/rate"
 )
 
@@ -34,7 +34,7 @@ type server struct {
 	publishLimiter *rate.Limiter
 
 	// mux routes the various endpoints to the appropriate handler.
-	mux *httprouter.Router
+	mux *chi.Mux
 
 	subscribersMu sync.Mutex
 	subscribers   map[*subscriber]struct{}

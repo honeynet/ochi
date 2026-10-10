@@ -6,25 +6,24 @@ import (
 	"strings"
 
 	"github.com/honeynet/ochi/backend/entities"
-	"github.com/julienschmidt/httprouter"
 )
 
-func TokenMiddleware(h httprouter.Handle, secret string) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func TokenMiddleware(h http.HandlerFunc, secret string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		token, ok := r.URL.Query()["token"]
 		if !ok || len(token) == 0 || token[0] != secret {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
 
-		h(w, r, ps)
+		h(w, r)
 	}
 }
 
 type UserID string
 
-func BearerMiddleware(h httprouter.Handle, secret string) httprouter.Handle {
-	return func(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func BearerMiddleware(h http.HandlerFunc, secret string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		authFields := strings.Fields(authHeader)
 		if len(authFields) != 2 || strings.ToLower(authFields[0]) != "bearer" {
@@ -45,6 +44,6 @@ func BearerMiddleware(h httprouter.Handle, secret string) httprouter.Handle {
 
 		r = r.WithContext(context.WithValue(r.Context(), UserID("userID"), claims.UserID))
 
-		h(w, r, ps)
+		h(w, r)
 	}
 }

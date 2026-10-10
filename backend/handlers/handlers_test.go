@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,10 +10,18 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/assert"
 )
+
+// withDownloadParams attaches the chi URL params DownloadBinaryHandler reads.
+func withDownloadParams(r *http.Request, osType, arch string) *http.Request {
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("os", osType)
+	rctx.URLParams.Add("arch", arch)
+	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+}
 
 func setupDownloadBinaryTest(t *testing.T, content []byte) (string, string, func()) {
 	t.Helper()
@@ -56,12 +65,9 @@ func TestDownloadBinaryHandler(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/download/"+osType+"/"+arch, nil)
-	params := httprouter.Params{
-		httprouter.Param{Key: "os", Value: osType},
-		httprouter.Param{Key: "arch", Value: arch},
-	}
+	r = withDownloadParams(r, osType, arch)
 
-	h.DownloadBinaryHandler(w, r, params)
+	h.DownloadBinaryHandler(w, r)
 
 	resp := w.Result()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -101,12 +107,9 @@ func TestDownloadBinaryHandler_InvalidParams(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
 			r := httptest.NewRequest("GET", "/download/"+tc.os+"/"+tc.arch, nil)
-			params := httprouter.Params{
-				httprouter.Param{Key: "os", Value: tc.os},
-				httprouter.Param{Key: "arch", Value: tc.arch},
-			}
+			r = withDownloadParams(r, tc.os, tc.arch)
 
-			h.DownloadBinaryHandler(w, r, params)
+			h.DownloadBinaryHandler(w, r)
 
 			resp := w.Result()
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -126,12 +129,9 @@ func TestDownloadBinaryHandler_BinaryNotFound(t *testing.T) {
 	h := &Handlers{}
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/download/linux/amd64", nil)
-	params := httprouter.Params{
-		httprouter.Param{Key: "os", Value: "linux"},
-		httprouter.Param{Key: "arch", Value: "amd64"},
-	}
+	r = withDownloadParams(r, "linux", "amd64")
 
-	h.DownloadBinaryHandler(w, r, params)
+	h.DownloadBinaryHandler(w, r)
 
 	resp := w.Result()
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -146,12 +146,9 @@ func TestDownloadBinaryHandler_MissingPlaceholder(t *testing.T) {
 	h := &Handlers{}
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/download/"+osType+"/"+arch, nil)
-	params := httprouter.Params{
-		httprouter.Param{Key: "os", Value: osType},
-		httprouter.Param{Key: "arch", Value: arch},
-	}
+	r = withDownloadParams(r, osType, arch)
 
-	h.DownloadBinaryHandler(w, r, params)
+	h.DownloadBinaryHandler(w, r)
 
 	resp := w.Result()
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)

@@ -6,8 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/julienschmidt/httprouter"
-	"nhooyr.io/websocket"
+	"github.com/coder/websocket"
 )
 
 // subscriber represents a subscriber
@@ -18,7 +17,7 @@ type subscriber struct {
 
 // subscribeHandler accepts the WebSocket connection and then subscribes
 // it to all future messages.
-func (cs *server) subscribeHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+func (cs *server) subscribeHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		return
