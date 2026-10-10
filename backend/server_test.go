@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/honeynet/ochi/backend/entities"
 	"github.com/honeynet/ochi/backend/handlers"
 	"github.com/honeynet/ochi/backend/repos"
@@ -313,6 +314,58 @@ func TestGetEventsList_RequiresAuth(t *testing.T) {
 	mux.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Result().StatusCode)
+}
+
+// A refused token is a client error, not a server fault: every rejection path must
+// answer 401 and must not report why the token was refused.
+func TestBearerMiddleware_RejectsCredentialsWith401(t *testing.T) {
+	tmp := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	cs := &server{
+		fs:  os.DirFS(tmp),
+		cfg: Config{JWTSecret: "test-secret"},
+	}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	expired := jwt.NewWithClaims(jwt.SigningMethodHS256, entities.Claims{
+		UserID: "owner-1",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Hour)),
+		},
+	})
+	expiredToken, err := expired.SignedString([]byte("test-secret"))
+	require.NoError(t, err)
+
+	forgedToken, err := entities.NewToken("not-the-server-secret", entities.User{ID: "owner-1"})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name   string
+		header string
+	}{
+		{"Expired", "Bearer " + expiredToken},
+		{"WrongSecret", "Bearer " + forgedToken},
+		{"Malformed", "Bearer not-a-jwt"},
+		{"WrongScheme", "Basic " + expiredToken},
+		{"MissingHeader", ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/events", nil)
+			if tc.header != "" {
+				req.Header.Set("Authorization", tc.header)
+			}
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusUnauthorized, w.Code)
+			assert.Equal(t, http.StatusText(http.StatusUnauthorized)+"\n", w.Body.String(),
+				"must not disclose token validation details")
+		})
+	}
 }
 
 func newEventsTestServer(t *testing.T, owners ...string) (do func(method, target, body string) *httptest.ResponseRecorder, repo *repos.EventRepo, ids map[string][]string) {
