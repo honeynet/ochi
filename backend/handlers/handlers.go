@@ -30,6 +30,10 @@ type Handlers struct {
 	Events  *repos.EventRepo
 	Sensors *repos.SensorRepo
 
+	// RequireRegisteredSensors rejects published events whose sensor UUID is not
+	// in the sensors table.
+	RequireRegisteredSensors bool
+
 	// Publish fans a message out to subscribers; it returns false when rate limited.
 	Publish func(msg []byte) bool
 }
@@ -64,6 +68,8 @@ const PublishMaxBodyBytes = 2 << 20 // 2 MiB; multi-frame decoded sessions excee
 // PublishHandler reads the request body with a limit of 2 MiB and then publishes
 // the received message. sensorID is truncated to 8 characters for display.
 // dstHost (honeypot sensor IP) is stripped so it is never sent to subscribers.
+// When require_registered_sensors is set, the sensor UUID must be in the sensors
+// table or the event is rejected.
 func (h *Handlers) PublishHandler(w http.ResponseWriter, r *http.Request) {
 	body := http.MaxBytesReader(w, r.Body, PublishMaxBodyBytes)
 	msg, err := io.ReadAll(body)
@@ -87,6 +93,20 @@ func (h *Handlers) PublishHandler(w http.ResponseWriter, r *http.Request) {
 	if len(sensorID) < 8 {
 		http.Error(w, "sensor id must have at least 8 characters", http.StatusBadRequest)
 		return
+	}
+	// Authenticate on the full UUID, before it is truncated for display. The
+	// response does not name the sensor id, so it cannot be used to discover
+	// which sensors are registered.
+	if h.RequireRegisteredSensors {
+		known, err := h.Sensors.Exists(sensorID)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+		if !known {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
 	}
 	event["sensorID"] = sensorID[:8]
 	delete(event, "dstHost")

@@ -20,6 +20,8 @@ func newRouter(cs *server) (*chi.Mux, error) {
 		Events:     cs.eventRepo,
 		Sensors:    cs.sensorRepo,
 		Publish:    cs.publish,
+
+		RequireRegisteredSensors: cs.cfg.RequireRegisteredSensors,
 	}
 
 	r := chi.NewRouter()

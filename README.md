@@ -34,6 +34,8 @@ Eventually we want to be able to enabled to quickly react to new trends, improve
 
 On first start, the server creates `config.yaml` with local defaults (`localhost:3000`, publish token `token`, JWT secret `secret`). Pass `-config path/to/config.yaml` to use a different file.
 
+Set `require_registered_sensors: true` to accept published events only from sensors whose UUID is in the `sensors` table. It is off by default, because a sensor that was never registered through `/sensors` is rejected once it is on.
+
 ##### For using Ochi as a storage of Glutton events locally
 1. Start Ochi server with `make build && make local`
 2. Build Glutton server
