@@ -355,17 +355,20 @@ func TestGetSharedEventByID_NoAuth(t *testing.T) {
 	eventRepo, err := repos.NewEventRepo(db)
 	require.NoError(t, err)
 
+	rule := "Rule: TCP"
+	handler := "http"
+	dstHost := "198.51.100.8"
 	created, err := eventRepo.Create(entities.Event{
 		OwnerID:   "owner-1",
 		Payload:   "cGF5bG9hZA==",
 		DstPort:   80,
-		Rule:      "Rule: TCP",
-		Handler:   "http",
+		Rule:      &rule,
+		Handler:   &handler,
 		Transport: "tcp",
 		SensorID:  "sensor-1",
 		SrcHost:   "1.2.3.4",
 		SrcPort:   "4321",
-		DstHost:   "198.51.100.8",
+		DstHost:   &dstHost,
 		Timestamp: "2026-01-01T00:00:00Z",
 		Decoded:   types.JSONText(`{"payload":"test"}`),
 	})

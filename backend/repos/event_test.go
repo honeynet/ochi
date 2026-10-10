@@ -32,15 +32,18 @@ func TestEvent(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, u1)
 
+	rule := "rule"
+	handler := "handler"
+	scanner := "scanner"
 	event := entities.Event{
 		OwnerID: MOCK_USER_ID,
 		Payload: "payload",
 		//ConnKey:   []int{1, 1},
 		DstPort:   443,
-		Rule:      "rule",
-		Handler:   "handler",
+		Rule:      &rule,
+		Handler:   &handler,
 		Transport: "tcp",
-		Scanner:   "scanner",
+		Scanner:   &scanner,
 		SensorID:  "sensorID",
 		SrcHost:   "srcHost",
 		SrcPort:   "srcPort",
@@ -76,27 +79,36 @@ func TestEvent_NewEnvelopeFields(t *testing.T) {
 	r := initEventRepo(t)
 	durationMs := 1500
 	frameCount := 4
+	rule := "Rule: SMB"
+	handler := "smb"
+	startedAt := "2026-01-01T00:00:00Z"
+	srcPtr := "scanner.example."
+	dstHost := "198.51.100.8"
+	sensorVersion := "1.2.3"
+	ruleName := "smb"
+	payloadHash := "deadbeef"
+	endReason := "timeout"
 	event := entities.Event{
 		OwnerID:       MOCK_USER_ID,
 		Payload:       "cGF5bG9hZA==",
 		DstPort:       445,
-		Rule:          "Rule: SMB",
-		Handler:       "smb",
+		Rule:          &rule,
+		Handler:       &handler,
 		Transport:     "tcp",
 		SensorID:      "sensorID",
 		SrcHost:       "203.0.113.10",
 		SrcPort:       "54321",
 		Timestamp:     "2026-01-01T00:00:00Z",
 		Decoded:       types.JSONText(`[{"direction":"read","path":"IPC$"}]`),
-		StartedAt:     "2026-01-01T00:00:00Z",
+		StartedAt:     &startedAt,
 		DurationMs:    &durationMs,
-		SrcPtr:        "scanner.example.",
-		DstHost:       "198.51.100.8",
-		SensorVersion: "1.2.3",
-		RuleName:      "smb",
-		PayloadHash:   "deadbeef",
+		SrcPtr:        &srcPtr,
+		DstHost:       &dstHost,
+		SensorVersion: &sensorVersion,
+		RuleName:      &ruleName,
+		PayloadHash:   &payloadHash,
 		FrameCount:    &frameCount,
-		EndReason:     "timeout",
+		EndReason:     &endReason,
 		TLS:           entities.OptionalJSON(`{"serverName":"example.com","alpn":["h2"],"cipher":""}`),
 	}
 	event, err := r.Create(event)
@@ -105,8 +117,10 @@ func TestEvent_NewEnvelopeFields(t *testing.T) {
 	got, err := r.GetByID(event.ID)
 	require.NoError(t, err)
 	require.Equal(t, event, got)
-	require.Equal(t, "198.51.100.8", got.DstHost)
-	require.Equal(t, "timeout", got.EndReason)
+	require.NotNil(t, got.DstHost)
+	require.Equal(t, "198.51.100.8", *got.DstHost)
+	require.NotNil(t, got.EndReason)
+	require.Equal(t, "timeout", *got.EndReason)
 	require.NotNil(t, got.FrameCount)
 	require.Equal(t, 4, *got.FrameCount)
 	require.NotNil(t, got.DurationMs)
@@ -140,6 +154,8 @@ func TestEventRepo_MigratesLegacySchema(t *testing.T) {
 	r, err := NewEventRepo(db)
 	require.NoError(t, err)
 
+	dstHost := "10.0.0.9"
+	endReason := "client_close"
 	event, err := r.Create(entities.Event{
 		OwnerID:   MOCK_USER_ID,
 		Payload:   "payload",
@@ -149,13 +165,15 @@ func TestEventRepo_MigratesLegacySchema(t *testing.T) {
 		SrcHost:   "1.2.3.4",
 		SrcPort:   "1",
 		Timestamp: "2026-01-01T00:00:00Z",
-		DstHost:   "10.0.0.9",
-		EndReason: "client_close",
+		DstHost:   &dstHost,
+		EndReason: &endReason,
 	})
 	require.NoError(t, err)
 
 	got, err := r.GetByID(event.ID)
 	require.NoError(t, err)
-	require.Equal(t, "10.0.0.9", got.DstHost)
-	require.Equal(t, "client_close", got.EndReason)
+	require.NotNil(t, got.DstHost)
+	require.Equal(t, "10.0.0.9", *got.DstHost)
+	require.NotNil(t, got.EndReason)
+	require.Equal(t, "client_close", *got.EndReason)
 }
