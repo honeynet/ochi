@@ -59,16 +59,28 @@ function filterByBooleanClauseWithSuffix(
     }
 }
 
+/**
+ * Decides whether an event was carried over the given transport protocol.
+ *
+ * `transport` is set on every event, so it is the authoritative source. The rule
+ * text is only populated when a rule matched, so it is used as a fallback for
+ * events from producers that do not report a transport.
+ */
+function transportMatches(event: Event, protocol: 'tcp' | 'udp'): boolean {
+    if (event.transport) {
+        return event.transport.toLowerCase() === protocol;
+    }
+    if (event.rule) {
+        return event.rule.toLowerCase().includes(protocol);
+    }
+    throw new Error(`Missing transport and rule in event for ${protocol} port matching`);
+}
+
 function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClauseCstNode): boolean {
     // We do not support unary clause yet, only binary clause is supported
     const binaryClause = booleanClauseCstNode.children.binaryClause?.[0];
     if (!binaryClause) {
         throw new Error('Missing binary clause for boolean clause');
-    }
-
-    const rule = event.rule ? event.rule.toLowerCase() : '';
-    if (!rule) {
-        throw new Error('Missing rule in event for port matching');
     }
 
     const children = binaryClause.children;
@@ -124,18 +136,14 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
             throw new Error('Missing port for port clause');
         }
         let portNumber = Number(port.image);
-        // TODO: proper protocol matching, for now checking only RULE
         if (portItemClause.TCP_PORT) {
-            if (!event.rule) {
-                throw new Error('Missing rule in event for TCP port matching');
-            }
             return (
-                event.rule.toLowerCase().includes('tcp') &&
+                transportMatches(event, 'tcp') &&
                 equalityCheck(event.dstPort, portNumber, binaryOperator.children)
             );
         } else if (portItemClause.UDP_PORT) {
             return (
-                rule.includes('udp') &&
+                transportMatches(event, 'udp') &&
                 equalityCheck(event.dstPort, portNumber, binaryOperator.children)
             );
         } else {

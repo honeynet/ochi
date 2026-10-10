@@ -124,6 +124,30 @@ describe('parseDSL', () => {
         expect(filterEvent(generateTestEvent(80, '123', '192.168.1.1'), sx.cst!)).toBeFalsy();
     });
 
+    test('parses tcp.port against transport rather than rule text', () => {
+        let sx = parseDSL('tcp.port == 445');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        // A TCP session on 445 whose rule names the handler, not the protocol.
+        expect(
+            filterEvent(
+                generateTestEvent(445, '123', '192.168.1.1', undefined, 'Rule: SMB', {
+                    transport: 'tcp',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        // transport wins over the rule text when the two disagree.
+        expect(
+            filterEvent(
+                generateTestEvent(445, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    transport: 'udp',
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+    });
+
     test('parses end.reason', () => {
         let sx = parseDSL('end.reason eq "client_close"');
         expect(sx.lexErrors).toHaveLength(0);
@@ -174,5 +198,54 @@ describe('parseDSL', () => {
                 sx.cst!,
             ),
         ).toBeFalsy();
+    });
+});
+
+// Glutton only sets `rule`/`ruleName` when one of its rules matched the connection,
+// so an event that matched no rule reaches the filter without them. Clauses that do
+// not talk about the protocol must still be evaluated for those events.
+describe('filterEvent on events that matched no rule', () => {
+    const noRule = () =>
+        generateTestEvent(
+            445,
+            '54321',
+            '203.0.113.10',
+            Buffer.from('something').toString('base64'),
+            undefined,
+            {
+                rule: undefined,
+                transport: 'tcp',
+                endReason: 'timeout',
+            },
+        );
+
+    test('evaluates ip.src', () => {
+        let sx = parseDSL('ip.src eq 203.0.113.10');
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(filterEvent(noRule(), sx.cst!)).toBeTruthy();
+    });
+
+    test('evaluates payload contains', () => {
+        let sx = parseDSL('payload contains "something"');
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(filterEvent(noRule(), sx.cst!)).toBeTruthy();
+    });
+
+    test('evaluates end.reason', () => {
+        let sx = parseDSL('end.reason eq "timeout"');
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(filterEvent(noRule(), sx.cst!)).toBeTruthy();
+    });
+
+    test('evaluates tcp.port using transport', () => {
+        let sx = parseDSL('tcp.port == 445');
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(filterEvent(noRule(), sx.cst!)).toBeTruthy();
+    });
+
+    test('evaluates a compound query', () => {
+        let sx = parseDSL('tcp.port == 445 and ip.src eq 203.0.113.10');
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(filterEvent(noRule(), sx.cst!)).toBeTruthy();
     });
 });
