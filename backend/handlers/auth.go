@@ -32,12 +32,12 @@ func BearerMiddleware(h http.HandlerFunc, secret string) http.HandlerFunc {
 		}
 		token := authFields[1]
 
+		// Every ValidateToken error describes the client-supplied token (malformed,
+		// bad signature, expired, unexpected signing method), so it is a rejected
+		// credential rather than a server fault. The library message is not echoed
+		// back: it would tell unauthenticated callers why their token was refused.
 		claims, valid, err := entities.ValidateToken(token, secret)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if !valid {
+		if err != nil || !valid {
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return
 		}
