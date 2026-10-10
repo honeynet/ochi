@@ -80,6 +80,7 @@ export type BinaryClauseCstChildren = {
     END_REASON?: IToken[];
     STRING?: IToken[];
     HANDLER?: IToken[];
+    TRANSPORT?: IToken[];
 };
 
 export interface BinaryOperatorCstNode extends CstNode {

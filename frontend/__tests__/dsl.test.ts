@@ -199,6 +199,94 @@ describe('parseDSL', () => {
             ),
         ).toBeFalsy();
     });
+
+    test('parses transport', () => {
+        let sx = parseDSL('transport eq "udp"');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(53, '123', '192.168.1.1', undefined, 'Rule: UDP', {
+                    transport: 'udp',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    transport: 'tcp',
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+        // Events that never reported a transport cannot match one.
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    transport: undefined,
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+    });
+
+    test('transport comparison ignores case', () => {
+        let sx = parseDSL('transport eq "udp"');
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(53, '123', '192.168.1.1', undefined, 'Rule: UDP', {
+                    transport: 'UDP',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+    });
+
+    test('excludes a transport with ne', () => {
+        let sx = parseDSL('transport ne "tcp"');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(53, '123', '192.168.1.1', undefined, 'Rule: UDP', {
+                    transport: 'udp',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    transport: 'tcp',
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+    });
+
+    test('combines transport with other clauses', () => {
+        let sx = parseDSL('transport eq "udp" and udp.port == 53');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(53, '123', '192.168.1.1', undefined, 'Rule: UDP', {
+                    transport: 'udp',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        expect(
+            filterEvent(
+                generateTestEvent(53, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    transport: 'tcp',
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+    });
 });
 
 // Glutton only sets `rule`/`ruleName` when one of its rules matched the connection,
