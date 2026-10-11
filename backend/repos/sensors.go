@@ -13,6 +13,7 @@ type SensorRepo struct {
 	getSensorsByUser *sqlx.Stmt
 	getSensor        *sqlx.Stmt
 	addSensor        *sqlx.NamedStmt
+	deleteSensor     *sqlx.Stmt
 }
 
 func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
@@ -55,6 +56,11 @@ func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
 		return nil, err
 	}
 
+	r.deleteSensor, err = db.Preparex(`DELETE FROM sensors WHERE id=? AND user_id=?`)
+	if err != nil {
+		return nil, err
+	}
+
 	return r, nil
 }
 
@@ -80,4 +86,16 @@ func (r *SensorRepo) GetSensor(id, ownerId string) (entities.Sensor, error) {
 		return entities.Sensor{}, err
 	}
 	return s, nil
+}
+
+// DeleteByOwner removes the sensor only when userID owns it and reports how many
+// rows went. Ownership is part of the statement, so a sensor that does not exist
+// and one belonging to somebody else both report 0 and stay indistinguishable to
+// the caller.
+func (r *SensorRepo) DeleteByOwner(id, userID string) (int64, error) {
+	res, err := r.deleteSensor.Exec(id, userID)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }

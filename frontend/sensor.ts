@@ -34,6 +34,16 @@ export async function addSensor(
     return await res.json();
 }
 
+export async function deleteSensor(token: string, id: string): Promise<void> {
+    const res = await fetch(`${API_ENDPOINT}/api/sensors/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+        throw new Error(`failed to delete sensor: ${await res.text()}`);
+    }
+}
+
 export const DOWNLOAD_OS = 'linux';
 export const DOWNLOAD_ARCH = 'amd64';
 
