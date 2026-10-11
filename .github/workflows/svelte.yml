@@ -24,3 +24,6 @@ jobs:
       - run: npm run check
       - run: npm run test
       - run: npx prettier --check "**/*.{svelte,ts}"
+      - run: npx playwright install --with-deps chromium
+      - name: End-to-end tests
+        run: npx playwright test

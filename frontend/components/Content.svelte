@@ -238,14 +238,14 @@
                 <p>
                     Event is created which you can view <a
                         target="blank"
-                        href={$url('/events/:id', { id: eventCreated.id })}>here</a
+                        href={$url('/events/[id]', { id: eventCreated.id! })}>here</a
                     >
                     or
                     <button
                         use:copy={window.location.protocol +
                             '//' +
                             window.location.host +
-                            $url('/events/:id', { id: eventCreated.id })}>copy url</button
+                            $url('/events/[id]', { id: eventCreated.id! })}>copy url</button
                     >.
                 </p>
             {/if}

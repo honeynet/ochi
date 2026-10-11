@@ -21,6 +21,7 @@ module.exports = {
     setupFiles: ['<rootDir>/jest.setup.js'],
     setupFilesAfterEnv: ['@testing-library/jest-dom/extend-expect'],
     testEnvironment: 'jsdom',
+    testPathIgnorePatterns: ['/node_modules/', '<rootDir>/e2e/'],
     globals: {
         'ts-jest': {
             tsconfig: 'tsconfig.jest.json',

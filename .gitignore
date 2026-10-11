@@ -34,3 +34,7 @@ config.yaml
 
 # Routify generated files
 /.routify/
+
+# Playwright
+/test-results/
+/playwright-report/

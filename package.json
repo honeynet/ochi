@@ -8,24 +8,26 @@
   "scripts": {
     "dev": "run-p dev:*",
     "dev:rollup": "rollup -c -w",
-    "dev:routify": "node scripts/build-routes.mjs --watch",
-    "build": "node scripts/build-routes.mjs && rollup -c",
+    "dev:routify": "routify --watch",
+    "build": "routify && rollup -c",
     "start": "sirv public --single --no-clear",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "jest",
     "test-watch": "jest --watchAll",
     "format": "prettier --write '**/*.{svelte,ts}'",
     "generate": "npx ts-node -P tsconfig.generate.json ./scripts/generate.ts && npm run format",
-    "generate-check": "npm run generate && git diff --quiet"
+    "generate-check": "npm run generate && git diff --quiet",
+    "test:e2e": "npm run build && playwright test"
   },
   "devDependencies": {
     "@babel/core": "^7.29.6",
     "@babel/preset-env": "^7.18.2",
+    "@playwright/test": "^1.64.0",
     "@rollup/plugin-commonjs": "^25.0.0",
     "@rollup/plugin-node-resolve": "^15.1.0",
     "@rollup/plugin-terser": "^1.0.0",
     "@rollup/plugin-typescript": "^11.1.1",
-    "@roxi/routify": "^2.18.12",
+    "@roxi/routify": "^3.6.4",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/svelte": "^5.4.2",
     "@tsconfig/svelte": "^5.0.8",
@@ -36,7 +38,6 @@
     "npm-run-all": "^4.1.5",
     "prettier": "^3",
     "rollup": "^2.80.0",
-    "rollup-plugin-css-only": "^4.3.0",
     "rollup-plugin-livereload": "^2.0.0",
     "rollup-plugin-svelte": "^7.2.3",
     "svelte": "^5.57.1",
@@ -56,15 +57,26 @@
     "hexy": "^0.3.4",
     "optionator": "^0.9.3",
     "prettier-plugin-svelte": "^4.1.1",
-    "routify": "^2.0.1",
     "sirv-cli": "^2.0.0"
   },
   "routify": {
-    "pages": "./frontend/pages",
-    "dynamicImports": false
+    "routesDir": {
+      "default": "frontend/pages"
+    },
+    "mainEntryPoint": "frontend/main.ts",
+    "rootComponent": "frontend/App.svelte",
+    "extensions": [
+      ".svelte"
+    ]
   },
   "overrides": {
     "picomatch": "2.3.2",
-    "@tootallnate/once": "2.0.1"
+    "@tootallnate/once": "2.0.1",
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "^4.1.0"
+    },
+    "rollup-plugin-livereload": {
+      "livereload": "^0.10.3"
+    }
   }
 }

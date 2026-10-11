@@ -1,6 +1,1 @@
-<script lang="ts">
-    import { metatags } from '@roxi/routify';
-
-    metatags.title = 'Ochi';
-    metatags.description = 'Web UI for honeypot events';
-</script>
+<!-- Home is rendered by _module.svelte so it stays mounted across navigation. -->
