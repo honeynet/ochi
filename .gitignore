@@ -29,5 +29,8 @@ data.db
 # Local service config (auto-created with defaults if missing)
 config.yaml
 
+# Local / secrets
+.env.deploy
+
 # Routify generated files
 /.routify/
