@@ -353,6 +353,8 @@ export function parseDSL(
     const lexResult = queryLexer.tokenize(text);
 
     if (lexResult.errors.length > 0) {
+        filterState.suggestions = [];
+        filterState.partialToken = null;
         return {
             lexErrors: lexResult.errors,
             parseErrors: [],

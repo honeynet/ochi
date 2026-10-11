@@ -128,6 +128,8 @@
             bind:suggestionsDiv
             hide={hideSuggestions}
             onSelect={(value) => {
+                // the debounced handler may not have run yet; recompute against the current text
+                parseDSL(filter, filterState);
                 if (filterState.partialToken) {
                     filter = filter.slice(0, filterState.partialToken.startOffset) + value;
                 } else {
