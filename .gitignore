@@ -23,8 +23,10 @@ server
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# Databases
+# Databases and SQLite WAL files
 data.db
+data.db-shm
+data.db-wal
 
 # Local service config (auto-created with defaults if missing)
 config.yaml
