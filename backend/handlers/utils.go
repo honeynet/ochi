@@ -4,14 +4,24 @@ import (
 	"bytes"
 	"context"
 	"strings"
+
+	"github.com/go-chi/jwtauth/v5"
 )
 
 func isNotFoundError(e error) bool {
 	return strings.Contains(e.Error(), "no rows in result set")
 }
 
+// userIDFromCtx reads the user id from the token jwtauth.Verifier put on the
+// context. It is only meaningful behind Authenticator, which rejects the request
+// before a handler runs when there is no valid token.
 func userIDFromCtx(ctx context.Context) string {
-	return ctx.Value(UserID("userID")).(string)
+	_, claims, err := jwtauth.FromContext(ctx)
+	if err != nil {
+		return ""
+	}
+	userID, _ := claims["user_id"].(string)
+	return userID
 }
 
 // IndexReplace substitutes the first occurrence of old with new in b.
