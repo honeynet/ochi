@@ -129,7 +129,7 @@
             hide={hideSuggestions}
             onSelect={(value) => {
                 if (filterState.partialToken) {
-                    filter = filter.slice(0, filterState.partialToken.startOffset - 1) + value;
+                    filter = filter.slice(0, filterState.partialToken.startOffset) + value;
                 } else {
                     filter += ' ' + value;
                 }
