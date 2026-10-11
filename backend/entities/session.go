@@ -1,40 +1,28 @@
 package entities
 
 import (
-	"fmt"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/go-chi/jwtauth/v5"
 )
 
-type Claims struct {
-	jwt.RegisteredClaims
-	UserID    string `json:"user_id,omitempty"`
-	UserEmail string `json:"user_email,omitempty"`
+// TokenTTL is how long a freshly issued session token stays valid.
+const TokenTTL = 24 * time.Hour
+
+// NewTokenAuth builds the verifier used both to sign session tokens and to
+// authenticate requests, so the two can never drift apart.
+func NewTokenAuth(secret string) *jwtauth.JWTAuth {
+	return jwtauth.New("HS256", []byte(secret), nil)
 }
 
-func NewToken(secret string, user User) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
-		UserID:    user.ID,
-		UserEmail: user.Email,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * 60 * time.Minute)),
-		},
-	})
-	return token.SignedString([]byte(secret))
-}
-
-func ValidateToken(tokenString string, secret string) (Claims, bool, error) {
-	claims := Claims{}
-	token, err := jwt.ParseWithClaims(tokenString, &claims, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-
-		return []byte(secret), nil
-	})
-	if err != nil {
-		return claims, false, err
+// NewToken issues a session token for the user.
+func NewToken(ja *jwtauth.JWTAuth, user User) (string, error) {
+	claims := map[string]any{
+		"user_id":    user.ID,
+		"user_email": user.Email,
 	}
-	return claims, token.Valid, err
+	jwtauth.SetExpiryIn(claims, TokenTTL)
+
+	_, tokenString, err := ja.Encode(claims)
+	return tokenString, err
 }
