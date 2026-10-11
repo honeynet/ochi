@@ -107,3 +107,84 @@ func (cs *server) deleteSubscriber(s *subscriber) {
 	delete(cs.subscribers, s)
 	cs.subscribersMu.Unlock()
 }
+
+// statsSubscribeHandler accepts WebSocket connections for live statistics updates.
+func (cs *server) statsSubscribeHandler(w http.ResponseWriter, r *http.Request) {
+	c, err := websocket.Accept(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer c.Close(websocket.StatusInternalError, "")
+
+	err = cs.subscribeStats(r.Context(), c)
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+	if websocket.CloseStatus(err) == websocket.StatusNormalClosure ||
+		websocket.CloseStatus(err) == websocket.StatusGoingAway {
+		return
+	}
+	if err != nil {
+		return
+	}
+}
+
+func (cs *server) subscribeStats(ctx context.Context, c *websocket.Conn) error {
+	ctx = c.CloseRead(ctx)
+
+	s := &subscriber{
+		msgs: make(chan []byte, cs.subscriberMessageBuffer),
+		closeSlow: func() {
+			c.Close(websocket.StatusPolicyViolation, "connection too slow to keep up with messages")
+		},
+	}
+	cs.addStatsSubscriber(s)
+	defer cs.deleteStatsSubscriber(s)
+
+	for {
+		select {
+		case msg := <-s.msgs:
+			err := writeTimeout(ctx, time.Second*5, c, msg)
+			if err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+func (cs *server) publishStats(msg []byte) bool {
+	cs.statsSubscribersMu.Lock()
+	subs := make([]*subscriber, 0, len(cs.statsSubscribers))
+	for s := range cs.statsSubscribers {
+		subs = append(subs, s)
+	}
+	cs.statsSubscribersMu.Unlock()
+
+	for _, s := range subs {
+		select {
+		case s.msgs <- msg:
+		default:
+			go s.closeSlow()
+		}
+	}
+	return true
+}
+
+func (cs *server) addStatsSubscriber(s *subscriber) {
+	cs.statsSubscribersMu.Lock()
+	if cs.statsSubscribers == nil {
+		cs.statsSubscribers = make(map[*subscriber]struct{})
+	}
+	cs.statsSubscribers[s] = struct{}{}
+	cs.statsSubscribersMu.Unlock()
+}
+
+func (cs *server) deleteStatsSubscriber(s *subscriber) {
+	cs.statsSubscribersMu.Lock()
+	if cs.statsSubscribers != nil {
+		delete(cs.statsSubscribers, s)
+	}
+	cs.statsSubscribersMu.Unlock()
+}

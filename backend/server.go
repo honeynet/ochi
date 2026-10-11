@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"encoding/json"
 	"io/fs"
 	"log"
 	"net"
@@ -38,6 +39,10 @@ type server struct {
 
 	subscribersMu sync.Mutex
 	subscribers   map[*subscriber]struct{}
+
+	statsSubscribersMu sync.Mutex
+	statsSubscribers   map[*subscriber]struct{}
+	stopStats          context.CancelFunc
 
 	// the repositories
 	uRepo      *repos.UserRepo
@@ -79,6 +84,7 @@ func NewServer(fsys fs.FS, configPath string) (*server, error) {
 		cfg:                     cfg,
 		subscriberMessageBuffer: 64,
 		subscribers:             make(map[*subscriber]struct{}),
+		statsSubscribers:        make(map[*subscriber]struct{}),
 		publishLimiter:          rate.NewLimiter(rate.Limit(cfg.PublishRatePerSec), cfg.PublishBurst),
 		httpClient: &http.Client{
 			Timeout: time.Second,
@@ -114,12 +120,60 @@ func NewServer(fsys fs.FS, configPath string) (*server, error) {
 		return nil, err
 	}
 
+	if err := cs.sensorRepo.LoadStats(); err != nil {
+		return nil, err
+	}
+
+	statsCtx, statsCancel := context.WithCancel(context.Background())
+	cs.stopStats = statsCancel
+	go cs.statsFlusher(statsCtx)
+	go cs.statsBroadcaster(statsCtx)
+
 	cs.mux, err = newRouter(cs)
 	if err != nil {
 		return nil, err
 	}
 
 	return cs, nil
+}
+
+func (cs *server) statsFlusher(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if cs.sensorRepo != nil {
+				_ = cs.sensorRepo.FlushStats()
+			}
+		}
+	}
+}
+
+func (cs *server) statsBroadcaster(ctx context.Context) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if cs.sensorRepo == nil {
+				continue
+			}
+			dirty := cs.sensorRepo.PopDirtyStatsForBroadcast()
+			if len(dirty) == 0 {
+				continue
+			}
+			msg, err := json.Marshal(dirty)
+			if err != nil {
+				continue
+			}
+			cs.publishStats(msg)
+		}
+	}
 }
 
 func (cs *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -161,6 +215,13 @@ func (cs *server) Run() error {
 		log.Printf("failed to serve: %v", err)
 	case sig := <-sigs:
 		log.Printf("terminating: %v", sig)
+	}
+
+	if cs.stopStats != nil {
+		cs.stopStats()
+	}
+	if cs.sensorRepo != nil {
+		_ = cs.sensorRepo.FlushStats()
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)

@@ -34,6 +34,33 @@ func (h *Handlers) GetSensorsByUser(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetSensorStats returns the statistics for sensors owned by the authenticated user.
+func (h *Handlers) GetSensorStats(w http.ResponseWriter, r *http.Request) {
+	userId := userIDFromCtx(r.Context())
+	sensors, err := h.Sensors.GetSensorsByOwnerId(userId)
+	if err != nil {
+		if isNotFoundError(err) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	sensorIDs := make([]string, len(sensors))
+	for i, s := range sensors {
+		sensorIDs[i] = s.ID
+	}
+
+	stats := h.Sensors.GetStatsForSensors(sensorIDs)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
 func (h *Handlers) AddSensor(w http.ResponseWriter, r *http.Request) {
 	userId := userIDFromCtx(r.Context())
 	decoder := json.NewDecoder(r.Body)
