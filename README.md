@@ -21,18 +21,16 @@ Eventually we want to be able to enabled to quickly react to new trends, improve
 
 ##### For Frontend development only
 
-1. `comment the dial() and uncomment the test() in src/App.svelte`
-2. run `npm run dev`
-3. Go to `http://localhost:8080` in your browser.
+1. Run `npm run dev`
+2. Open `http://localhost:5000` (or `http://localhost:8080`) in your browser.
+3. To generate simulated test events without a live feed, click the **Config** button in the top navigation bar and select **Development**. No code changes or manual commenting is required. (Optionally, changing the default `env` store value in `frontend/store.ts` to `ENV_DEV` makes development mode the default on load).
 
 ##### For Frontend and backend development
 
-1. To build the project, run `make build`
-2. To start a local server, run `make local`
-3. Go to `localhost:3000` in your browser
-4. To generate fake events, follow frontend development's step 1.
-
-On first start, the server creates `config.yaml` with local defaults (`localhost:3000`, publish token `token`, JWT secret `secret`). Pass `-config path/to/config.yaml` to use a different file.
+1. To build the project, run `make build` (or `npm run build && go build -o server .`)
+2. To start a local server, run `make local` (or `./server` / `./server.exe`)
+3. Open `http://localhost:3000` in your browser.
+4. To generate simulated events, switch to **Development** mode via the **Config** button in the UI.
 
 ##### For using Ochi as a storage of Glutton events locally
 1. Start Ochi server with `make build && make local`
@@ -42,9 +40,22 @@ On first start, the server creates `config.yaml` with local defaults (`localhost
    2. `producers.http.enabled` to `true` [here](https://github.com/mushorg/glutton/blob/305a9d23a58d065f49ac25edeaeb374f4fe9c59b/config/config.yaml#L11)
    3. `producers.http.remote` to `http://localhost:3000/api/publish?token=token` (use the `publish_token` from your `config.yaml`)
 4. Start Glutton server.
-5. Open http://localhost:3000 and you should see Glutton events if everything is working as expected.
+5. Open `http://localhost:3000` and you should see Glutton events if everything is working as expected.
+
+## Configuration & Security
+
+On first start, the server creates `config.yaml` with local defaults (`localhost:3000`, publish token `token`, JWT secret `secret`). Pass `-config path/to/config.yaml` to use a different file.
+
+### Security Best Practices
+
+> [!WARNING]
+> **Do not use default credentials in production!** The auto-generated `config.yaml` uses placeholder credentials intended solely for offline/local development.
+
+- **Secrets & Authentication**: Replace default values (`publish_token: "token"`, `jwt_secret: "secret"`) with strong, randomly generated secrets before deploying or exposing the server.
+- **Sensitive Files**: Keep `config.yaml`, the SQLite database (`data.db`), and SQLite WAL files (`data.db-wal`, `data.db-shm`) private. These files contain operational secrets and data, and are excluded by `.gitignore`.
+- **TLS / HTTPS & WSS**: When deploying to production, run Ochi behind a reverse proxy (e.g., Caddy, NGINX) with TLS enabled to protect publisher tokens and WebSocket traffic in transit.
+- **Rate Limiting**: Adjust `publish_rate_per_sec` and `publish_burst` in `config.yaml` according to your sensor traffic to prevent denial-of-service and ingestion flooding.
 
 ### Notes
-1. If you are uncommenting `test()` and commenting `dial()`, please revert it back to its original state before generating PRs.
-2. In case you are still facing any issue while setup, feel free to ask in [discussion](https://github.com/honeynet/ochi/discussions).
+1. In case you are still facing any issue while setup, feel free to ask in [discussion](https://github.com/honeynet/ochi/discussions).
 
