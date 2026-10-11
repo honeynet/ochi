@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/jwtauth/v5"
 	"github.com/honeynet/ochi/backend/entities"
 	"github.com/honeynet/ochi/backend/handlers"
 	"github.com/honeynet/ochi/backend/repos"
@@ -297,6 +298,56 @@ func TestGetSharedEventByID_NoAuth(t *testing.T) {
 	assert.Empty(t, got.DstHost)
 }
 
+// A refused token is a client error, not a server fault: every rejection path must
+// answer 401, and must not report why the token was refused. jwtauth's own
+// Authenticator writes err.Error() into the body, which is why handlers.Authenticator
+// replaces it.
+func TestAuthenticator_RejectsCredentialsWith401(t *testing.T) {
+	tmp := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	cs := &server{
+		fs:  os.DirFS(tmp),
+		cfg: Config{JWTSecret: "test-secret"},
+	}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	expiredClaims := map[string]any{"user_id": "owner-1"}
+	jwtauth.SetExpiry(expiredClaims, time.Now().Add(-time.Hour))
+	_, expiredToken, err := entities.NewTokenAuth("test-secret").Encode(expiredClaims)
+	require.NoError(t, err)
+
+	forgedToken, err := entities.NewToken(entities.NewTokenAuth("not-the-server-secret"), entities.User{ID: "owner-1"})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name   string
+		header string
+	}{
+		{"Expired", "Bearer " + expiredToken},
+		{"WrongSecret", "Bearer " + forgedToken},
+		{"Malformed", "Bearer not-a-jwt"},
+		{"WrongScheme", "Basic " + expiredToken},
+		{"MissingHeader", ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/api/events", nil)
+			if tc.header != "" {
+				req.Header.Set("Authorization", tc.header)
+			}
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusUnauthorized, w.Code)
+			assert.Equal(t, http.StatusText(http.StatusUnauthorized), strings.TrimSpace(w.Body.String()),
+				"must not disclose token validation details")
+		})
+	}
+}
+
 func TestGetEventsList_RequiresAuth(t *testing.T) {
 	tmp := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
@@ -350,7 +401,7 @@ func newEventsTestServer(t *testing.T, owners ...string) (do func(method, target
 	}
 	mux, err := newRouter(cs)
 	require.NoError(t, err)
-	token, err := entities.NewToken("test-secret", entities.User{ID: owners[0]})
+	token, err := entities.NewToken(entities.NewTokenAuth("test-secret"), entities.User{ID: owners[0]})
 	require.NoError(t, err)
 
 	do = func(method, target, body string) *httptest.ResponseRecorder {
@@ -415,7 +466,7 @@ func TestDeleteSensor_OwnerOnly(t *testing.T) {
 	mux, err := newRouter(cs)
 	require.NoError(t, err)
 
-	token, err := entities.NewToken("test-secret", entities.User{ID: "owner-1"})
+	token, err := entities.NewToken(entities.NewTokenAuth("test-secret"), entities.User{ID: "owner-1"})
 	require.NoError(t, err)
 
 	do := func(id string, authenticated bool) *httptest.ResponseRecorder {

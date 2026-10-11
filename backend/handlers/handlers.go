@@ -5,12 +5,14 @@ import (
 	"net/http"
 
 	"github.com/honeynet/ochi/backend/repos"
+
+	"github.com/go-chi/jwtauth/v5"
 )
 
 // Handlers holds the dependencies shared by the HTTP handlers.
 type Handlers struct {
 	FS         fs.FS
-	JWTSecret  string
+	TokenAuth  *jwtauth.JWTAuth
 	HTTPClient *http.Client
 
 	Users   *repos.UserRepo

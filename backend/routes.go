@@ -4,16 +4,20 @@ import (
 	"io/fs"
 	"net/http"
 
+	"github.com/honeynet/ochi/backend/entities"
 	"github.com/honeynet/ochi/backend/handlers"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
+	"github.com/go-chi/jwtauth/v5"
 )
 
 func newRouter(cs *server) (*chi.Mux, error) {
+	tokenAuth := entities.NewTokenAuth(cs.cfg.JWTSecret)
+
 	h := &handlers.Handlers{
 		FS:          cs.fs,
-		JWTSecret:   cs.cfg.JWTSecret,
+		TokenAuth:   tokenAuth,
 		HTTPClient:  cs.httpClient,
 		Users:       cs.uRepo,
 		Queries:     cs.queryRepo,
@@ -50,34 +54,43 @@ func newRouter(cs *server) (*chi.Mux, error) {
 	r.Get("/build/*", http.StripPrefix("/build", http.FileServer(http.FS(build))).ServeHTTP)
 
 	r.Route("/api", func(r chi.Router) {
-		// websocket
+		// Public. Everything here guards itself: the publish token, the Google
+		// login exchange, or an unguessable id in the path.
 		r.Get("/subscribe", cs.subscribeHandler)
 		r.Post("/publish", handlers.TokenMiddleware(h.Publish, cs.cfg.PublishToken))
-
-		// user
 		r.Post("/login", h.Login)
-		r.Get("/session", handlers.BearerMiddleware(h.Session, cs.cfg.JWTSecret))
-
-		// query
-		r.Get("/queries", handlers.BearerMiddleware(h.GetQueries, cs.cfg.JWTSecret))
-		r.Post("/queries", handlers.BearerMiddleware(h.CreateQuery, cs.cfg.JWTSecret))
-		r.Patch("/queries/{id}", handlers.BearerMiddleware(h.UpdateQuery, cs.cfg.JWTSecret))
-		r.Delete("/queries/{id}", handlers.BearerMiddleware(h.DeleteQuery, cs.cfg.JWTSecret))
-
-		// event
-		r.Post("/events", handlers.BearerMiddleware(h.CreateEvent, cs.cfg.JWTSecret))
-		r.Delete("/events", handlers.BearerMiddleware(h.DeleteEvents, cs.cfg.JWTSecret))
-		r.Delete("/events/{id}", handlers.BearerMiddleware(h.DeleteEvent, cs.cfg.JWTSecret))
-		r.Get("/events", handlers.BearerMiddleware(h.GetEvents, cs.cfg.JWTSecret))
 		// Shared event links are unguessable IDs and must work without login.
 		r.Get("/events/{id}", h.GetEventByID)
-
-		// sensor
-		r.Get("/sensors", handlers.BearerMiddleware(h.GetSensorsByUser, cs.cfg.JWTSecret))
-		r.Post("/sensors", handlers.BearerMiddleware(h.AddSensor, cs.cfg.JWTSecret))
-		r.Delete("/sensors/{id}", handlers.BearerMiddleware(h.DeleteSensor, cs.cfg.JWTSecret))
 		// Unauthenticated: guarded by the unguessable sensor id in the path plus the owner's user_id.
 		r.Get("/download/{sensor_id}", h.DownloadBinary)
+
+		// Everything below needs a valid session token. Verifier decodes it onto
+		// the request context, Authenticator turns a missing or bad one into a 401
+		// before any handler runs.
+		r.Group(func(r chi.Router) {
+			r.Use(jwtauth.Verifier(tokenAuth))
+			r.Use(handlers.Authenticator)
+
+			// user
+			r.Get("/session", h.Session)
+
+			// query
+			r.Get("/queries", h.GetQueries)
+			r.Post("/queries", h.CreateQuery)
+			r.Patch("/queries/{id}", h.UpdateQuery)
+			r.Delete("/queries/{id}", h.DeleteQuery)
+
+			// event
+			r.Post("/events", h.CreateEvent)
+			r.Delete("/events", h.DeleteEvents)
+			r.Delete("/events/{id}", h.DeleteEvent)
+			r.Get("/events", h.GetEvents)
+
+			// sensor
+			r.Get("/sensors", h.GetSensorsByUser)
+			r.Post("/sensors", h.AddSensor)
+			r.Delete("/sensors/{id}", h.DeleteSensor)
+		})
 	})
 
 	return r, nil

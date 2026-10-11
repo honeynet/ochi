@@ -25,7 +25,7 @@ func (h *Handlers) Session(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := entities.NewToken(h.JWTSecret, user)
+	token, err := entities.NewToken(h.TokenAuth, user)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -71,7 +71,7 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	token, err := entities.NewToken(h.JWTSecret, user)
+	token, err := entities.NewToken(h.TokenAuth, user)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
