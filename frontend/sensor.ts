@@ -19,7 +19,10 @@ export async function getSensors(token: string): Promise<Sensor[]> {
     return (await res.json()) ?? [];
 }
 
-export async function addSensor(token: string, sensor: Pick<Sensor, 'id' | 'name'>): Promise<Sensor> {
+export async function addSensor(
+    token: string,
+    sensor: Pick<Sensor, 'id' | 'name'>,
+): Promise<Sensor> {
     const res = await fetch(`${API_ENDPOINT}/api/sensors`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -38,6 +41,10 @@ export const DOWNLOAD_ARCH = 'amd64';
 // user id in the query string are both secrets, so the link must not be shared.
 export function sensorDownloadUrl(sensor: Sensor): string {
     const path = `${API_ENDPOINT}/api/download/${encodeURIComponent(sensor.id)}`;
-    const params = new URLSearchParams({ os: DOWNLOAD_OS, arch: DOWNLOAD_ARCH, user_id: sensor.user_id });
+    const params = new URLSearchParams({
+        os: DOWNLOAD_OS,
+        arch: DOWNLOAD_ARCH,
+        user_id: sensor.user_id,
+    });
     return new URL(`${path}?${params}`, window.location.href).toString();
 }

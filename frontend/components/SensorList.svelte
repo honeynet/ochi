@@ -2,7 +2,14 @@
     import { onMount } from 'svelte';
     import { token } from '../store';
     import { showError } from '../toast';
-    import { type Sensor, addSensor, getSensors, sensorDownloadUrl, DOWNLOAD_OS, DOWNLOAD_ARCH } from '../sensor';
+    import {
+        type Sensor,
+        addSensor,
+        getSensors,
+        sensorDownloadUrl,
+        DOWNLOAD_OS,
+        DOWNLOAD_ARCH,
+    } from '../sensor';
 
     let sensors = $state<Sensor[]>([]);
     let loading = $state(true);
@@ -17,7 +24,10 @@
         adding = true;
         addError = '';
         try {
-            const sensor = await addSensor($token, { id: crypto.randomUUID(), name: newName.trim() });
+            const sensor = await addSensor($token, {
+                id: crypto.randomUUID(),
+                name: newName.trim(),
+            });
             sensors = [...sensors, sensor];
             newName = '';
         } catch (e) {

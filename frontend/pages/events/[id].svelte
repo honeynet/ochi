@@ -22,9 +22,11 @@
     $effect(() => {
         const id = $params.id;
         untrack(() => {
-            getEventById(id).then((event) => {
-                currentEvent.set(event);
-            }).catch((e) => showError(e));
+            getEventById(id)
+                .then((event) => {
+                    currentEvent.set(event);
+                })
+                .catch((e) => showError(e));
         });
     });
 </script>
