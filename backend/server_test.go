@@ -389,6 +389,62 @@ func TestEventsList_Paginated(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, do(http.MethodGet, "/api/events?offset=-1", "").Code)
 }
 
+// Only the owner may delete a sensor; everything else is a 404, so the endpoint
+// never reveals whether a sensor ID exists.
+func TestDeleteSensor_OwnerOnly(t *testing.T) {
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	sensorRepo, err := repos.NewSensorRepo(db)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	const mine = "11111111-1111-1111-1111-111111111111"
+	const theirs = "22222222-2222-2222-2222-222222222222"
+	const missing = "33333333-3333-3333-3333-333333333333"
+	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: mine, Name: "mine", UserID: "owner-1"}))
+	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: theirs, Name: "theirs", UserID: "owner-2"}))
+
+	cs := &server{
+		sensorRepo: sensorRepo,
+		fs:         os.DirFS(tmp),
+		cfg:        Config{JWTSecret: "test-secret"},
+	}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	token, err := entities.NewToken("test-secret", entities.User{ID: "owner-1"})
+	require.NoError(t, err)
+
+	do := func(id string, authenticated bool) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodDelete, "/api/sensors/"+id, nil)
+		if authenticated {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+
+	assert.Equal(t, http.StatusUnauthorized, do(mine, false).Code)
+
+	assert.Equal(t, http.StatusNotFound, do(theirs, true).Code, "another user's sensor")
+	assert.Equal(t, http.StatusNotFound, do(missing, true).Code, "unknown sensor")
+
+	survivors, err := sensorRepo.GetSensorsByOwnerId("owner-2")
+	require.NoError(t, err)
+	assert.Len(t, survivors, 1, "a refused delete must leave the sensor in place")
+
+	require.Equal(t, http.StatusOK, do(mine, true).Code)
+	remaining, err := sensorRepo.GetSensorsByOwnerId("owner-1")
+	require.NoError(t, err)
+	assert.Empty(t, remaining)
+
+	assert.Equal(t, http.StatusNotFound, do(mine, true).Code, "deleting twice is not a server error")
+}
+
 func TestOpenSQLite_EnablesWAL(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "wal.db")
 	db, err := openSQLite(path)

@@ -5,6 +5,7 @@
     import {
         type Sensor,
         addSensor,
+        deleteSensor,
         getSensors,
         sensorDownloadUrl,
         DOWNLOAD_OS,
@@ -18,6 +19,40 @@
     let newName = $state('');
     let adding = $state(false);
     let addError = $state('');
+
+    // Deleting a sensor cannot be undone, so it goes through a confirmation dialog.
+    let confirmDialog = $state<HTMLDialogElement | null>(null);
+    let sensorToDelete = $state<Sensor | null>(null);
+    let deleting = $state(false);
+
+    function askToDelete(sensor: Sensor) {
+        sensorToDelete = sensor;
+        if (confirmDialog && !confirmDialog.open) {
+            confirmDialog.showModal();
+        }
+    }
+
+    function closeConfirm() {
+        if (confirmDialog?.open) {
+            confirmDialog.close();
+        }
+        sensorToDelete = null;
+    }
+
+    async function confirmDelete() {
+        const sensor = sensorToDelete;
+        if (!sensor) return;
+        deleting = true;
+        try {
+            await deleteSensor($token, sensor.id);
+            sensors = sensors.filter((s) => s.id !== sensor.id);
+            closeConfirm();
+        } catch (e) {
+            showError(e);
+        } finally {
+            deleting = false;
+        }
+    }
 
     async function handleAdd(event: SubmitEvent) {
         event.preventDefault();
@@ -74,10 +109,33 @@
                 <a href={sensorDownloadUrl(sensor)} download>
                     Download ({DOWNLOAD_OS}/{DOWNLOAD_ARCH})
                 </a>
+                <button onclick={() => askToDelete(sensor)}>Delete</button>
             </li>
         {/each}
     </ul>
 {/if}
+
+<dialog
+    bind:this={confirmDialog}
+    onclick={(event) => {
+        if (event.target === event.currentTarget) {
+            closeConfirm();
+        }
+    }}
+>
+    <div class="sensorList__confirm">
+        <p>
+            Delete <strong>{sensorToDelete?.name || 'this sensor'}</strong>? Its events are kept,
+            but the download link for this sensor will stop working.
+        </p>
+        <div class="sensorList__confirm-buttons">
+            <button onclick={closeConfirm} disabled={deleting}>Cancel</button>
+            <button onclick={confirmDelete} disabled={deleting}>
+                {deleting ? 'Deleting...' : 'Delete'}
+            </button>
+        </div>
+    </div>
+</dialog>
 
 <style>
     .sensorList__title,
@@ -110,5 +168,26 @@
         font-family: monospace;
         font-size: 14px;
         font-style: italic;
+    }
+
+    dialog {
+        max-width: 32em;
+        border-radius: 0.2em;
+        border: none;
+        padding: 0;
+    }
+
+    dialog::backdrop {
+        background: rgba(0, 0, 0, 0.3);
+    }
+
+    .sensorList__confirm {
+        padding: 1em;
+    }
+
+    .sensorList__confirm-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
     }
 </style>

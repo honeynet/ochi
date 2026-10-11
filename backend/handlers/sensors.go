@@ -62,6 +62,25 @@ func (h *Handlers) AddSensor(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// DeleteSensor removes a sensor belonging to the caller. A sensor that does not
+// exist and one owned by somebody else both answer 404, so the endpoint cannot be
+// used to find out which sensor IDs are registered.
+func (h *Handlers) DeleteSensor(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromCtx(r.Context())
+	id := chi.URLParam(r, "id")
+
+	deleted, err := h.Sensors.DeleteByOwner(id, userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if deleted == 0 {
+		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 // DownloadBinary serves the binary for the requested architecture with the sensor UUID injected.
 // It is unauthenticated: the sensor id in the path and the owner's "user_id" query parameter
 // are two secrets that must match a stored sensor.
