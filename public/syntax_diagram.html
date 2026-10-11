@@ -391,6 +391,30 @@
                 "pattern": "\\\"[a-zA-Z0-9_-]+\\\""
               }
             ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "SENSOR",
+                "label": "sensor",
+                "idx": 0,
+                "pattern": "sensor"
+              },
+              {
+                "type": "NonTerminal",
+                "name": "binaryOperator",
+                "idx": 5
+              },
+              {
+                "type": "Terminal",
+                "name": "STRING",
+                "label": "\"msg\"",
+                "idx": 3,
+                "pattern": "\\\"[a-zA-Z0-9_-]+\\\""
+              }
+            ]
           }
         ]
       }

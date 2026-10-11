@@ -287,6 +287,166 @@ describe('parseDSL', () => {
             ),
         ).toBeFalsy();
     });
+
+    test('parses sensor eq and ==', () => {
+        let sx = parseDSL('sensor eq "abcd1234"');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    sensorID: 'abcd1234',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    sensorID: 'wxyz5678',
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+
+        let sx2 = parseDSL('sensor == "abcd1234"');
+        expect(sx2.lexErrors).toHaveLength(0);
+        expect(sx2.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    sensorID: 'abcd1234',
+                }),
+                sx2.cst!,
+            ),
+        ).toBeTruthy();
+    });
+
+    test('parses sensor ne and !=', () => {
+        let sx = parseDSL('sensor ne "abcd1234"');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    sensorID: 'wxyz5678',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    sensorID: 'abcd1234',
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+
+        let sx2 = parseDSL('sensor != "abcd1234"');
+        expect(sx2.lexErrors).toHaveLength(0);
+        expect(sx2.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    sensorID: 'wxyz5678',
+                }),
+                sx2.cst!,
+            ),
+        ).toBeTruthy();
+    });
+
+    test('matches sensor case-insensitively and handles prefix/UUID matching', () => {
+        let sx = parseDSL('sensor eq "ABCD1234"');
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    sensorID: 'abcd1234',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+
+        // full UUID queried against 8-char event sensorID
+        let sxUUID = parseDSL('sensor eq "abcd1234-5678-90ab-cdef-1234567890ab"');
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    sensorID: 'abcd1234',
+                }),
+                sxUUID.cst!,
+            ),
+        ).toBeTruthy();
+
+        // 8-char prefix queried against full UUID event sensorID
+        let sxPrefix = parseDSL('sensor eq "abcd1234"');
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    sensorID: 'abcd1234-5678-90ab-cdef-1234567890ab',
+                }),
+                sxPrefix.cst!,
+            ),
+        ).toBeTruthy();
+    });
+
+    test('combines sensor with other clauses', () => {
+        let sx = parseDSL('sensor == "abcd1234" and tcp.port == 80');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    sensorID: 'abcd1234',
+                    transport: 'tcp',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    sensorID: 'other123',
+                    transport: 'tcp',
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+
+        let sxNot = parseDSL('not sensor == "abcd1234"');
+        expect(sxNot.lexErrors).toHaveLength(0);
+        expect(sxNot.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    sensorID: 'other123',
+                }),
+                sxNot.cst!,
+            ),
+        ).toBeTruthy();
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    sensorID: 'abcd1234',
+                }),
+                sxNot.cst!,
+            ),
+        ).toBeFalsy();
+    });
+
+    test('computes suggestions for sensor query', () => {
+        let state1 = { suggestions: [] as string[], partialToken: null };
+        parseDSL('', state1);
+        expect(state1.suggestions).toContain('sensor');
+
+        let state2 = { suggestions: [] as string[], partialToken: null };
+        parseDSL('sensor ', state2);
+        expect(state2.suggestions).toEqual(['eq', 'ne', '==', '!=']);
+
+        let state3 = { suggestions: [] as string[], partialToken: null };
+        parseDSL('sensor == ', state3);
+        expect(state3.suggestions).toEqual(['"sensor-id"']);
+    });
 });
 
 // Glutton only sets `rule`/`ruleName` when one of its rules matched the connection,
@@ -327,6 +487,12 @@ describe('filterEvent on events that matched no rule', () => {
 
     test('evaluates tcp.port using transport', () => {
         let sx = parseDSL('tcp.port == 445');
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(filterEvent(noRule(), sx.cst!)).toBeTruthy();
+    });
+
+    test('evaluates sensor', () => {
+        let sx = parseDSL('sensor eq "sensorID"');
         expect(sx.parseErrors).toHaveLength(0);
         expect(filterEvent(noRule(), sx.cst!)).toBeTruthy();
     });

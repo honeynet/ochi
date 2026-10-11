@@ -38,6 +38,7 @@ const payload = createToken({ name: 'PAYLOAD', pattern: /payload/, label: 'paylo
 const endReason = createToken({ name: 'END_REASON', pattern: /end\.reason/, label: 'end.reason' });
 const handler = createToken({ name: 'HANDLER', pattern: /handler/, label: 'handler' });
 const transport = createToken({ name: 'TRANSPORT', pattern: /transport/, label: 'transport' });
+const sensor = createToken({ name: 'SENSOR', pattern: /sensor/, label: 'sensor' });
 const string = createToken({ name: 'STRING', pattern: /\"[a-zA-Z0-9_-]+\"/, label: '"msg"' });
 
 const partial = createToken({
@@ -77,6 +78,7 @@ let allTokens = [
     endReason,
     handler,
     transport,
+    sensor,
 
     payload,
     string,
@@ -229,6 +231,13 @@ class QueryParser extends CstParser {
                     this.CONSUME2(string);
                 },
             },
+            {
+                ALT: () => {
+                    this.CONSUME(sensor);
+                    this.SUBRULE5(this.binaryOperator);
+                    this.CONSUME3(string);
+                },
+            },
         ]);
     });
 
@@ -273,6 +282,7 @@ const QUERY_START_SUGGESTIONS = [
     'end.reason',
     'handler',
     'transport',
+    'sensor',
     'payload',
     'not',
 ];
@@ -285,6 +295,7 @@ const FIELD_SUGGESTIONS = [
     'end.reason',
     'handler',
     'transport',
+    'sensor',
     'payload',
 ];
 
@@ -310,7 +321,19 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         return FIELD_SUGGESTIONS;
     }
 
-    if (tokenMatches(lastToken, tcpPort, udpPort, ipSrc, ipDst, endReason, handler)) {
+    if (
+        tokenMatches(
+            lastToken,
+            tcpPort,
+            udpPort,
+            ipSrc,
+            ipDst,
+            endReason,
+            handler,
+            transport,
+            sensor,
+        )
+    ) {
         return OPERATOR_SUGGESTIONS;
     }
 
@@ -327,6 +350,12 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         }
         if (fieldToken && tokenMatches(fieldToken, handler)) {
             return ['"http"'];
+        }
+        if (fieldToken && tokenMatches(fieldToken, transport)) {
+            return ['"tcp"', '"udp"'];
+        }
+        if (fieldToken && tokenMatches(fieldToken, sensor)) {
+            return ['"sensor-id"'];
         }
         return [];
     }
