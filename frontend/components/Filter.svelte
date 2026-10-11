@@ -4,6 +4,7 @@
     import Suggestion from './Suggestion.svelte';
     import { parseDSL, type FilterState } from '../dsl';
     import { debounce } from '../util';
+    import { showError } from '../toast';
     import {
         parsedFilter,
         stringFilter,
@@ -45,7 +46,6 @@
         let parseResult = parseDSL(filter, filterState);
         filterState = { ...filterState }; // force reactivity to update suggestions
         if (parseResult.lexErrors.length > 0 || parseResult.parseErrors.length > 0) {
-            console.log('Found some errors', parseResult.lexErrors, parseResult.parseErrors);
             filterValid = false;
             // TODO: highlight in red
         } else {
@@ -71,13 +71,13 @@
 
         let parseResult = parseDSL(filter, filterState);
         if (parseResult.lexErrors.length > 0) {
-            console.error(parseResult.lexErrors);
+            showError(`Invalid filter: ${parseResult.lexErrors[0].message}`);
             filterActive.set(false);
             filterValid = false;
             return;
         }
         if (parseResult.parseErrors.length > 0) {
-            console.error(parseResult.parseErrors);
+            showError(`Invalid filter: ${parseResult.parseErrors[0].message}`);
             filterActive.set(false);
             filterValid = false;
             return;

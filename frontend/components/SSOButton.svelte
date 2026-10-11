@@ -3,11 +3,12 @@
 <script lang="ts">
     import { login } from '../session';
     import { API_ENDPOINT } from '../constants';
+    import { showError } from '../toast';
 
     function button() {
         const buttonElement = document.getElementById('googleButton');
         if (!buttonElement) {
-            console.warn('Google button element missing');
+            showError('Google button element missing');
             return;
         }
         google.accounts.id.renderButton(buttonElement, {
@@ -26,7 +27,7 @@
             const json = await res.json();
             login(json);
         } else {
-            console.log('failed to login');
+            showError('Failed to log in');
         }
     }
 
@@ -34,7 +35,7 @@
         if (response && response.credential) {
             sendCredentials(response);
         } else {
-            console.log('invalid credential response');
+            showError('Invalid credential response');
         }
     }
 

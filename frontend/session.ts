@@ -1,4 +1,5 @@
 import { isAuthenticated, user, token } from './store';
+import { showError } from './toast';
 
 import { API_ENDPOINT } from './constants';
 
@@ -18,7 +19,7 @@ export async function validate() {
             const json = await res.json();
             login(json);
         } else {
-            console.log('failed to validate session');
+            showError('Failed to validate session');
             logout();
         }
     }

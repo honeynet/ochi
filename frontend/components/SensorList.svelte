@@ -1,6 +1,7 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { token } from '../store';
+    import { showError } from '../toast';
     import { type Sensor, addSensor, getSensors, sensorDownloadUrl, DOWNLOAD_OS, DOWNLOAD_ARCH } from '../sensor';
 
     let sensors = $state<Sensor[]>([]);
@@ -21,6 +22,7 @@
             newName = '';
         } catch (e) {
             addError = e instanceof Error ? e.message : String(e);
+            showError(e);
         } finally {
             adding = false;
         }
@@ -31,6 +33,7 @@
             sensors = await getSensors($token);
         } catch (e) {
             error = e instanceof Error ? e.message : String(e);
+            showError(e);
         } finally {
             loading = false;
         }

@@ -6,16 +6,15 @@
     import { API_ENDPOINT } from '../../constants';
     import { currentEvent } from '../../store';
     import { untrack } from 'svelte';
+    import { showError } from '../../toast';
 
     async function getEventById(id: string): Promise<Event> {
         const res = await fetch(`${API_ENDPOINT}/api/events/${id}`);
 
         if (res.ok) {
-            console.log('received success ');
             const event = await res.json();
             return event;
         } else {
-            console.log('failed to save ' + res.text());
             throw new Error('Could not fetch an event');
         }
     }
@@ -25,7 +24,7 @@
         untrack(() => {
             getEventById(id).then((event) => {
                 currentEvent.set(event);
-            });
+            }).catch((e) => showError(e));
         });
     });
 </script>

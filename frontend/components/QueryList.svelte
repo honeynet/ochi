@@ -3,6 +3,7 @@
     import { token, userQueries, stringFilter, activeFilterId } from '../store';
     import { type Query, deleteQuery, getQueries } from '../query';
     import QueryModal from './QueryModal.svelte';
+    import { showError } from '../toast';
 
     let saveModal = $state<{ showModal: (query: Query) => void } | null>(null);
 
@@ -17,7 +18,7 @@
 
     async function deleteQueryAndReload(id?: string) {
         if (!id) {
-            console.warn('Cannot delete query without an id');
+            showError('Cannot delete query without an id');
             return;
         }
         await deleteQuery(id, $token);

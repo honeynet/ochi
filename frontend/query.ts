@@ -1,4 +1,5 @@
 import { API_ENDPOINT } from './constants';
+import { showError } from './toast';
 
 export interface Query {
     id?: string; // query id
@@ -22,10 +23,8 @@ export async function saveQuery(queryToEdit: Query, token: string) {
         }),
     });
 
-    if (res.ok) {
-        console.log('received success ' + res.text());
-    } else {
-        console.log('failed to save ' + res.text());
+    if (!res.ok) {
+        showError(`Failed to save query: ${await res.text()}`);
     }
 }
 
@@ -44,10 +43,7 @@ export async function updateQuery(queryToEdit: Query, token: string): Promise<vo
         }),
     });
 
-    if (res.ok) {
-        console.log('received success');
-    } else {
-        console.log('failed to update');
+    if (!res.ok) {
         throw new Error('Could not update a query');
     }
 }

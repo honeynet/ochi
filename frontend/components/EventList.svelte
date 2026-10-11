@@ -6,6 +6,7 @@
     import { token, currentEvent } from '../store';
     import { type Event, deleteEvents, getEvents } from '../event';
     import Message from './Message.svelte';
+    import { showError } from '../toast';
 
     const PAGE_SIZE = 20;
 
@@ -56,6 +57,7 @@
         } catch (e) {
             if (id === requestId) {
                 error = e instanceof Error ? e.message : 'Could not fetch events';
+                showError(e, 'Could not fetch events');
             }
         } finally {
             if (id === requestId) {
@@ -81,6 +83,7 @@
             await deleteEvents(toDelete, $token);
         } catch (e) {
             error = e instanceof Error ? e.message : 'Could not delete events';
+            showError(e, 'Could not delete events');
             return;
         }
         selected = [];
