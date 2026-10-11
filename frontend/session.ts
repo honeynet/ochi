@@ -9,17 +9,16 @@ token.subscribe((value) => {
 
 export async function validate() {
     if (jwt !== '') {
-        const res = await fetch(`${API_ENDPOINT}/session`, {
+        const res = await fetch(`${API_ENDPOINT}/api/session`, {
             method: 'GET',
             headers: { Authorization: `Bearer ${jwt}` },
         });
 
         if (res.ok) {
             const json = await res.json();
-            console.log(json);
             login(json);
         } else {
-            console.log('failed to validate');
+            console.log('failed to validate session');
             logout();
         }
     }

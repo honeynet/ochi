@@ -384,7 +384,6 @@ export function parseDSL(
     parser.input = lexResult.tokens;
     // any top level rule may be used as an entry point
     const cst = parser.query();
-    console.log(`the cst is ${JSON.stringify(cst)}`);
 
     return {
         // This is a pure grammar, the value will be undefined until we add embedded actions

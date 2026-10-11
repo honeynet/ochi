@@ -92,7 +92,6 @@
         if (!$currentEvent) {
             throw new Error('No event selected to share');
         }
-        console.log('saving event');
         const eventToShare = $currentEvent;
         const res = await fetch(`${API_ENDPOINT}/api/events`, {
             method: 'POST',
@@ -104,11 +103,9 @@
         });
 
         if (res.ok) {
-            console.log('received success');
             const event = await res.json();
             return event;
         } else {
-            console.log('failed to save ' + res.text());
             throw new Error('Could not create an event');
         }
     }

@@ -17,14 +17,13 @@
     }
 
     async function sendCredentials(data: google.accounts.id.CredentialResponse) {
-        const res = await fetch(`${API_ENDPOINT}/login`, {
+        const res = await fetch(`${API_ENDPOINT}/api/login`, {
             method: 'POST',
             body: data.credential,
         });
 
         if (res.ok) {
             const json = await res.json();
-            console.log(json);
             login(json);
         } else {
             console.log('failed to login');

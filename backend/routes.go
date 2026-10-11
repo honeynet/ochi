@@ -12,14 +12,14 @@ import (
 
 func newRouter(cs *server) (*chi.Mux, error) {
 	h := &handlers.Handlers{
-		FS:         cs.fs,
-		JWTSecret:  cs.cfg.JWTSecret,
-		HTTPClient: cs.httpClient,
-		Users:      cs.uRepo,
-		Queries:    cs.queryRepo,
-		Events:     cs.eventRepo,
-		Sensors:    cs.sensorRepo,
-		Publish:    cs.publish,
+		FS:          cs.fs,
+		JWTSecret:   cs.cfg.JWTSecret,
+		HTTPClient:  cs.httpClient,
+		Users:       cs.uRepo,
+		Queries:     cs.queryRepo,
+		Events:      cs.eventRepo,
+		Sensors:     cs.sensorRepo,
+		PublishFunc: cs.publish,
 	}
 
 	r := chi.NewRouter()
@@ -37,11 +37,11 @@ func newRouter(cs *server) (*chi.Mux, error) {
 	}))
 
 	// static
-	r.Get("/", h.IndexHandler)
-	r.Get("/global.css", h.CSSHandler)
-	r.Get("/myqueries", h.IndexHandler)
-	r.Get("/myevents", h.IndexHandler)
-	r.Get("/events/{id}", h.IndexHandler)
+	r.Get("/", h.Index)
+	r.Get("/global.css", h.CSS)
+	r.Get("/myqueries", h.Index)
+	r.Get("/myevents", h.Index)
+	r.Get("/events/{id}", h.Index)
 
 	build, err := fs.Sub(cs.fs, "build")
 	if err != nil {
@@ -49,32 +49,35 @@ func newRouter(cs *server) (*chi.Mux, error) {
 	}
 	r.Get("/build/*", http.StripPrefix("/build", http.FileServer(http.FS(build))).ServeHTTP)
 
-	// websocket
-	r.Get("/subscribe", cs.subscribeHandler)
-	r.Post("/publish", handlers.TokenMiddleware(h.PublishHandler, cs.cfg.PublishToken))
+	r.Route("/api", func(r chi.Router) {
+		// websocket
+		r.Get("/subscribe", cs.subscribeHandler)
+		r.Post("/publish", handlers.TokenMiddleware(h.Publish, cs.cfg.PublishToken))
 
-	// user
-	r.Post("/login", h.LoginHandler)
-	r.Get("/session", handlers.BearerMiddleware(h.SessionHandler, cs.cfg.JWTSecret))
+		// user
+		r.Post("/login", h.Login)
+		r.Get("/session", handlers.BearerMiddleware(h.Session, cs.cfg.JWTSecret))
 
-	// query
-	r.Get("/queries", handlers.BearerMiddleware(h.GetQueriesHandler, cs.cfg.JWTSecret))
-	r.Post("/queries", handlers.BearerMiddleware(h.CreateQueryHandler, cs.cfg.JWTSecret))
-	r.Patch("/queries/{id}", handlers.BearerMiddleware(h.UpdateQueryHandler, cs.cfg.JWTSecret))
-	r.Delete("/queries/{id}", handlers.BearerMiddleware(h.DeleteQueryHandler, cs.cfg.JWTSecret))
+		// query
+		r.Get("/queries", handlers.BearerMiddleware(h.GetQueries, cs.cfg.JWTSecret))
+		r.Post("/queries", handlers.BearerMiddleware(h.CreateQuery, cs.cfg.JWTSecret))
+		r.Patch("/queries/{id}", handlers.BearerMiddleware(h.UpdateQuery, cs.cfg.JWTSecret))
+		r.Delete("/queries/{id}", handlers.BearerMiddleware(h.DeleteQuery, cs.cfg.JWTSecret))
 
-	// event
-	r.Post("/api/events", handlers.BearerMiddleware(h.CreateEventHandler, cs.cfg.JWTSecret))
-	r.Delete("/api/events", handlers.BearerMiddleware(h.DeleteEventsHandler, cs.cfg.JWTSecret))
-	r.Delete("/api/events/{id}", handlers.BearerMiddleware(h.DeleteEventHandler, cs.cfg.JWTSecret))
-	r.Get("/api/events", handlers.BearerMiddleware(h.GetEventsHandler, cs.cfg.JWTSecret))
-	// Shared event links are unguessable IDs and must work without login.
-	r.Get("/api/events/{id}", h.GetEventByIDHandler)
+		// event
+		r.Post("/events", handlers.BearerMiddleware(h.CreateEvent, cs.cfg.JWTSecret))
+		r.Delete("/events", handlers.BearerMiddleware(h.DeleteEvents, cs.cfg.JWTSecret))
+		r.Delete("/events/{id}", handlers.BearerMiddleware(h.DeleteEvent, cs.cfg.JWTSecret))
+		r.Get("/events", handlers.BearerMiddleware(h.GetEvents, cs.cfg.JWTSecret))
+		// Shared event links are unguessable IDs and must work without login.
+		r.Get("/events/{id}", h.GetEventByID)
 
-	// sensor
-	r.Get("/sensors", handlers.BearerMiddleware(h.GetSensorsByUser, cs.cfg.JWTSecret))
-	r.Post("/sensors", handlers.BearerMiddleware(h.AddSensor, cs.cfg.JWTSecret))
-	r.Get("/download/{os}/{arch}", handlers.BearerMiddleware(h.DownloadBinaryHandler, cs.cfg.JWTSecret))
+		// sensor
+		r.Get("/sensors", handlers.BearerMiddleware(h.GetSensorsByUser, cs.cfg.JWTSecret))
+		r.Post("/sensors", handlers.BearerMiddleware(h.AddSensor, cs.cfg.JWTSecret))
+		// Unauthenticated: guarded by the unguessable sensor id in the path plus the owner's user_id.
+		r.Get("/download/{sensor_id}", h.DownloadBinary)
+	})
 
 	return r, nil
 }

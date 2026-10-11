@@ -11,6 +11,7 @@ import (
 
 type SensorRepo struct {
 	getSensorsByUser *sqlx.Stmt
+	getSensor        *sqlx.Stmt
 	addSensor        *sqlx.NamedStmt
 }
 
@@ -38,6 +39,15 @@ func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
 		return nil, err
 	}
 
+	r.getSensor, err = db.Preparex(`
+	SELECT * FROM sensors
+		WHERE
+		id=? AND user_id=?
+	`)
+	if err != nil {
+		return nil, err
+	}
+
 	r.addSensor, err = db.PrepareNamed(`
 		INSERT INTO sensors (id , user_id , name) VALUES (:id , :user_id , :name)
 	`)
@@ -61,4 +71,13 @@ func (r *SensorRepo) AddSensors(sensor entities.Sensor) error {
 		return err
 	}
 	return nil
+}
+
+// GetSensor returns the sensor with the given id, only if it belongs to ownerId.
+func (r *SensorRepo) GetSensor(id, ownerId string) (entities.Sensor, error) {
+	var s entities.Sensor
+	if err := r.getSensor.Get(&s, id, ownerId); err != nil {
+		return entities.Sensor{}, err
+	}
+	return s, nil
 }

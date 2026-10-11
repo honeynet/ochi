@@ -21,7 +21,6 @@
     }
 
     async function saveQueryAndReload() {
-        console.log('saving query');
         await createQuery(
             {
                 content: queryToEdit.content,
@@ -53,7 +52,6 @@
     }
 
     async function confirmAndCloseModal() {
-        console.log('closing modal');
         await saveQueryAndReload();
         closeModal();
     }

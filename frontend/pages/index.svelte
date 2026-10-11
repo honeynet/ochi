@@ -27,10 +27,10 @@
         if ($env == ENV_DEV) {
             return;
         }
-        let wsUrl = `${WS_ENDPOINT}/subscribe`;
+        let wsUrl = `${WS_ENDPOINT}/api/subscribe`;
         // location.protocol === 'https:'
-        //     ? `wss://${location.host}/subscribe`
-        //     : `ws://${location.host}/subscribe`;
+        //     ? `wss://${location.host}/api/subscribe`
+        //     : `ws://${location.host}/api/subscribe`;
         conn = new WebSocket(wsUrl);
 
         conn.addEventListener('close', (ev) => {
@@ -43,7 +43,6 @@
         });
         conn.addEventListener('message', (ev) => {
             const obj = JSON.parse(ev.data);
-            console.log(obj);
             addMessage(obj);
         });
         return true;

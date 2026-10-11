@@ -29,7 +29,9 @@
             <SSOButton />
         {:else}
             <a class="header__link" href={$url(path)}>{pathText}</a>
-            {#if showEvents}<a class="header__link" href={$url('/myevents')}>Events</a>{/if}
+            {#if showEvents}<a class="header__link" href={$url('/myevents')}>Events</a>
+                <a class="header__link" href={$url('/mysensors')}>Sensors</a>
+            {/if}
             <LogoutButton />
             <SSORevokeButton />
         {/if}

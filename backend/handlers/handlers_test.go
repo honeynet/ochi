@@ -12,15 +12,34 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/honeynet/ochi/backend/entities"
+	"github.com/honeynet/ochi/backend/repos"
+	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
+	_ "modernc.org/sqlite"
 )
 
-// withDownloadParams attaches the chi URL params DownloadBinaryHandler reads.
-func withDownloadParams(r *http.Request, osType, arch string) *http.Request {
+// withDownloadParams attaches the chi URL params DownloadBinary reads.
+func withDownloadParams(r *http.Request, sensorID string) *http.Request {
 	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("os", osType)
-	rctx.URLParams.Add("arch", arch)
+	rctx.URLParams.Add("sensor_id", sensorID)
 	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+}
+
+const (
+	testSensorID = "11111111-2222-3333-4444-555555555555"
+	testUserID   = "user-1"
+)
+
+// newDownloadHandlers returns Handlers backed by a database holding one sensor owned by testUserID.
+func newDownloadHandlers(t *testing.T) *Handlers {
+	t.Helper()
+	db, err := sqlx.Connect("sqlite", filepath.Join(t.TempDir(), "test.db"))
+	assert.NoError(t, err)
+	repo, err := repos.NewSensorRepo(db)
+	assert.NoError(t, err)
+	assert.NoError(t, repo.AddSensors(entities.Sensor{ID: testSensorID, UserID: testUserID, Name: "s"}))
+	return &Handlers{Sensors: repo}
 }
 
 func setupDownloadBinaryTest(t *testing.T, content []byte) (string, string, func()) {
@@ -61,13 +80,13 @@ func TestDownloadBinaryHandler(t *testing.T) {
 	osType, arch, cleanup := setupDownloadBinaryTest(t, content)
 	defer cleanup()
 
-	h := &Handlers{}
+	h := newDownloadHandlers(t)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/download/"+osType+"/"+arch, nil)
-	r = withDownloadParams(r, osType, arch)
+	r := httptest.NewRequest("GET", "/api/download/"+testSensorID+"?os="+osType+"&arch="+arch+"&user_id="+testUserID, nil)
+	r = withDownloadParams(r, testSensorID)
 
-	h.DownloadBinaryHandler(w, r)
+	h.DownloadBinary(w, r)
 
 	resp := w.Result()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -82,6 +101,7 @@ func TestDownloadBinaryHandler(t *testing.T) {
 	assert.True(t, bytes.Contains(body, []byte(prefix)))
 	assert.True(t, bytes.Contains(body, []byte(suffix)))
 
+	assert.True(t, bytes.Contains(body, []byte(testSensorID)))
 	start := len(prefix)
 	uuidLen := 36
 	assert.GreaterOrEqual(t, len(body), start+uuidLen, "Response body is too short to contain the UUID")
@@ -101,15 +121,15 @@ func TestDownloadBinaryHandler_InvalidParams(t *testing.T) {
 		{"BothInvalid", "invalid", "invalid"},
 	}
 
-	h := &Handlers{}
+	h := newDownloadHandlers(t)
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			r := httptest.NewRequest("GET", "/download/"+tc.os+"/"+tc.arch, nil)
-			r = withDownloadParams(r, tc.os, tc.arch)
+			r := httptest.NewRequest("GET", "/api/download/"+testSensorID+"?os="+tc.os+"&arch="+tc.arch+"&user_id="+testUserID, nil)
+			r = withDownloadParams(r, testSensorID)
 
-			h.DownloadBinaryHandler(w, r)
+			h.DownloadBinary(w, r)
 
 			resp := w.Result()
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
@@ -126,12 +146,12 @@ func TestDownloadBinaryHandler_BinaryNotFound(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.Chdir(originalWD)
 
-	h := &Handlers{}
+	h := newDownloadHandlers(t)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/download/linux/amd64", nil)
-	r = withDownloadParams(r, "linux", "amd64")
+	r := httptest.NewRequest("GET", "/api/download/"+testSensorID+"?os=linux&arch=amd64&user_id="+testUserID, nil)
+	r = withDownloadParams(r, testSensorID)
 
-	h.DownloadBinaryHandler(w, r)
+	h.DownloadBinary(w, r)
 
 	resp := w.Result()
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -143,12 +163,12 @@ func TestDownloadBinaryHandler_MissingPlaceholder(t *testing.T) {
 	osType, arch, cleanup := setupDownloadBinaryTest(t, content)
 	defer cleanup()
 
-	h := &Handlers{}
+	h := newDownloadHandlers(t)
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/download/"+osType+"/"+arch, nil)
-	r = withDownloadParams(r, osType, arch)
+	r := httptest.NewRequest("GET", "/api/download/"+testSensorID+"?os="+osType+"&arch="+arch+"&user_id="+testUserID, nil)
+	r = withDownloadParams(r, testSensorID)
 
-	h.DownloadBinaryHandler(w, r)
+	h.DownloadBinary(w, r)
 
 	resp := w.Result()
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
@@ -165,4 +185,33 @@ func TestIndexReplace(t *testing.T) {
 
 	_, ok = IndexReplace([]byte("no-match"), []byte(placeholder), []byte(newUUID))
 	assert.False(t, ok)
+}
+
+func TestDownloadBinaryHandler_Unauthorized(t *testing.T) {
+	content := []byte("pre-00000000-0000-0000-0000-000000000000-post")
+	osType, arch, cleanup := setupDownloadBinaryTest(t, content)
+	defer cleanup()
+
+	h := newDownloadHandlers(t)
+
+	tests := []struct {
+		name     string
+		sensorID string
+		query    string
+		want     int
+	}{
+		{"WrongUser", testSensorID, "&user_id=other", http.StatusNotFound},
+		{"UnknownSensor", "99999999-2222-3333-4444-555555555555", "&user_id=" + testUserID, http.StatusNotFound},
+		{"MissingUser", testSensorID, "", http.StatusBadRequest},
+		{"BadSensorID", "nope", "&user_id=" + testUserID, http.StatusBadRequest},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest("GET", "/api/download/"+tc.sensorID+"?os="+osType+"&arch="+arch+tc.query, nil)
+			r = withDownloadParams(r, tc.sensorID)
+			h.DownloadBinary(w, r)
+			assert.Equal(t, tc.want, w.Code)
+		})
+	}
 }

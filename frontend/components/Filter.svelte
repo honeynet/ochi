@@ -59,7 +59,6 @@
     }, 500);
 
     function applyFilter() {
-        console.log(`Going to parse ${filter}`);
         filterValid = true;
 
         if (!filter) {

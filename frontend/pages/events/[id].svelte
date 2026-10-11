@@ -8,7 +8,6 @@
     import { untrack } from 'svelte';
 
     async function getEventById(id: string): Promise<Event> {
-        console.log('fetching event');
         const res = await fetch(`${API_ENDPOINT}/api/events/${id}`);
 
         if (res.ok) {

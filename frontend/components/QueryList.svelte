@@ -25,15 +25,11 @@
     }
 
     async function activate(query: Query) {
-        console.log('activating query', query);
-
         stringFilter.set(query.content ?? '');
         activeFilterId.set(query.id ?? undefined);
     }
 
     async function deactivate(query: Query) {
-        console.log('deactivating query', query);
-
         activeFilterId.set('');
         stringFilter.set('');
     }

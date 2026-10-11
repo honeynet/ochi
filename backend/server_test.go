@@ -43,8 +43,8 @@ func TestPublishHandler_AcceptsTypedGluttonEvent(t *testing.T) {
 	}`
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("POST", "/publish?token=token", bytes.NewBufferString(payload))
-	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r)
+	r := httptest.NewRequest("POST", "/api/publish?token=token", bytes.NewBufferString(payload))
+	(&handlers.Handlers{PublishFunc: cs.publish}).Publish(w, r)
 
 	resp := w.Result()
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
@@ -95,8 +95,8 @@ func TestPublishHandler_RoundTripsNewEnvelope(t *testing.T) {
 	}`
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("POST", "/publish?token=token", bytes.NewBufferString(payload))
-	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r)
+	r := httptest.NewRequest("POST", "/api/publish?token=token", bytes.NewBufferString(payload))
+	(&handlers.Handlers{PublishFunc: cs.publish}).Publish(w, r)
 
 	resp := w.Result()
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
@@ -157,8 +157,8 @@ func TestPublishHandler_AcceptsLargeDecodedEvent(t *testing.T) {
 	require.Less(t, len(body), handlers.PublishMaxBodyBytes)
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("POST", "/publish", bytes.NewReader(body))
-	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r)
+	r := httptest.NewRequest("POST", "/api/publish", bytes.NewReader(body))
+	(&handlers.Handlers{PublishFunc: cs.publish}).Publish(w, r)
 
 	resp := w.Result()
 	require.Equal(t, http.StatusAccepted, resp.StatusCode)
@@ -184,8 +184,8 @@ func TestPublishHandler_RejectsMissingSensorID(t *testing.T) {
 	}
 
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("POST", "/publish", bytes.NewBufferString(`{"dstPort":80}`))
-	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r)
+	r := httptest.NewRequest("POST", "/api/publish", bytes.NewBufferString(`{"dstPort":80}`))
+	(&handlers.Handlers{PublishFunc: cs.publish}).Publish(w, r)
 
 	assert.Equal(t, http.StatusBadRequest, w.Result().StatusCode)
 }
@@ -197,8 +197,8 @@ func TestPublishHandler_RateLimited(t *testing.T) {
 	}
 	payload := `{"sensorID":"abcd1234-ffff-ffff-ffff-ffffffffffff","dstPort":80}`
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest("POST", "/publish", bytes.NewBufferString(payload))
-	(&handlers.Handlers{Publish: cs.publish}).PublishHandler(w, r)
+	r := httptest.NewRequest("POST", "/api/publish", bytes.NewBufferString(payload))
+	(&handlers.Handlers{PublishFunc: cs.publish}).Publish(w, r)
 	assert.Equal(t, http.StatusTooManyRequests, w.Result().StatusCode)
 }
 

@@ -9,8 +9,7 @@ export interface Query {
 }
 
 export async function saveQuery(queryToEdit: Query, token: string) {
-    console.log('saving query');
-    const res = await fetch(`${API_ENDPOINT}/queries`, {
+    const res = await fetch(`${API_ENDPOINT}/api/queries`, {
         method: 'POST',
         headers: {
             Authorization: `Bearer ${token}`,
@@ -31,8 +30,7 @@ export async function saveQuery(queryToEdit: Query, token: string) {
 }
 
 export async function updateQuery(queryToEdit: Query, token: string): Promise<void> {
-    console.log('updating a query');
-    const res = await fetch(`${API_ENDPOINT}/queries/${queryToEdit.id}`, {
+    const res = await fetch(`${API_ENDPOINT}/api/queries/${queryToEdit.id}`, {
         method: 'PATCH',
         headers: {
             Authorization: `Bearer ${token}`,
@@ -55,7 +53,7 @@ export async function updateQuery(queryToEdit: Query, token: string): Promise<vo
 }
 
 export async function getQueries(token: string): Promise<Query[]> {
-    const res = await fetch(`${API_ENDPOINT}/queries`, {
+    const res = await fetch(`${API_ENDPOINT}/api/queries`, {
         method: 'GET',
         headers: {
             Authorization: `Bearer ${token}`,
@@ -71,8 +69,7 @@ export async function getQueries(token: string): Promise<Query[]> {
 }
 
 export async function deleteQuery(id: string, token: string): Promise<void> {
-    console.log(`deleting query with id ${id}`);
-    const res = await fetch(`${API_ENDPOINT}/queries/${id}`, {
+    const res = await fetch(`${API_ENDPOINT}/api/queries/${id}`, {
         method: 'DELETE',
         headers: {
             Authorization: `Bearer ${token}`,
@@ -86,8 +83,7 @@ export async function deleteQuery(id: string, token: string): Promise<void> {
 }
 
 export async function createQuery(queryToEdit: Query, token: string): Promise<Query> {
-    console.log('creating a query', queryToEdit);
-    const res = await fetch(`${API_ENDPOINT}/queries`, {
+    const res = await fetch(`${API_ENDPOINT}/api/queries`, {
         method: 'POST',
         headers: {
             Authorization: `Bearer ${token}`,
