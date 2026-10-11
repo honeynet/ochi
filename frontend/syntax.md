@@ -17,7 +17,7 @@ booleanClause
    : binaryClause || unaryClause
 
 binaryClause
-   : portItemClause binaryOperator integer || ipItemClause binaryOperator ipv4 || searchClause || "end.reason" binaryOperator string || "handler" binaryOperator string
+   : portItemClause binaryOperator integer || ipItemClause binaryOperator ipv4 || searchClause || "end.reason" binaryOperator string || "handler" binaryOperator string || "transport" binaryOperator string
 
 binaryOperator
    : "eq" || "==" || "ne" || "!="
@@ -56,4 +56,6 @@ string:
 `ip.src != 192.168.1.12 or udp.port == 12`  
 `not ip.src != 192.168.1.12`  
 `not (ip.src != 192.168.1.12)`  
-`handler eq "http"`
+`handler eq "http"`  
+`transport eq "udp"`  
+`transport ne "tcp" and payload contains "something"`

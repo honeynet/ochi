@@ -125,6 +125,18 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
         }
         const handlerName = stringToken.image.substring(1, stringToken.image.length - 1);
         return equalityCheck(event.handler ?? '', handlerName, binaryOperator.children);
+    } else if (children.TRANSPORT) {
+        const stringToken = children.STRING?.[0];
+        const binaryOperator = children.binaryOperator?.[0];
+        if (!stringToken) {
+            throw new Error('Missing string for transport clause');
+        }
+        if (!binaryOperator) {
+            throw new Error('Missing binary operator for transport clause');
+        }
+        // Compared case insensitively, as the port clauses already treat transport.
+        const name = stringToken.image.substring(1, stringToken.image.length - 1).toLowerCase();
+        return equalityCheck((event.transport ?? '').toLowerCase(), name, binaryOperator.children);
     } else if (children.portItemClause) {
         let portItemClause = children.portItemClause[0].children;
         const port = children.PORT?.[0];

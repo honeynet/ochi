@@ -37,6 +37,7 @@ const udpPort = createToken({ name: 'UDP_PORT', pattern: /udp\.port/, label: 'ud
 const payload = createToken({ name: 'PAYLOAD', pattern: /payload/, label: 'payload' });
 const endReason = createToken({ name: 'END_REASON', pattern: /end\.reason/, label: 'end.reason' });
 const handler = createToken({ name: 'HANDLER', pattern: /handler/, label: 'handler' });
+const transport = createToken({ name: 'TRANSPORT', pattern: /transport/, label: 'transport' });
 const string = createToken({ name: 'STRING', pattern: /\"[a-zA-Z0-9_-]+\"/, label: '"msg"' });
 
 const partial = createToken({
@@ -75,6 +76,7 @@ let allTokens = [
     udpPort,
     endReason,
     handler,
+    transport,
 
     payload,
     string,
@@ -220,6 +222,13 @@ class QueryParser extends CstParser {
                     this.CONSUME1(string);
                 },
             },
+            {
+                ALT: () => {
+                    this.CONSUME(transport);
+                    this.SUBRULE4(this.binaryOperator);
+                    this.CONSUME2(string);
+                },
+            },
         ]);
     });
 
@@ -263,6 +272,7 @@ const QUERY_START_SUGGESTIONS = [
     'ip.dst',
     'end.reason',
     'handler',
+    'transport',
     'payload',
     'not',
 ];
@@ -274,6 +284,7 @@ const FIELD_SUGGESTIONS = [
     'ip.dst',
     'end.reason',
     'handler',
+    'transport',
     'payload',
 ];
 

@@ -367,6 +367,30 @@
                 "pattern": "\\\"[a-zA-Z0-9_-]+\\\""
               }
             ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "TRANSPORT",
+                "label": "transport",
+                "idx": 0,
+                "pattern": "transport"
+              },
+              {
+                "type": "NonTerminal",
+                "name": "binaryOperator",
+                "idx": 4
+              },
+              {
+                "type": "Terminal",
+                "name": "STRING",
+                "label": "\"msg\"",
+                "idx": 2,
+                "pattern": "\\\"[a-zA-Z0-9_-]+\\\""
+              }
+            ]
           }
         ]
       }
