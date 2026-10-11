@@ -1,8 +1,8 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "module": "commonjs",
-    "moduleResolution": "node",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "verbatimModuleSyntax": false,
     "esModuleInterop": true,
     "allowJs": true,
