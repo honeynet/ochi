@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 )
 
 const PublishMaxBodyBytes = 2 << 20 // 2 MiB; multi-frame decoded sessions exceed 8 KiB
@@ -35,6 +36,15 @@ func (h *Handlers) Publish(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "sensor id must have at least 8 characters", http.StatusBadRequest)
 		return
 	}
+
+	var eventTime string
+	if ts, ok := event["timestamp"].(string); ok {
+		eventTime = ts
+	}
+	if eventTime == "" {
+		eventTime = time.Now().UTC().Format(time.RFC3339)
+	}
+
 	event["sensorID"] = sensorID[:8]
 	delete(event, "dstHost")
 
@@ -46,6 +56,9 @@ func (h *Handlers) Publish(w http.ResponseWriter, r *http.Request) {
 	if !h.PublishFunc(alteredMsg) {
 		http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 		return
+	}
+	if h.Sensors != nil {
+		h.Sensors.IncrementStat(sensorID, eventTime)
 	}
 	w.WriteHeader(http.StatusAccepted)
 }

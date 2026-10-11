@@ -2,6 +2,7 @@ package backend
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/honeynet/ochi/backend/entities"
 	"github.com/honeynet/ochi/backend/handlers"
 	"github.com/honeynet/ochi/backend/repos"
@@ -249,6 +251,7 @@ func TestGetSharedEventByID_NoAuth(t *testing.T) {
 	tmp := t.TempDir()
 	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
 
 	eventRepo, err := repos.NewEventRepo(db)
 	require.NoError(t, err)
@@ -484,11 +487,19 @@ func TestEventsDelete_Bulk(t *testing.T) {
 func TestRouter_CorsPreflightAndStaticFiles(t *testing.T) {
 	tmp := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "index.html"), []byte("<!doctype html>"), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(tmp, "build", "bundle.js"), []byte("console.log(1)"), 0644))
 
 	cs := &server{fs: os.DirFS(tmp), cfg: Config{JWTSecret: "test-secret"}}
 	mux, err := newRouter(cs)
 	require.NoError(t, err)
+
+	for _, route := range []string{"/", "/myqueries", "/mysensors", "/myevents"} {
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, route, nil))
+		assert.Equal(t, http.StatusOK, w.Code, "route: %s", route)
+		assert.Equal(t, "<!doctype html>", w.Body.String(), "route: %s", route)
+	}
 
 	req := httptest.NewRequest(http.MethodOptions, "/api/events/abc", nil)
 	req.Header.Set("Origin", "http://localhost:5173")
@@ -513,4 +524,161 @@ func TestRouter_CorsPreflightAndStaticFiles(t *testing.T) {
 	assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
 	assert.Equal(t, "X-Total-Count", w.Header().Get("Access-Control-Expose-Headers"))
 	assert.Equal(t, "console.log(1)", w.Body.String())
+}
+
+func TestSensorStats_RESTEndpointAndIsolation(t *testing.T) {
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	sensorRepo, err := repos.NewSensorRepo(db)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	const s1 = "11111111-1111-1111-1111-111111111111"
+	const s2 = "22222222-2222-2222-2222-222222222222"
+	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: s1, Name: "sensor-1", UserID: "owner-1"}))
+	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: s2, Name: "sensor-2", UserID: "owner-2"}))
+
+	cs := &server{
+		sensorRepo:     sensorRepo,
+		fs:             os.DirFS(tmp),
+		cfg:            Config{JWTSecret: "test-secret", PublishToken: "token"},
+		publishLimiter: rate.NewLimiter(rate.Inf, 1),
+	}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	token1, err := entities.NewToken("test-secret", entities.User{ID: "owner-1"})
+	require.NoError(t, err)
+
+	// Publish 2 events for s1
+	for i := 0; i < 2; i++ {
+		payload := fmt.Sprintf(`{"sensorID":"%s","dstPort":80,"timestamp":"2026-01-01T00:00:00Z"}`, s1)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/api/publish?token=token", bytes.NewBufferString(payload))
+		mux.ServeHTTP(w, r)
+		require.Equal(t, http.StatusAccepted, w.Code)
+	}
+
+	// Publish 1 event for s2
+	{
+		payload := fmt.Sprintf(`{"sensorID":"%s","dstPort":80,"timestamp":"2026-01-01T00:00:00Z"}`, s2)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/api/publish?token=token", bytes.NewBufferString(payload))
+		mux.ServeHTTP(w, r)
+		require.Equal(t, http.StatusAccepted, w.Code)
+	}
+
+	// Unauthenticated GET /api/sensors/stats -> 401
+	{
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/api/sensors/stats", nil)
+		mux.ServeHTTP(w, r)
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	}
+
+	// Authenticated as owner-1 -> only sees s1
+	{
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/api/sensors/stats", nil)
+		r.Header.Set("Authorization", "Bearer "+token1)
+		mux.ServeHTTP(w, r)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var stats map[string]entities.SensorStat
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &stats))
+		require.Contains(t, stats, s1)
+		assert.Equal(t, int64(2), stats[s1].EventCount)
+		assert.NotContains(t, stats, s2, "owner-1 must not see owner-2 stats")
+	}
+}
+
+func TestSensorStats_FlushAndReload(t *testing.T) {
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	repo, err := repos.NewSensorRepo(db)
+	require.NoError(t, err)
+
+	const sID = "33333333-3333-3333-3333-333333333333"
+	repo.IncrementStat(sID, "2026-10-11T12:00:00Z")
+	repo.IncrementStat(sID, "2026-10-11T12:01:00Z")
+
+	// Flush to SQLite
+	require.NoError(t, repo.FlushStats())
+
+	// Verify row in SQLite
+	var row entities.SensorStat
+	require.NoError(t, db.Get(&row, "SELECT sensor_id, event_count, last_event_at FROM sensor_stats WHERE sensor_id=?", sID))
+	assert.Equal(t, int64(2), row.EventCount)
+	assert.Equal(t, "2026-10-11T12:01:00Z", row.LastEventAt)
+
+	// Flush again with no changes does not fail or duplicate
+	require.NoError(t, repo.FlushStats())
+	require.NoError(t, db.Get(&row, "SELECT sensor_id, event_count, last_event_at FROM sensor_stats WHERE sensor_id=?", sID))
+	assert.Equal(t, int64(2), row.EventCount)
+
+	// Simulate restart: new repo loads from DB
+	repo2, err := repos.NewSensorRepo(db)
+	require.NoError(t, err)
+	require.NoError(t, repo2.LoadStats())
+
+	stats := repo2.GetStatsForSensors([]string{sID})
+	assert.Equal(t, int64(2), stats[sID].EventCount)
+	assert.Equal(t, "2026-10-11T12:01:00Z", stats[sID].LastEventAt)
+}
+
+func TestSensorStats_WebSocketBroadcast(t *testing.T) {
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	sensorRepo, err := repos.NewSensorRepo(db)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	cs := &server{
+		sensorRepo:       sensorRepo,
+		fs:               os.DirFS(tmp),
+		cfg:              Config{JWTSecret: "test-secret", PublishToken: "token"},
+		publishLimiter:   rate.NewLimiter(rate.Inf, 1),
+		statsSubscribers: make(map[*subscriber]struct{}),
+	}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/sensors/stats/ws"
+	c, _, err := websocket.Dial(ctx, wsURL, nil)
+	require.NoError(t, err)
+	defer c.Close(websocket.StatusNormalClosure, "")
+
+	// Trigger a stat increment and broadcast
+	const sID = "ws-sensor-12345678"
+	sensorRepo.IncrementStat(sID, "2026-10-11T12:00:00Z")
+	dirty := sensorRepo.PopDirtyStatsForBroadcast()
+	require.NotEmpty(t, dirty)
+	data, err := json.Marshal(dirty)
+	require.NoError(t, err)
+	cs.publishStats(data)
+
+	// Read message from WS client
+	_, msg, err := c.Read(ctx)
+	require.NoError(t, err)
+
+	var received []entities.SensorStat
+	require.NoError(t, json.Unmarshal(msg, &received))
+	require.Len(t, received, 1)
+	assert.Equal(t, sID, received[0].SensorID)
+	assert.Equal(t, int64(1), received[0].EventCount)
 }

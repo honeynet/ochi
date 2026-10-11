@@ -40,6 +40,7 @@ func newRouter(cs *server) (*chi.Mux, error) {
 	r.Get("/", h.Index)
 	r.Get("/global.css", h.CSS)
 	r.Get("/myqueries", h.Index)
+	r.Get("/mysensors", h.Index)
 	r.Get("/myevents", h.Index)
 	r.Get("/events/{id}", h.Index)
 
@@ -75,6 +76,8 @@ func newRouter(cs *server) (*chi.Mux, error) {
 		// sensor
 		r.Get("/sensors", handlers.BearerMiddleware(h.GetSensorsByUser, cs.cfg.JWTSecret))
 		r.Post("/sensors", handlers.BearerMiddleware(h.AddSensor, cs.cfg.JWTSecret))
+		r.Get("/sensors/stats", handlers.BearerMiddleware(h.GetSensorStats, cs.cfg.JWTSecret))
+		r.Get("/sensors/stats/ws", cs.statsSubscribeHandler)
 		r.Delete("/sensors/{id}", handlers.BearerMiddleware(h.DeleteSensor, cs.cfg.JWTSecret))
 		// Unauthenticated: guarded by the unguessable sensor id in the path plus the owner's user_id.
 		r.Get("/download/{sensor_id}", h.DownloadBinary)
