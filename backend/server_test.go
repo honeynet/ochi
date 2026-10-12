@@ -18,6 +18,7 @@ import (
 	"github.com/honeynet/ochi/backend/entities"
 	"github.com/honeynet/ochi/backend/handlers"
 	"github.com/honeynet/ochi/backend/repos"
+	"github.com/honeynet/ochi/backend/services"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/types"
 	"github.com/stretchr/testify/assert"
@@ -592,8 +593,13 @@ func TestSensorStats_RESTEndpointAndIsolation(t *testing.T) {
 	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: s1, Name: "sensor-1", UserID: "owner-1"}))
 	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: s2, Name: "sensor-2", UserID: "owner-2"}))
 
+	statsService := services.NewStatsService(sensorRepo)
+	require.NoError(t, statsService.Start(context.Background()))
+	defer func() { _ = statsService.Stop() }()
+
 	cs := &server{
 		sensorRepo:     sensorRepo,
+		statsService:   statsService,
 		fs:             os.DirFS(tmp),
 		cfg:            Config{JWTSecret: "test-secret", PublishToken: "token"},
 		publishLimiter: rate.NewLimiter(rate.Inf, 1),
@@ -655,12 +661,15 @@ func TestSensorStats_FlushAndReload(t *testing.T) {
 	repo, err := repos.NewSensorRepo(db)
 	require.NoError(t, err)
 
+	statsService := services.NewStatsService(repo)
+	require.NoError(t, statsService.Start(context.Background()))
+
 	const sID = "33333333-3333-3333-3333-333333333333"
-	repo.IncrementStat(sID, "2026-10-11T12:00:00Z")
-	repo.IncrementStat(sID, "2026-10-11T12:01:00Z")
+	statsService.IncrementStat(sID, "2026-10-11T12:00:00Z")
+	statsService.IncrementStat(sID, "2026-10-11T12:01:00Z")
 
 	// Flush to SQLite
-	require.NoError(t, repo.FlushStats())
+	require.NoError(t, statsService.Flush())
 
 	// Verify row in SQLite
 	var row entities.SensorStat
@@ -669,16 +678,21 @@ func TestSensorStats_FlushAndReload(t *testing.T) {
 	assert.Equal(t, "2026-10-11T12:01:00Z", row.LastEventAt)
 
 	// Flush again with no changes does not fail or duplicate
-	require.NoError(t, repo.FlushStats())
+	require.NoError(t, statsService.Flush())
 	require.NoError(t, db.Get(&row, "SELECT sensor_id, event_count, last_event_at FROM sensor_stats WHERE sensor_id=?", sID))
 	assert.Equal(t, int64(2), row.EventCount)
 
-	// Simulate restart: new repo loads from DB
+	// Stop previous service
+	require.NoError(t, statsService.Stop())
+
+	// Simulate restart: new repo and service loads from DB
 	repo2, err := repos.NewSensorRepo(db)
 	require.NoError(t, err)
-	require.NoError(t, repo2.LoadStats())
+	statsService2 := services.NewStatsService(repo2)
+	require.NoError(t, statsService2.Start(context.Background()))
+	defer func() { _ = statsService2.Stop() }()
 
-	stats := repo2.GetStatsForSensors([]string{sID})
+	stats := statsService2.GetStatsForSensors([]string{sID})
 	assert.Equal(t, int64(2), stats[sID].EventCount)
 	assert.Equal(t, "2026-10-11T12:01:00Z", stats[sID].LastEventAt)
 }
@@ -693,12 +707,17 @@ func TestSensorStats_WebSocketBroadcast(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
 
+	statsService := services.NewStatsService(sensorRepo)
+	statsService.SetBroadcastInterval(50 * time.Millisecond)
+	require.NoError(t, statsService.Start(context.Background()))
+	defer func() { _ = statsService.Stop() }()
+
 	cs := &server{
-		sensorRepo:       sensorRepo,
-		fs:               os.DirFS(tmp),
-		cfg:              Config{JWTSecret: "test-secret", PublishToken: "token"},
-		publishLimiter:   rate.NewLimiter(rate.Inf, 1),
-		statsSubscribers: make(map[*subscriber]struct{}),
+		sensorRepo:     sensorRepo,
+		statsService:   statsService,
+		fs:             os.DirFS(tmp),
+		cfg:            Config{JWTSecret: "test-secret", PublishToken: "token"},
+		publishLimiter: rate.NewLimiter(rate.Inf, 1),
 	}
 	mux, err := newRouter(cs)
 	require.NoError(t, err)
@@ -714,14 +733,9 @@ func TestSensorStats_WebSocketBroadcast(t *testing.T) {
 	require.NoError(t, err)
 	defer c.Close(websocket.StatusNormalClosure, "")
 
-	// Trigger a stat increment and broadcast
+	// Trigger a stat increment
 	const sID = "ws-sensor-12345678"
-	sensorRepo.IncrementStat(sID, "2026-10-11T12:00:00Z")
-	dirty := sensorRepo.PopDirtyStatsForBroadcast()
-	require.NotEmpty(t, dirty)
-	data, err := json.Marshal(dirty)
-	require.NoError(t, err)
-	cs.publishStats(data)
+	statsService.IncrementStat(sID, "2026-10-11T12:00:00Z")
 
 	// Read message from WS client
 	_, msg, err := c.Read(ctx)

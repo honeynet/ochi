@@ -37,14 +37,6 @@ func (h *Handlers) Publish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var eventTime string
-	if ts, ok := event["timestamp"].(string); ok {
-		eventTime = ts
-	}
-	if eventTime == "" {
-		eventTime = time.Now().UTC().Format(time.RFC3339)
-	}
-
 	event["sensorID"] = sensorID[:8]
 	delete(event, "dstHost")
 
@@ -57,8 +49,9 @@ func (h *Handlers) Publish(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 		return
 	}
-	if h.Sensors != nil {
-		h.Sensors.IncrementStat(sensorID, eventTime)
+	if h.Stats != nil {
+		now := time.Now().UTC().Format(time.RFC3339)
+		h.Stats.IncrementStat(sensorID, now)
 	}
 	w.WriteHeader(http.StatusAccepted)
 }

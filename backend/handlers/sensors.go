@@ -1,12 +1,15 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 
+	"github.com/coder/websocket"
 	"github.com/honeynet/ochi/backend/entities"
 
 	"github.com/go-chi/chi/v5"
@@ -52,11 +55,42 @@ func (h *Handlers) GetSensorStats(w http.ResponseWriter, r *http.Request) {
 		sensorIDs[i] = s.ID
 	}
 
-	stats := h.Sensors.GetStatsForSensors(sensorIDs)
+	var stats map[string]entities.SensorStat
+	if h.Stats != nil {
+		stats = h.Stats.GetStatsForSensors(sensorIDs)
+	} else {
+		stats = make(map[string]entities.SensorStat)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(stats); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// StatsSubscribe accepts WebSocket connections for live statistics updates.
+func (h *Handlers) StatsSubscribe(w http.ResponseWriter, r *http.Request) {
+	if h.Stats == nil {
+		http.Error(w, "statistics service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	c, err := websocket.Accept(w, r, nil)
+	if err != nil {
+		return
+	}
+	defer c.Close(websocket.StatusInternalError, "")
+
+	err = h.Stats.Subscribe(r.Context(), c)
+	if errors.Is(err, context.Canceled) {
+		return
+	}
+	if websocket.CloseStatus(err) == websocket.StatusNormalClosure ||
+		websocket.CloseStatus(err) == websocket.StatusGoingAway {
+		return
+	}
+	if err != nil {
 		return
 	}
 }
@@ -104,6 +138,9 @@ func (h *Handlers) DeleteSensor(w http.ResponseWriter, r *http.Request) {
 	if deleted == 0 {
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return
+	}
+	if h.Stats != nil {
+		h.Stats.DeleteSensor(id)
 	}
 	w.WriteHeader(http.StatusOK)
 }

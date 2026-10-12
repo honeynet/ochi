@@ -2,6 +2,7 @@ package repos
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/honeynet/ochi/backend/entities"
@@ -43,38 +44,78 @@ func initRepoForSensors(t *testing.T) *SensorRepo {
 	return r
 }
 
-func TestSensorRepo_Stats(t *testing.T) {
+func TestSensorRepo_StatsPersistence(t *testing.T) {
 	r := initRepoForSensors(t)
 
-	// Increment stats
 	s1 := "s-11111111"
-	stat1 := r.IncrementStat(s1, "2026-10-11T12:00:00Z")
-	require.Equal(t, int64(1), stat1.EventCount)
-	require.Equal(t, s1, stat1.SensorID)
+	s2 := "s-22222222"
 
-	// Increment again
-	stat1 = r.IncrementStat(s1, "2026-10-11T12:01:00Z")
-	require.Equal(t, int64(2), stat1.EventCount)
+	// Initial batch upsert
+	deltas := map[string]int64{
+		s1: 5,
+		s2: 10,
+	}
+	lastSeen := map[string]string{
+		s1: "2026-10-12T12:00:00Z",
+		s2: "2026-10-12T12:05:00Z",
+	}
+	require.NoError(t, r.BatchUpsertStats(deltas, lastSeen))
 
-	// GetStats
-	stats := r.GetStatsForSensors([]string{s1, "unknown"})
-	require.Equal(t, int64(2), stats[s1].EventCount)
-	require.Equal(t, int64(0), stats["unknown"].EventCount)
+	// LoadAllStats
+	stats, err := r.LoadAllStats()
+	require.NoError(t, err)
+	require.Len(t, stats, 2)
 
-	// Pop dirty for broadcast
-	dirty := r.PopDirtyStatsForBroadcast()
-	require.Len(t, dirty, 1)
-	require.Equal(t, s1, dirty[0].SensorID)
+	statsMap := make(map[string]entities.SensorStat)
+	for _, s := range stats {
+		statsMap[s.SensorID] = s
+	}
+	require.Equal(t, int64(5), statsMap[s1].EventCount)
+	require.Equal(t, "2026-10-12T12:00:00Z", statsMap[s1].LastEventAt)
+	require.Equal(t, int64(10), statsMap[s2].EventCount)
+	require.Equal(t, "2026-10-12T12:05:00Z", statsMap[s2].LastEventAt)
 
-	// Pop again should be empty
-	require.Empty(t, r.PopDirtyStatsForBroadcast())
+	// Second batch upsert adds deltas
+	deltas2 := map[string]int64{
+		s1: 3,
+	}
+	lastSeen2 := map[string]string{
+		s1: "2026-10-12T12:10:00Z",
+	}
+	require.NoError(t, r.BatchUpsertStats(deltas2, lastSeen2))
 
-	// Flush to database
-	require.NoError(t, r.FlushStats())
+	stats, err = r.LoadAllStats()
+	require.NoError(t, err)
+	statsMap = make(map[string]entities.SensorStat)
+	for _, s := range stats {
+		statsMap[s.SensorID] = s
+	}
+	require.Equal(t, int64(8), statsMap[s1].EventCount)
+	require.Equal(t, "2026-10-12T12:10:00Z", statsMap[s1].LastEventAt)
 
-	// Check persistent row exists
-	var row entities.SensorStat
-	require.NoError(t, r.getAllStats.Get(&row))
-	require.Equal(t, s1, row.SensorID)
-	require.Equal(t, int64(2), row.EventCount)
+	// DeleteStat
+	require.NoError(t, r.DeleteStat(s1))
+	stats, err = r.LoadAllStats()
+	require.NoError(t, err)
+	require.Len(t, stats, 1)
+	require.Equal(t, s2, stats[0].SensorID)
+}
+
+func TestSensorRepo_StatsBoundaryAndConstraint(t *testing.T) {
+	r := initRepoForSensors(t)
+
+	const sBoundary = "s-boundary-max"
+
+	// Upsert large int64 boundary value (within SQLite signed 64-bit INTEGER range)
+	const largeCount int64 = math.MaxInt64 / 2
+	require.NoError(t, r.BatchUpsertStats(map[string]int64{sBoundary: largeCount}, map[string]string{sBoundary: "2026-10-12T12:00:00Z"}))
+
+	stats, err := r.LoadAllStats()
+	require.NoError(t, err)
+	require.Len(t, stats, 1)
+	require.Equal(t, largeCount, stats[0].EventCount)
+
+	// SQLite check constraint verifies non-negative counts
+	_, err = r.db.Exec(`INSERT INTO sensor_stats (sensor_id, event_count) VALUES ('invalid-neg', -1)`)
+	require.Error(t, err, "negative counts must be rejected by check constraint")
 }

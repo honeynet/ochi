@@ -23,6 +23,7 @@ func newRouter(cs *server) (*chi.Mux, error) {
 		Queries:     cs.queryRepo,
 		Events:      cs.eventRepo,
 		Sensors:     cs.sensorRepo,
+		Stats:       cs.statsService,
 		PublishFunc: cs.publish,
 	}
 
@@ -62,7 +63,7 @@ func newRouter(cs *server) (*chi.Mux, error) {
 		r.Post("/login", h.Login)
 		// Shared event links are unguessable IDs and must work without login.
 		r.Get("/events/{id}", h.GetEventByID)
-		r.Get("/sensors/stats/ws", cs.statsSubscribeHandler)
+		r.Get("/sensors/stats/ws", h.StatsSubscribe)
 		// Unauthenticated: guarded by the unguessable sensor id in the path plus the owner's user_id.
 		r.Get("/download/{sensor_id}", h.DownloadBinary)
 

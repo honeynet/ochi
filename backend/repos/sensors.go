@@ -2,7 +2,6 @@ package repos
 
 import (
 	"strings"
-	"sync"
 
 	"github.com/honeynet/ochi/backend/entities"
 
@@ -16,24 +15,14 @@ type SensorRepo struct {
 	addSensor        *sqlx.NamedStmt
 	deleteSensor     *sqlx.Stmt
 
-	getAllStats  *sqlx.Stmt
-	deleteStat   *sqlx.Stmt
-	db           *sqlx.DB
-
-	statsMu             sync.RWMutex
-	statsTotals         map[string]int64
-	statsLastSeen       map[string]string
-	statsDeltas         map[string]int64
-	statsDirtyBroadcast map[string]struct{}
+	getAllStats *sqlx.Stmt
+	deleteStat  *sqlx.Stmt
+	db          *sqlx.DB
 }
 
 func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
 	r := &SensorRepo{
-		db:                  db,
-		statsTotals:         make(map[string]int64),
-		statsLastSeen:       make(map[string]string),
-		statsDeltas:         make(map[string]int64),
-		statsDirtyBroadcast: make(map[string]struct{}),
+		db: db,
 	}
 	db.Mapper = reflectx.NewMapperFunc("json", strings.ToLower)
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS sensors (
@@ -49,7 +38,7 @@ func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
 
 	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS sensor_stats (
 		sensor_id TEXT PRIMARY KEY NOT NULL
-		, event_count INTEGER NOT NULL DEFAULT 0
+		, event_count INTEGER NOT NULL DEFAULT 0 CHECK(event_count >= 0)
 		, last_event_at TEXT
 	)`)
 	if err != nil {
@@ -138,130 +127,27 @@ func (r *SensorRepo) DeleteByOwner(id, userID string) (int64, error) {
 	}
 	if affected > 0 {
 		_, _ = r.deleteStat.Exec(id)
-		r.statsMu.Lock()
-		delete(r.statsTotals, id)
-		delete(r.statsLastSeen, id)
-		delete(r.statsDeltas, id)
-		delete(r.statsDirtyBroadcast, id)
-		r.statsMu.Unlock()
 	}
 	return affected, nil
 }
 
-// LoadStats loads previously persisted sensor statistics into the in-memory cache.
-func (r *SensorRepo) LoadStats() error {
+// LoadAllStats loads all persisted sensor statistics from SQLite.
+func (r *SensorRepo) LoadAllStats() ([]entities.SensorStat, error) {
 	var rows []entities.SensorStat
 	if err := r.getAllStats.Select(&rows); err != nil {
-		return err
+		return nil, err
 	}
-	r.statsMu.Lock()
-	defer r.statsMu.Unlock()
-	for _, row := range rows {
-		r.statsTotals[row.SensorID] = row.EventCount
-		r.statsLastSeen[row.SensorID] = row.LastEventAt
-	}
-	return nil
+	return rows, nil
 }
 
-// IncrementStat records an event in memory and schedules it for batched flush and broadcast.
-func (r *SensorRepo) IncrementStat(sensorID, eventTime string) entities.SensorStat {
-	r.statsMu.Lock()
-	defer r.statsMu.Unlock()
-
-	r.statsTotals[sensorID]++
-	r.statsDeltas[sensorID]++
-	if eventTime != "" {
-		r.statsLastSeen[sensorID] = eventTime
-	}
-	r.statsDirtyBroadcast[sensorID] = struct{}{}
-
-	return entities.SensorStat{
-		SensorID:    sensorID,
-		EventCount:  r.statsTotals[sensorID],
-		LastEventAt: r.statsLastSeen[sensorID],
-	}
-}
-
-// GetStatsForSensors retrieves current stats for the requested sensor IDs from memory.
-// It also matches by prefix when an event used a truncated 8-character ID or full UUID.
-func (r *SensorRepo) GetStatsForSensors(sensorIDs []string) map[string]entities.SensorStat {
-	r.statsMu.RLock()
-	defer r.statsMu.RUnlock()
-
-	res := make(map[string]entities.SensorStat, len(sensorIDs))
-	for _, id := range sensorIDs {
-		count := r.statsTotals[id]
-		lastSeen := r.statsLastSeen[id]
-
-		if count == 0 {
-			if len(id) >= 8 {
-				prefix := id[:8]
-				if c, ok := r.statsTotals[prefix]; ok && c > 0 {
-					count = c
-					lastSeen = r.statsLastSeen[prefix]
-				}
-			}
-			if count == 0 {
-				for totalID, c := range r.statsTotals {
-					if (strings.HasPrefix(totalID, id) || strings.HasPrefix(id, totalID)) && c > 0 {
-						count += c
-						if lastSeen == "" || r.statsLastSeen[totalID] > lastSeen {
-							lastSeen = r.statsLastSeen[totalID]
-						}
-					}
-				}
-			}
-		}
-
-		res[id] = entities.SensorStat{
-			SensorID:    id,
-			EventCount:  count,
-			LastEventAt: lastSeen,
-		}
-	}
-	return res
-}
-
-// PopDirtyStatsForBroadcast returns all sensor stats modified since the last broadcast tick.
-func (r *SensorRepo) PopDirtyStatsForBroadcast() []entities.SensorStat {
-	r.statsMu.Lock()
-	defer r.statsMu.Unlock()
-
-	if len(r.statsDirtyBroadcast) == 0 {
+// BatchUpsertStats commits a batch of deltas into SQLite within a single transaction.
+func (r *SensorRepo) BatchUpsertStats(deltas map[string]int64, lastSeen map[string]string) error {
+	if len(deltas) == 0 {
 		return nil
 	}
-
-	res := make([]entities.SensorStat, 0, len(r.statsDirtyBroadcast))
-	for id := range r.statsDirtyBroadcast {
-		res = append(res, entities.SensorStat{
-			SensorID:    id,
-			EventCount:  r.statsTotals[id],
-			LastEventAt: r.statsLastSeen[id],
-		})
-	}
-	r.statsDirtyBroadcast = make(map[string]struct{})
-	return res
-}
-
-// FlushStats commits in-memory deltas into SQLite in a single transaction.
-func (r *SensorRepo) FlushStats() error {
-	r.statsMu.Lock()
-	if len(r.statsDeltas) == 0 {
-		r.statsMu.Unlock()
-		return nil
-	}
-
-	pendingDeltas := r.statsDeltas
-	r.statsDeltas = make(map[string]int64)
-	pendingLastSeen := make(map[string]string, len(pendingDeltas))
-	for id := range pendingDeltas {
-		pendingLastSeen[id] = r.statsLastSeen[id]
-	}
-	r.statsMu.Unlock()
 
 	tx, err := r.db.Beginx()
 	if err != nil {
-		r.revertDeltas(pendingDeltas)
 		return err
 	}
 	defer tx.Rollback()
@@ -274,38 +160,29 @@ func (r *SensorRepo) FlushStats() error {
 			last_event_at = excluded.last_event_at
 	`)
 	if err != nil {
-		r.revertDeltas(pendingDeltas)
 		return err
 	}
 	defer stmt.Close()
 
-	for id, delta := range pendingDeltas {
-		if delta == 0 {
+	for id, delta := range deltas {
+		if delta <= 0 {
 			continue
 		}
 		stat := entities.SensorStat{
 			SensorID:    id,
 			EventCount:  delta,
-			LastEventAt: pendingLastSeen[id],
+			LastEventAt: lastSeen[id],
 		}
 		if _, err := stmt.Exec(stat); err != nil {
-			r.revertDeltas(pendingDeltas)
 			return err
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
-		r.revertDeltas(pendingDeltas)
-		return err
-	}
-
-	return nil
+	return tx.Commit()
 }
 
-func (r *SensorRepo) revertDeltas(pending map[string]int64) {
-	r.statsMu.Lock()
-	defer r.statsMu.Unlock()
-	for id, delta := range pending {
-		r.statsDeltas[id] += delta
-	}
+// DeleteStat removes the stats row for a sensor.
+func (r *SensorRepo) DeleteStat(id string) error {
+	_, err := r.deleteStat.Exec(id)
+	return err
 }
