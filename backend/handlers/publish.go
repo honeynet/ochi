@@ -40,16 +40,9 @@ func (h *Handlers) Publish(w http.ResponseWriter, r *http.Request) {
 	// Authenticate on the full UUID, before it is truncated for display. The
 	// response does not name the sensor id, so it cannot be used to discover
 	// which sensors are registered.
-	if h.RequireRegisteredSensors {
-		known, err := h.Sensors.Exists(sensorID)
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
-		if !known {
-			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
-			return
-		}
+	if h.RequireRegisteredSensors && !h.Sensors.Exists(sensorID) {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		return
 	}
 	event["sensorID"] = sensorID[:8]
 	delete(event, "dstHost")
