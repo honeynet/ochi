@@ -102,3 +102,58 @@ test.describe('filter input', () => {
         await expect(field).toHaveValue('tcp.port == 80');
     });
 });
+
+// The message list moves the selection on ArrowUp/ArrowDown from anywhere on the page.
+// The filter is a textarea now, where those keys move the caret between lines, so the
+// list has to leave them alone while the filter has focus.
+test.describe('filter input with events in the list', () => {
+    let pageErrors: Error[];
+
+    test.beforeEach(async ({ page }) => {
+        pageErrors = [];
+        page.on('pageerror', (e) => pageErrors.push(e));
+
+        await page.route('**/api/**', (route) =>
+            route.request().url().endsWith('/api/queries')
+                ? route.fulfill({ json: [] })
+                : route.fulfill({ status: 401, json: {} }),
+        );
+        await page.routeWebSocket('**/api/subscribe', (ws) => {
+            ws.send(
+                JSON.stringify({
+                    sensorID: 'abcd1234',
+                    srcHost: '203.0.113.10',
+                    srcPort: '54321',
+                    dstPort: 445,
+                    transport: 'tcp',
+                    rule: 'Rule: tcp dst port 445',
+                    handler: 'smb',
+                    timestamp: '2026-01-01T00:00:00Z',
+                    payload: 'dGVzdA==',
+                }),
+            );
+        });
+
+        await page.goto('/');
+        await expect(page.locator('.message')).toHaveCount(1);
+    });
+
+    test.afterEach(() => {
+        expect(pageErrors).toEqual([]);
+    });
+
+    test('arrow keys in the filter do not move the event selection', async ({ page }) => {
+        const field = page.locator('.filter-input');
+        const selected = page.locator('.message.selected');
+
+        await field.fill('tcp.port == 445');
+        await field.press('ArrowDown');
+        await field.press('ArrowUp');
+        await expect(selected).toHaveCount(0);
+
+        // Outside the filter the same key does select, so the check above is not vacuous.
+        await field.blur();
+        await page.keyboard.press('ArrowDown');
+        await expect(selected).toHaveCount(1);
+    });
+});
