@@ -62,7 +62,8 @@ function css({ output }) {
 
 function silence(warning, warn) {
 	if (warning.code == 'CIRCULAR_DEPENDENCY') {
-		if (/node_modules.*?chevrotain/.test(warning.importer)) return;
+		// Upstream packages with known internal cycles (not app code).
+		if (/node_modules\/(svelte|chevrotain|@roxi\/routify)/.test(warning.message || warning.importer || '')) return;
 	}
 	if (/node_modules.*?chevrotain/.test(warning.id)) {
 		if (warning.code == 'EVAL') return;

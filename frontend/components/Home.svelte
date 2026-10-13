@@ -103,7 +103,7 @@
         <main>
             <ColumnSplit>
                 {#snippet left()}
-                    <MessageList bind:this={messageList} />
+                    <MessageList bind:this={messageList} {active} />
                 {/snippet}
                 {#snippet right()}
                     <Content isShared={false} />

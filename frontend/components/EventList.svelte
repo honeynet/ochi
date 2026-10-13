@@ -4,7 +4,7 @@
     import { onMount } from 'svelte';
     import { get } from 'svelte/store';
     import { token, currentEvent, eventColumnWidths, buildEventColsStyle } from '../store';
-    import { type Event, deleteEvents, getEvents } from '../event';
+    import { type Event, deleteEvents, getEventById, getEvents } from '../event';
     import Message from './Message.svelte';
     import EventHeader from './EventHeader.svelte';
     import { showError } from '../toast';
@@ -27,6 +27,63 @@
     });
 
     let requestId = 0;
+
+    function isTypingTarget(target: EventTarget | null): boolean {
+        if (!(target instanceof HTMLElement)) {
+            return false;
+        }
+        const tag = target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+            return true;
+        }
+        if (target.isContentEditable) {
+            return true;
+        }
+        return !!target.closest('[role="separator"]');
+    }
+
+    async function selectEvent(event: Event) {
+        if (event.id) {
+            try {
+                const full = await getEventById(event.id);
+                currentEvent.set(full);
+                return;
+            } catch {
+                // fall through
+            }
+        }
+        currentEvent.set(event);
+    }
+
+    function onWindowKeydown(e: KeyboardEvent) {
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') {
+            return;
+        }
+        if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) {
+            return;
+        }
+        if (isTypingTarget(e.target)) {
+            return;
+        }
+        if (events.length === 0) {
+            return;
+        }
+
+        e.preventDefault();
+
+        const cur = get(currentEvent);
+        let idx = cur?.id ? events.findIndex((ev) => ev.id === cur.id) : -1;
+        if (idx === -1) {
+            selectEvent(events[events.length - 1]);
+            return;
+        }
+
+        const next = e.key === 'ArrowUp' ? idx - 1 : idx + 1;
+        if (next < 0 || next >= events.length) {
+            return;
+        }
+        selectEvent(events[next]);
+    }
 
     function syncCurrentEvent() {
         const cur = get(currentEvent);
@@ -95,6 +152,8 @@
         await reloadEvents();
     }
 </script>
+
+<svelte:window onkeydown={onWindowKeydown} />
 
 <div class="column">
     <div class="toolbar">

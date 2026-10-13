@@ -4,6 +4,7 @@
     import type { Event } from '../event';
     import { filterEvent } from '../eventFilter';
     import {
+        currentEvent,
         maxNumberOfMessages,
         parsedFilter,
         env,
@@ -12,10 +13,67 @@
         buildEventColsStyle,
     } from '../store';
     import { ENV_PROD } from '../constants';
+    import { get } from 'svelte/store';
     import { untrack } from 'svelte';
+
+    let { active = true }: { active?: boolean } = $props();
 
     let messages = $state<Event[]>([]);
     let follow = $state(true);
+
+    function isTypingTarget(target: EventTarget | null): boolean {
+        if (!(target instanceof HTMLElement)) {
+            return false;
+        }
+        const tag = target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+            return true;
+        }
+        if (target.isContentEditable) {
+            return true;
+        }
+        return !!target.closest('[role="separator"]');
+    }
+
+    function eventIndex(list: Event[], cur: Event | undefined): number {
+        if (!cur) {
+            return -1;
+        }
+        return list.findIndex((m) => (m.id ? m.id === cur.id : m === cur));
+    }
+
+    function onWindowKeydown(e: KeyboardEvent) {
+        if (!active) {
+            return;
+        }
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') {
+            return;
+        }
+        if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) {
+            return;
+        }
+        if (isTypingTarget(e.target)) {
+            return;
+        }
+        if (messages.length === 0) {
+            return;
+        }
+
+        e.preventDefault();
+        follow = false;
+
+        let idx = eventIndex(messages, get(currentEvent));
+        if (idx === -1) {
+            currentEvent.set(messages[messages.length - 1]);
+            return;
+        }
+
+        const next = e.key === 'ArrowUp' ? idx - 1 : idx + 1;
+        if (next < 0 || next >= messages.length) {
+            return;
+        }
+        currentEvent.set(messages[next]);
+    }
 
     $effect(() => {
         const value = $parsedFilter;
@@ -57,6 +115,8 @@
         }
     }
 </script>
+
+<svelte:window onkeydown={onWindowKeydown} />
 
 <div class="column">
     <div
