@@ -102,3 +102,28 @@ export function filterBySensor(sensorID: string) {
     activeFilterId.set(undefined);
     stringFilter.update((current) => applySensorFilter(current, sensorID));
 }
+
+import {
+    loadColumnWidths,
+    saveColumnWidths,
+    DEFAULT_COLUMN_WIDTHS,
+    type EventColumnWidths,
+} from './columnWidths';
+
+export * from './columnWidths';
+
+export const eventColumnWidths: Writable<EventColumnWidths> = writable(loadColumnWidths());
+eventColumnWidths.subscribe((val) => {
+    saveColumnWidths(val);
+});
+
+export function resetColumnWidth(col?: keyof EventColumnWidths) {
+    if (col) {
+        eventColumnWidths.update((w) => ({
+            ...w,
+            [col]: DEFAULT_COLUMN_WIDTHS[col],
+        }));
+    } else {
+        eventColumnWidths.set({ ...DEFAULT_COLUMN_WIDTHS });
+    }
+}

@@ -1,8 +1,16 @@
 <script lang="ts">
     import Message from './Message.svelte';
+    import EventHeader from './EventHeader.svelte';
     import type { Event } from '../event';
     import { filterEvent } from '../eventFilter';
-    import { maxNumberOfMessages, parsedFilter, env, recordObservedSensorId } from '../store';
+    import {
+        maxNumberOfMessages,
+        parsedFilter,
+        env,
+        recordObservedSensorId,
+        eventColumnWidths,
+        buildEventColsStyle,
+    } from '../store';
     import { ENV_PROD } from '../constants';
     import { untrack } from 'svelte';
 
@@ -53,20 +61,12 @@
 <div class="column">
     <div
         id="message-log"
+        style="--event-cols: {buildEventColsStyle($eventColumnWidths)};"
         onwheel={() => {
             follow = false;
         }}
     >
-        <div class="event-head">
-            <span>Sensor</span>
-            <span>Source</span>
-            <span>Port</span>
-            <span>Handler</span>
-            <span>Scanner</span>
-            <span>End</span>
-            <span class="frames" title="received/sent">Frames</span>
-            <span></span>
-        </div>
+        <EventHeader />
         {#each messages as message (message.timestamp)}
             <Message {message} {follow} />
         {/each}
@@ -94,40 +94,11 @@
     }
 
     #message-log {
-        --event-cols: 8ch minmax(14ch, 1.4fr) 9ch 8ch minmax(8ch, 0.9fr) 20ch 6ch 7ch;
         flex: 1;
         min-height: 0;
         overflow-y: auto;
-        overflow-x: hidden;
+        overflow-x: auto;
         scrollbar-gutter: stable;
-    }
-
-    .event-head {
-        display: grid;
-        grid-template-columns: var(--event-cols);
-        column-gap: 6px;
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        padding: 0 0 2px;
-        font-family: monospace;
-        font-size: 11px;
-        font-weight: 600;
-        line-height: 1.2;
-        color: #555;
-        background: #fff;
-        border-bottom: 1px solid #ccc;
-    }
-
-    .event-head span {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .frames {
-        text-align: right;
     }
 
     #resume-btn {

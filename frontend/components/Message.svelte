@@ -160,7 +160,8 @@
         grid-template-columns: var(--event-cols);
         column-gap: 6px;
         align-items: center;
-        width: 100%;
+        width: max-content;
+        min-width: 100%;
         margin: 0;
         padding: 1px 0;
         font-family: monospace;
