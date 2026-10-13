@@ -2,7 +2,7 @@
     import Message from './Message.svelte';
     import type { Event } from '../event';
     import { filterEvent } from '../eventFilter';
-    import { maxNumberOfMessages, parsedFilter, env } from '../store';
+    import { maxNumberOfMessages, parsedFilter, env, recordObservedSensorId } from '../store';
     import { ENV_PROD } from '../constants';
     import { untrack } from 'svelte';
 
@@ -36,6 +36,9 @@
     });
 
     export function onNewMessage(message: Event) {
+        if (message.sensorID) {
+            recordObservedSensorId(message.sensorID);
+        }
         if (!$parsedFilter || filterEvent(message, $parsedFilter)) {
             messages.push(message);
             messages = messages;

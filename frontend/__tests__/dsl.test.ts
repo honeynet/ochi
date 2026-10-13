@@ -1,5 +1,5 @@
 import { describe, expect, test } from '@jest/globals';
-import { parseDSL, productions } from '../dsl';
+import { parseDSL, productions, applySensorFilter, type Suggestion } from '../dsl';
 import { filterEvent } from '../eventFilter';
 import { generateTestEvent } from '../util';
 
@@ -446,6 +446,74 @@ describe('parseDSL', () => {
         let state3 = { suggestions: [] as string[], partialToken: null };
         parseDSL('sensor == ', state3);
         expect(state3.suggestions).toEqual(['"sensor-id"']);
+    });
+
+    test('computes suggestions for sensor query with known sensors', () => {
+        let state = { suggestions: [] as Suggestion[], partialToken: null };
+        parseDSL('sensor == ', state, {
+            sensors: [{ id: 'abcd1234', name: 'alpha-sensor' }, { id: 'efgh5678' }],
+        });
+        expect(state.suggestions).toEqual([
+            { value: '"abcd1234"', label: '"abcd1234" (alpha-sensor)' },
+            { value: '"efgh5678"', label: '"efgh5678"' },
+        ]);
+    });
+
+    test('filters sensor suggestions with partial query', () => {
+        let state = { suggestions: [] as Suggestion[], partialToken: null };
+        parseDSL('sensor == ab', state, {
+            sensors: [
+                { id: 'abcd1234', name: 'alpha-sensor' },
+                { id: 'efgh5678', name: 'beta-sensor' },
+            ],
+        });
+        expect(state.suggestions).toEqual([
+            { value: '"abcd1234"', label: '"abcd1234" (alpha-sensor)' },
+        ]);
+
+        let stateWithQuote = { suggestions: [] as Suggestion[], partialToken: null };
+        parseDSL('sensor == "ab', stateWithQuote, {
+            sensors: [
+                { id: 'abcd1234', name: 'alpha-sensor' },
+                { id: 'efgh5678', name: 'beta-sensor' },
+            ],
+        });
+        expect(stateWithQuote.suggestions).toEqual([
+            { value: '"abcd1234"', label: '"abcd1234" (alpha-sensor)' },
+        ]);
+
+        let stateByName = { suggestions: [] as Suggestion[], partialToken: null };
+        parseDSL('sensor == beta', stateByName, {
+            sensors: [
+                { id: 'abcd1234', name: 'alpha-sensor' },
+                { id: 'efgh5678', name: 'beta-sensor' },
+            ],
+        });
+        expect(stateByName.suggestions).toEqual([
+            { value: '"efgh5678"', label: '"efgh5678" (beta-sensor)' },
+        ]);
+
+        let stateByNameQuote = { suggestions: [] as Suggestion[], partialToken: null };
+        parseDSL('sensor == "beta', stateByNameQuote, {
+            sensors: [
+                { id: 'abcd1234', name: 'alpha-sensor' },
+                { id: 'efgh5678', name: 'beta-sensor' },
+            ],
+        });
+        expect(stateByNameQuote.suggestions).toEqual([
+            { value: '"efgh5678"', label: '"efgh5678" (beta-sensor)' },
+        ]);
+    });
+
+    test('applySensorFilter sets and updates filter correctly', () => {
+        expect(applySensorFilter('', 'sensor-1')).toBe('sensor == "sensor-1"');
+        expect(applySensorFilter('sensor == "sensor-1"', 'sensor-2')).toBe('sensor == "sensor-2"');
+        expect(applySensorFilter('tcp.port == 80', 'sensor-3')).toBe(
+            'tcp.port == 80 and sensor == "sensor-3"',
+        );
+        expect(applySensorFilter('tcp.port == 80 and sensor == "sensor-3"', 'sensor-4')).toBe(
+            'tcp.port == 80 and sensor == "sensor-4"',
+        );
     });
 });
 

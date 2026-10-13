@@ -1,6 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte';
-    import { token } from '../store';
+    import { token, userSensors } from '../store';
     import { showError } from '../toast';
     import {
         type Sensor,
@@ -46,6 +46,7 @@
         try {
             await deleteSensor($token, sensor.id);
             sensors = sensors.filter((s) => s.id !== sensor.id);
+            userSensors.set(sensors);
             closeConfirm();
         } catch (e) {
             showError(e);
@@ -64,6 +65,7 @@
                 name: newName.trim(),
             });
             sensors = [...sensors, sensor];
+            userSensors.set(sensors);
             newName = '';
         } catch (e) {
             addError = e instanceof Error ? e.message : String(e);
@@ -76,6 +78,7 @@
     onMount(async () => {
         try {
             sensors = await getSensors($token);
+            userSensors.set(sensors);
         } catch (e) {
             error = e instanceof Error ? e.message : String(e);
             showError(e);

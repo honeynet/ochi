@@ -1,4 +1,4 @@
-import { isAuthenticated, user, token } from './store';
+import { isAuthenticated, user, token, userSensors, observedSensorIds } from './store';
 import { showError } from './toast';
 
 import { API_ENDPOINT } from './constants';
@@ -29,6 +29,8 @@ export function logout() {
     isAuthenticated.set(false);
     user.set({});
     token.set('');
+    userSensors.set([]);
+    observedSensorIds.set([]);
 }
 
 export function login(data: any) {

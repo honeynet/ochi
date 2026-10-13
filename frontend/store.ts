@@ -1,7 +1,9 @@
-import { writable, type Writable } from 'svelte/store';
+import { writable, derived, get, type Writable, type Readable } from 'svelte/store';
 import type { QueryCstNode } from './generated/chevrotain_dts';
 import type { Event } from './event';
 import type { Query } from './query';
+import type { Sensor } from './sensor';
+import { applySensorFilter } from './dsl';
 import { ENV_PROD } from './constants';
 
 export type UserProfile = {
@@ -58,3 +60,45 @@ token.subscribe((value) => {
         localStorage.setItem('token', value);
     }
 });
+
+export interface SensorOption {
+    id: string;
+    name?: string;
+}
+
+export const userSensors: Writable<Sensor[]> = writable([]);
+export const observedSensorIds: Writable<string[]> = writable([]);
+
+export const knownSensors: Readable<SensorOption[]> = derived(
+    [userSensors, observedSensorIds],
+    ([$userSensors, $observedIds]) => {
+        const map = new Map<string, string | undefined>();
+        for (const s of $userSensors) {
+            map.set(s.id, s.name);
+        }
+        for (const id of $observedIds) {
+            if (!map.has(id)) {
+                map.set(id, undefined);
+            }
+        }
+        const list: SensorOption[] = [];
+        for (const [id, name] of map.entries()) {
+            list.push({ id, name });
+        }
+        return list;
+    },
+);
+
+export function recordObservedSensorId(id: string) {
+    if (!id) return;
+    observedSensorIds.update((ids) => {
+        if (ids.includes(id)) return ids;
+        return [...ids, id];
+    });
+}
+
+export function filterBySensor(sensorID: string) {
+    if (!sensorID) return;
+    activeFilterId.set(undefined);
+    stringFilter.update((current) => applySensorFilter(current, sensorID));
+}
