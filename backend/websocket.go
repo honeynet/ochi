@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -19,6 +20,9 @@ type subscriber struct {
 	// handlers restricts delivery to events whose handler is in the set.
 	// nil means no filtering.
 	handlers map[string]struct{}
+	// closing guards closeSlow so a subscriber whose buffer stays full is closed
+	// once, not once per publish.
+	closing atomic.Bool
 }
 
 // parseHandlerFilter reads the repeatable, comma-separated "handler" query
@@ -130,7 +134,11 @@ func (cs *server) publish(msg []byte) bool {
 		select {
 		case s.msgs <- msg:
 		default:
-			go s.closeSlow()
+			// Buffer full: close once. Later publishes to the same stuck
+			// subscriber must not each spawn another close goroutine.
+			if s.closing.CompareAndSwap(false, true) {
+				go s.closeSlow()
+			}
 		}
 	}
 	return true
