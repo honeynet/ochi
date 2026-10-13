@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -564,4 +565,61 @@ func TestRouter_CorsPreflightAndStaticFiles(t *testing.T) {
 	assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
 	assert.Equal(t, "X-Total-Count", w.Header().Get("Access-Control-Expose-Headers"))
 	assert.Equal(t, "console.log(1)", w.Body.String())
+}
+
+// jwtauth.Verifier also reads a "jwt" cookie; the router restricts it to the
+// Authorization header. A valid token presented only in a cookie must not
+// authenticate, so wildcard CORS cannot be turned into a CSRF path.
+func TestAuthenticator_IgnoresJWTCookie(t *testing.T) {
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	eventRepo, err := repos.NewEventRepo(db)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	cs := &server{eventRepo: eventRepo, fs: os.DirFS(tmp), cfg: Config{JWTSecret: "test-secret"}}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	token, err := entities.NewToken(entities.NewTokenAuth("test-secret"), entities.User{ID: "owner-1"})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events", nil)
+	req.AddCookie(&http.Cookie{Name: "jwt", Value: token})
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusUnauthorized, w.Code, "a token in a cookie must not authenticate")
+
+	// The same token in the Authorization header still works.
+	req = httptest.NewRequest(http.MethodGet, "/api/events", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// A subscriber whose buffer stays full is closed once, however many events are
+// published while it is stuck, rather than spawning a close goroutine each time.
+func TestPublish_ClosesSlowSubscriberOnce(t *testing.T) {
+	cs := &server{
+		subscribers:    make(map[*subscriber]struct{}),
+		publishLimiter: rate.NewLimiter(rate.Inf, 1),
+	}
+	var closes atomic.Int32
+	s := &subscriber{
+		msgs:      make(chan []byte, 1),
+		closeSlow: func() { closes.Add(1) },
+	}
+	s.msgs <- []byte("fill the buffer") // the channel is now full
+	cs.addSubscriber(s)
+
+	for i := 0; i < 5; i++ {
+		require.True(t, cs.publish([]byte("x")))
+	}
+
+	require.Eventually(t, func() bool { return closes.Load() == 1 }, time.Second, 10*time.Millisecond)
+	time.Sleep(50 * time.Millisecond) // let any extra close goroutines wrongly fire
+	assert.Equal(t, int32(1), closes.Load(), "a stuck subscriber must be closed once, not per publish")
 }

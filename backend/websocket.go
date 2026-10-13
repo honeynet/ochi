@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -13,6 +14,9 @@ import (
 type subscriber struct {
 	msgs      chan []byte
 	closeSlow func()
+	// closing guards closeSlow so a subscriber whose buffer stays full is closed
+	// once, not once per publish.
+	closing atomic.Bool
 }
 
 // subscribeHandler accepts the WebSocket connection and then subscribes
@@ -88,7 +92,11 @@ func (cs *server) publish(msg []byte) bool {
 		select {
 		case s.msgs <- msg:
 		default:
-			go s.closeSlow()
+			// Buffer full: close once. Later publishes to the same stuck
+			// subscriber must not each spawn another close goroutine.
+			if s.closing.CompareAndSwap(false, true) {
+				go s.closeSlow()
+			}
 		}
 	}
 	return true
