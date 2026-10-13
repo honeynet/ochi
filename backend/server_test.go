@@ -2,8 +2,10 @@ package backend
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/honeynet/ochi/backend/entities"
 	"github.com/honeynet/ochi/backend/handlers"
@@ -564,4 +567,116 @@ func TestRouter_CorsPreflightAndStaticFiles(t *testing.T) {
 	assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
 	assert.Equal(t, "X-Total-Count", w.Header().Get("Access-Control-Expose-Headers"))
 	assert.Equal(t, "console.log(1)", w.Body.String())
+}
+
+func newRunnableServer(t *testing.T) *server {
+	t.Helper()
+	tmp := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+	db, err := openSQLite(filepath.Join(tmp, "data.db"))
+	require.NoError(t, err)
+
+	cs := &server{
+		cfg:                     Config{JWTSecret: "test-secret"},
+		subscriberMessageBuffer: 64,
+		subscribers:             make(map[*subscriber]struct{}),
+		publishLimiter:          rate.NewLimiter(rate.Inf, 1),
+		db:                      db,
+		fs:                      os.DirFS(tmp),
+	}
+	cs.uRepo, err = repos.NewUserRepo(db)
+	require.NoError(t, err)
+	cs.queryRepo, err = repos.NewQueryRepo(db)
+	require.NoError(t, err)
+	cs.eventRepo, err = repos.NewEventRepo(db)
+	require.NoError(t, err)
+	cs.sensorRepo, err = repos.NewSensorRepo(db)
+	require.NoError(t, err)
+	cs.mux, err = newRouter(cs)
+	require.NoError(t, err)
+	return cs
+}
+
+// A cancelled context (as a signal produces) drains the server and closes the
+// shared database. Before this change only uRepo.Close was called, and it was a
+// no-op because NewUserRepo never stored the handle, so the database stayed open.
+func TestServer_ShutdownClosesDatabase(t *testing.T) {
+	cs := newRunnableServer(t)
+	db := cs.db
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- cs.serve(ctx, l) }()
+
+	base := "http://" + l.Addr().String()
+	require.Eventually(t, func() bool {
+		resp, err := http.Get(base + "/api/events/missing")
+		if err != nil {
+			return false
+		}
+		_ = resp.Body.Close()
+		return true
+	}, 3*time.Second, 20*time.Millisecond, "server never started serving")
+
+	cancel()
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("serve did not return after the context was cancelled")
+	}
+	require.Error(t, db.Ping(), "the shared database must be closed after shutdown")
+}
+
+// A request already being handled when shutdown starts runs to completion.
+func TestServer_ShutdownDrainsInflightRequests(t *testing.T) {
+	cs := newRunnableServer(t)
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	r := chi.NewRouter()
+	r.Get("/slow", func(w http.ResponseWriter, _ *http.Request) {
+		close(started)
+		<-release
+		w.WriteHeader(http.StatusOK)
+	})
+	cs.mux = r
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- cs.serve(ctx, l) }()
+
+	status := make(chan int, 1)
+	go func() {
+		resp, err := http.Get("http://" + l.Addr().String() + "/slow")
+		if err != nil {
+			status <- -1
+			return
+		}
+		defer resp.Body.Close()
+		status <- resp.StatusCode
+	}()
+
+	<-started // the request is in the handler
+	cancel()  // shutdown begins while it is in flight
+	time.Sleep(100 * time.Millisecond)
+	close(release) // let the handler finish
+
+	assert.Equal(t, http.StatusOK, <-status, "an in-flight request must complete")
+	require.NoError(t, <-done)
+}
+
+// The database is closed even when the server never starts, so a failed start
+// does not leak the handle or leave the WAL unchecked.
+func TestServer_RunClosesDatabaseOnListenError(t *testing.T) {
+	cs := newRunnableServer(t)
+	db := cs.db
+	cs.cfg.ListenAddress = "127.0.0.1:-1" // not a valid port
+
+	require.Error(t, cs.Run())
+	require.Error(t, db.Ping(), "the database must be closed when the listener fails")
 }
