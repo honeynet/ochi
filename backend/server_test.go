@@ -536,10 +536,18 @@ func TestRouter_CorsPreflightAndStaticFiles(t *testing.T) {
 	tmp := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(tmp, "build", "bundle.js"), []byte("console.log(1)"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "index.html"), []byte("<!doctype html>"), 0644))
 
 	cs := &server{fs: os.DirFS(tmp), cfg: Config{JWTSecret: "test-secret"}}
 	mux, err := newRouter(cs)
 	require.NoError(t, err)
+
+	for _, path := range []string{"/", "/myqueries", "/myevents", "/mysensors", "/events/abc"} {
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		assert.Equal(t, http.StatusOK, w.Code, "expected 200 for %s", path)
+		assert.Equal(t, "<!doctype html>", w.Body.String())
+	}
 
 	req := httptest.NewRequest(http.MethodOptions, "/api/events/abc", nil)
 	req.Header.Set("Origin", "http://localhost:5173")
