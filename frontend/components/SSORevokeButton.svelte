@@ -10,6 +10,10 @@
             showError('Cannot revoke SSO without an email');
             return;
         }
+        if (typeof google === 'undefined' || !google.accounts?.id) {
+            logout();
+            return;
+        }
         google.accounts.id.revoke(email, (response: google.accounts.id.RevocationResponse) => {
             if (response.successful) {
                 logout();

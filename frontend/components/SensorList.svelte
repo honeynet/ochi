@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { untrack } from 'svelte';
     import { token } from '../store';
     import { showError } from '../toast';
     import {
@@ -73,15 +73,29 @@
         }
     }
 
-    onMount(async () => {
+    async function loadSensors(authToken: string) {
+        if (!authToken) {
+            sensors = [];
+            loading = false;
+            return;
+        }
+        loading = true;
+        error = '';
         try {
-            sensors = await getSensors($token);
+            sensors = await getSensors(authToken);
         } catch (e) {
             error = e instanceof Error ? e.message : String(e);
             showError(e);
         } finally {
             loading = false;
         }
+    }
+
+    $effect(() => {
+        const currentToken = $token;
+        untrack(() => {
+            loadSensors(currentToken);
+        });
     });
 </script>
 
