@@ -11,7 +11,11 @@
         filterActive,
         isAuthenticated,
         activeFilterId,
+        token,
+        userSensors,
+        knownSensors,
     } from '../store';
+    import { getSensors } from '../sensor';
     import type { Query } from '../query';
     import { untrack } from 'svelte';
 
@@ -26,6 +30,17 @@
     let suggestionsDiv = $state<HTMLDivElement | undefined>(undefined);
     let inputField = $state<HTMLTextAreaElement | undefined>(undefined);
     let focused = $state(false);
+
+    $effect(() => {
+        const currentToken = $token;
+        if (currentToken) {
+            getSensors(currentToken)
+                .then((s) => {
+                    userSensors.set(s);
+                })
+                .catch(() => {});
+        }
+    });
 
     $effect(() => {
         const value = $stringFilter;
@@ -63,20 +78,22 @@
 
     function clearFilter() {
         filter = '';
+        hideSuggestions = true;
         applyFilter();
         inputField?.focus();
     }
 
     function _filterChangeHandler() {
         // TODO: validate queries as user types them.
+        const parseOptions = { sensors: $knownSensors };
         if (filter === '') {
             filterValid = true;
-            parseDSL('', filterState);
+            parseDSL('', filterState, parseOptions);
             filterState = { ...filterState }; // force reactivity to update suggestions
             if (hideSuggestions) hideSuggestions = false;
             return;
         }
-        let parseResult = parseDSL(filter, filterState);
+        let parseResult = parseDSL(filter, filterState, parseOptions);
         filterState = { ...filterState }; // force reactivity to update suggestions
         if (parseResult.lexErrors.length > 0 || parseResult.parseErrors.length > 0) {
             filterValid = false;
@@ -102,7 +119,7 @@
             return;
         }
 
-        let parseResult = parseDSL(filter, filterState);
+        let parseResult = parseDSL(filter, filterState, { sensors: $knownSensors });
         if (parseResult.lexErrors.length > 0) {
             showError(`Invalid filter: ${parseResult.lexErrors[0].message}`);
             filterActive.set(false);
@@ -183,11 +200,15 @@
             hide={hideSuggestions}
             onSelect={(value) => {
                 // the debounced handler may not have run yet; recompute against the current text
-                parseDSL(filter, filterState);
+                parseDSL(filter, filterState, { sensors: $knownSensors });
                 if (filterState.partialToken) {
                     filter = filter.slice(0, filterState.partialToken.startOffset) + value;
                 } else {
-                    filter += ' ' + value;
+                    filter = filter.endsWith(' ')
+                        ? filter + value
+                        : filter
+                          ? filter + ' ' + value
+                          : value;
                 }
                 inputField?.focus();
                 _filterChangeHandler();
