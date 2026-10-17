@@ -10,6 +10,8 @@ const PublishMaxBodyBytes = 2 << 20 // 2 MiB; multi-frame decoded sessions excee
 
 // Publish reads the request body with a limit of 2 MiB and then publishes
 // the received message. sensorID is truncated to 8 characters for display.
+// When require_registered_sensors is set, the sensor UUID must be in the sensors
+// table or the event is rejected.
 // dstHost (honeypot sensor IP) is stripped so it is never sent to subscribers.
 func (h *Handlers) Publish(w http.ResponseWriter, r *http.Request) {
 	body := http.MaxBytesReader(w, r.Body, PublishMaxBodyBytes)
@@ -33,6 +35,13 @@ func (h *Handlers) Publish(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(sensorID) < 8 {
 		http.Error(w, "sensor id must have at least 8 characters", http.StatusBadRequest)
+		return
+	}
+	// Authenticate on the full UUID, before it is truncated for display. The
+	// response does not name the sensor id, so it cannot be used to discover
+	// which sensors are registered.
+	if h.RequireRegisteredSensors && !h.Sensors.Exists(sensorID) {
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
 	event["sensorID"] = sensorID[:8]
