@@ -44,7 +44,7 @@ payload:
    : "payload"
 
 string:
-   : regex([\S]+)
+   : regex(\"(?:[^"\\]|\\.)*\")
 ```
 
 
@@ -58,4 +58,8 @@ string:
 `not (ip.src != 192.168.1.12)`  
 `handler eq "http"`  
 `transport eq "udp"`  
-`transport ne "tcp" and payload contains "something"`
+`transport ne "tcp" and payload contains "something"`  
+`payload contains "GET / HTTP/1.1"`  
+`payload contains "192.168.1.1"`  
+`end.reason == "connection reset by peer"`
+
