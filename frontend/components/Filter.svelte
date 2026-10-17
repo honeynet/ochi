@@ -78,6 +78,7 @@
 
     function clearFilter() {
         filter = '';
+        hideSuggestions = true;
         applyFilter();
         inputField?.focus();
     }
@@ -132,20 +133,6 @@
             return;
         }
         parsedFilter.set(parseResult.cst);
-    }
-
-    function clearFilter() {
-        filter = '';
-        filterValid = true;
-        filterActive.set(false);
-        parsedFilter.set(undefined);
-        stringFilter.set('');
-        activeFilterId.set(undefined);
-        hideSuggestions = true;
-        filterState = {
-            suggestions: [],
-            partialToken: null,
-        };
     }
 
     function openSaveQuery() {
@@ -228,11 +215,6 @@
             }}
         />
     </div>
-    <Button
-        disabled={!filter && !$parsedFilter && !$stringFilter}
-        onClick={clearFilter}
-        text="Clear"
-    />
     <Button disabled={!filterValid} onClick={applyFilter} text="Apply" />
     {#if $isAuthenticated}<QueryModal bind:this={saveModal} />
         <Button disabled={!filterValid} onClick={openSaveQuery} text="Save" />
