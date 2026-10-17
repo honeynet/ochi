@@ -851,4 +851,3 @@ func TestEventHandlers_StatusCodes(t *testing.T) {
 	theirsID := ids["owner-2"][0]
 	assert.Equal(t, http.StatusForbidden, do(http.MethodDelete, "/api/events/"+theirsID, "").Code)
 }
-
