@@ -36,6 +36,7 @@ func newDownloadHandlers(t *testing.T) *Handlers {
 	t.Helper()
 	db, err := sqlx.Connect("sqlite", filepath.Join(t.TempDir(), "test.db"))
 	assert.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
 	repo, err := repos.NewSensorRepo(db)
 	assert.NoError(t, err)
 	assert.NoError(t, repo.AddSensors(entities.Sensor{ID: testSensorID, UserID: testUserID, Name: "s"}))

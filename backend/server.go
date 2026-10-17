@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/honeynet/ochi/backend/repos"
+	"github.com/honeynet/ochi/backend/services"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jmoiron/sqlx"
@@ -47,6 +48,10 @@ type server struct {
 	queryRepo  *repos.QueryRepo
 	eventRepo  *repos.EventRepo
 	sensorRepo *repos.SensorRepo
+
+	// statistics service
+	statsService *services.StatsService
+
 	// http client
 	httpClient *http.Client
 
@@ -118,6 +123,11 @@ func NewServer(fsys fs.FS, configPath string) (*server, error) {
 		return nil, err
 	}
 
+	cs.statsService = services.NewStatsService(cs.sensorRepo)
+	if err := cs.statsService.Start(context.Background()); err != nil {
+		return nil, err
+	}
+
 	cs.mux, err = newRouter(cs)
 	if err != nil {
 		return nil, err
@@ -144,6 +154,9 @@ func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn,
 func (cs *server) Run() error {
 	l, err := net.Listen("tcp", cs.cfg.ListenAddress)
 	if err != nil {
+		if cs.statsService != nil {
+			_ = cs.statsService.Stop()
+		}
 		_ = cs.closeDB()
 		return err
 	}
@@ -179,6 +192,10 @@ func (cs *server) serve(ctx context.Context, l net.Listener) error {
 		return err
 	case <-ctx.Done():
 		log.Print("terminating")
+	}
+
+	if cs.statsService != nil {
+		_ = cs.statsService.Stop()
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
