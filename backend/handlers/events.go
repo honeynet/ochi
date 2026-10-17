@@ -18,7 +18,7 @@ func (h *Handlers) CreateEvent(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var event entities.Event
 	if err := decoder.Decode(&event); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	event.OwnerID = userID
@@ -50,7 +50,7 @@ func (h *Handlers) DeleteEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if userID != ownerID {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
 	err = h.Events.Delete(id)

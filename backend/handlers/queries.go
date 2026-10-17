@@ -33,7 +33,7 @@ func (h *Handlers) CreateQuery(w http.ResponseWriter, r *http.Request) {
 	var t entities.Query
 	err := decoder.Decode(&t)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	query, err := h.Queries.Create(userID, t.Content, t.Description, t.Active)
@@ -63,14 +63,14 @@ func (h *Handlers) UpdateQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if userID != q.OwnerID {
-		http.Error(w, "Unauthorized", http.StatusInternalServerError)
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
 	err = decoder.Decode(&q)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if id != q.ID {
@@ -101,7 +101,7 @@ func (h *Handlers) DeleteQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if userID != q.OwnerID {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
 	err = h.Queries.Delete(id)
