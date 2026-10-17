@@ -101,6 +101,50 @@ describe('parseDSL', () => {
         ).toBeFalsy();
     });
 
+    test('parsing payload with spaces, slashes and punctuation', () => {
+        let sx = parseDSL('payload contains "GET / HTTP/1.1"');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        let payload = Buffer.from('GET / HTTP/1.1\r\nHost: example.com\r\n').toString('base64');
+        expect(
+            filterEvent(generateTestEvent(80, '123', '192.168.1.1', payload), sx.cst!),
+        ).toBeTruthy();
+    });
+
+    test('parsing payload with IP address string', () => {
+        let sx = parseDSL('payload contains "192.168.1.1"');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        let payload = Buffer.from('connecting to 192.168.1.1:80').toString('base64');
+        expect(
+            filterEvent(generateTestEvent(80, '123', '10.0.0.1', payload), sx.cst!),
+        ).toBeTruthy();
+    });
+
+    test('parsing payload with escaped quotes', () => {
+        let sx = parseDSL('payload contains "hello \\"world\\""');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        let payload = Buffer.from('hello "world"').toString('base64');
+        expect(
+            filterEvent(generateTestEvent(80, '123', '10.0.0.1', payload), sx.cst!),
+        ).toBeTruthy();
+    });
+
+    test('parsing endReason with spaces', () => {
+        let sx = parseDSL('end.reason == "connection reset by peer"');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '1.1.1.1', undefined, 'Rule: TCP', {
+                    endReason: 'connection reset by peer',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+    });
+
     test('parses ip.dst against dstHost', () => {
         let sx = parseDSL('ip.dst eq 198.51.100.8');
         expect(sx.lexErrors).toHaveLength(0);

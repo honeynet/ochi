@@ -38,8 +38,13 @@ const payload = createToken({ name: 'PAYLOAD', pattern: /payload/, label: 'paylo
 const endReason = createToken({ name: 'END_REASON', pattern: /end\.reason/, label: 'end.reason' });
 const handler = createToken({ name: 'HANDLER', pattern: /handler/, label: 'handler' });
 const transport = createToken({ name: 'TRANSPORT', pattern: /transport/, label: 'transport' });
+
 const sensor = createToken({ name: 'SENSOR', pattern: /sensor/, label: 'sensor' });
-const string = createToken({ name: 'STRING', pattern: /\"[a-zA-Z0-9_-]+\"/, label: '"msg"' });
+const string = createToken({
+    name: 'STRING',
+    pattern: /\"(?:[^"\\\r\n]|\\.)*\"/,
+    label: '"msg"',
+});
 
 const partial = createToken({
     name: 'PARTIAL',
