@@ -3,6 +3,7 @@
     import { url } from '@roxi/routify';
     import SSOButton from './SSOButton.svelte';
     import LogoutButton from './LogoutButton.svelte';
+    import SSORevokeButton from './SSORevokeButton.svelte';
     import Config from './Config.svelte';
     import { isAuthenticated } from '../store';
 
@@ -35,6 +36,7 @@
                 <a class="header__link" href={$url('/mysensors')}>Sensors</a>
             {/if}
             <LogoutButton />
+            <SSORevokeButton />
         {/if}
         <Config />
     </div>
