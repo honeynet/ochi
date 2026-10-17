@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -757,4 +758,30 @@ func TestServer_RunClosesDatabaseOnListenError(t *testing.T) {
 
 	require.Error(t, cs.Run())
 	require.Error(t, db.Ping(), "the database must be closed when the listener fails")
+}
+
+func TestPublish_FiltersByHandler(t *testing.T) {
+	cs := &server{
+		subscribers:    make(map[*subscriber]struct{}),
+		publishLimiter: rate.NewLimiter(rate.Inf, 1),
+	}
+	all := &subscriber{msgs: make(chan []byte, 4)}
+	smb := &subscriber{msgs: make(chan []byte, 4), handlers: parseHandlerFilter(url.Values{"handler": {"smb, ssh"}})}
+	cs.addSubscriber(all)
+	cs.addSubscriber(smb)
+
+	require.True(t, cs.publish([]byte(`{"handler":"smb"}`)))
+	require.True(t, cs.publish([]byte(`{"handler":"http"}`)))
+	require.True(t, cs.publish([]byte(`{"handler":"ssh"}`)))
+	require.True(t, cs.publish([]byte(`{}`)))
+
+	assert.Len(t, all.msgs, 4)
+	assert.Len(t, smb.msgs, 2)
+}
+
+func TestParseHandlerFilter(t *testing.T) {
+	assert.Nil(t, parseHandlerFilter(url.Values{}))
+	assert.Nil(t, parseHandlerFilter(url.Values{"handler": {" , "}}))
+	got := parseHandlerFilter(url.Values{"handler": {"smb,ssh", "http"}})
+	assert.Equal(t, map[string]struct{}{"smb": {}, "ssh": {}, "http": {}}, got)
 }
