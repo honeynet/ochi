@@ -112,7 +112,7 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
         if (!binaryOperator) {
             throw new Error('Missing binary operator for end.reason clause');
         }
-        const reason = stringToken.image.substring(1, stringToken.image.length - 1);
+        const reason = parseStringLiteral(stringToken.image);
         return equalityCheck(event.endReason ?? '', reason, binaryOperator.children);
     } else if (children.HANDLER) {
         const stringToken = children.STRING?.[0];
@@ -123,7 +123,7 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
         if (!binaryOperator) {
             throw new Error('Missing binary operator for handler clause');
         }
-        const handlerName = stringToken.image.substring(1, stringToken.image.length - 1);
+        const handlerName = parseStringLiteral(stringToken.image);
         return equalityCheck(event.handler ?? '', handlerName, binaryOperator.children);
     } else if (children.TRANSPORT) {
         const stringToken = children.STRING?.[0];
@@ -135,7 +135,7 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
             throw new Error('Missing binary operator for transport clause');
         }
         // Compared case insensitively, as the port clauses already treat transport.
-        const name = stringToken.image.substring(1, stringToken.image.length - 1).toLowerCase();
+        const name = parseStringLiteral(stringToken.image).toLowerCase();
         return equalityCheck((event.transport ?? '').toLowerCase(), name, binaryOperator.children);
     } else if (children.portItemClause) {
         let portItemClause = children.portItemClause[0].children;
@@ -167,14 +167,26 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
         if (!stringToken) {
             throw new Error('Missing string token for search clause');
         }
-        const payloadString = stringToken.image;
-        const trimmedString = payloadString.substring(1, payloadString.length - 1);
+        const searchString = parseStringLiteral(stringToken.image);
         if (!event.payload) {
             return false;
         }
-        return atob(event.payload).includes(trimmedString);
+        try {
+            return atob(event.payload).includes(searchString);
+        } catch {
+            return false;
+        }
     } else {
         throw new Error('Unexpected booleanClauseCstNode');
+    }
+}
+
+export function parseStringLiteral(image: string): string {
+    const raw = image.slice(1, -1);
+    try {
+        return JSON.parse(image);
+    } catch {
+        return raw.replace(/\\(.)/g, '$1');
     }
 }
 

@@ -57,6 +57,12 @@
             element.scrollIntoView();
         }
     };
+
+    const scrollIntoViewIfSelected: Attachment = (element) => {
+        if (selected) {
+            element.scrollIntoView({ block: 'nearest' });
+        }
+    };
 </script>
 
 {#snippet cells()}
@@ -85,6 +91,7 @@
         onclick={click}
         onkeydown={onKeydown}
         {@attach scrollIntoViewIfFollowing}
+        {@attach scrollIntoViewIfSelected}
         aria-pressed={selected}
     >
         <span class="cell check">
@@ -106,6 +113,7 @@
         class={['message', { selected }]}
         onclick={click}
         {@attach scrollIntoViewIfFollowing}
+        {@attach scrollIntoViewIfSelected}
         aria-pressed={selected}
     >
         {@render cells()}
@@ -131,9 +139,13 @@
         cursor: pointer;
     }
 
-    .message:hover,
-    .selected {
+    .message:hover {
         background: #f5f5f5;
+    }
+
+    .selected {
+        background: #e4ebf3;
+        box-shadow: inset 3px 0 0 #3d6ea8;
     }
 
     .cell {

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/coder/websocket"
@@ -40,6 +41,8 @@ type server struct {
 	subscribersMu sync.Mutex
 	subscribers   map[*subscriber]struct{}
 
+	// db is the single SQLite handle shared by every repo, closed on shutdown.
+	db *sqlx.DB
 	// the repositories
 	uRepo      *repos.UserRepo
 	queryRepo  *repos.QueryRepo
@@ -98,6 +101,7 @@ func NewServer(fsys fs.FS, configPath string) (*server, error) {
 	if err != nil {
 		return nil, err
 	}
+	cs.db = db
 
 	cs.uRepo, err = repos.NewUserRepo(db)
 	if err != nil {
@@ -143,12 +147,30 @@ func writeTimeout(ctx context.Context, timeout time.Duration, c *websocket.Conn,
 	return c.Write(ctx, websocket.MessageText, msg)
 }
 
-// Run initializes the server
+// Run serves until the process is asked to stop. It shuts down gracefully on
+// SIGINT, SIGTERM or SIGHUP: the deploy script quits the screen session (SIGHUP)
+// and then sends SIGTERM, neither of which the old handler caught, so a redeploy
+// killed in-flight requests and never closed the database.
 func (cs *server) Run() error {
 	l, err := net.Listen("tcp", cs.cfg.ListenAddress)
 	if err != nil {
+		if cs.statsService != nil {
+			_ = cs.statsService.Stop()
+		}
+		_ = cs.closeDB()
 		return err
 	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+	defer stop()
+
+	return cs.serve(ctx, l)
+}
+
+// serve runs the HTTP server on l until ctx is cancelled or Serve fails, then
+// drains in-flight requests and closes the database. It always closes the
+// database before returning, whichever path it takes.
+func (cs *server) serve(ctx context.Context, l net.Listener) error {
 	log.Printf("listening on http://%v", l.Addr())
 
 	srv := &http.Server{
@@ -157,28 +179,45 @@ func (cs *server) Run() error {
 		WriteTimeout: time.Second * 10,
 	}
 
-	defer cs.uRepo.Close()
-
 	errc := make(chan error, 1)
 	go func() {
 		errc <- srv.Serve(l)
 	}()
 
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, os.Interrupt)
 	select {
 	case err := <-errc:
+		// Serve stopped on its own (a listen error, say), not on a signal.
 		log.Printf("failed to serve: %v", err)
-	case sig := <-sigs:
-		log.Printf("terminating: %v", sig)
+		_ = cs.closeDB()
+		return err
+	case <-ctx.Done():
+		log.Print("terminating")
 	}
 
 	if cs.statsService != nil {
 		_ = cs.statsService.Stop()
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	return srv.Shutdown(ctx)
+	err := srv.Shutdown(shutdownCtx)
+	if closeErr := cs.closeDB(); closeErr != nil && err == nil {
+		err = closeErr
+	}
+	return err
+}
+
+// closeDB closes the shared SQLite handle, which checkpoints the WAL. It is safe
+// to call when the handle was never opened.
+func (cs *server) closeDB() error {
+	if cs.db == nil {
+		return nil
+	}
+	err := cs.db.Close()
+	cs.db = nil
+	if err != nil {
+		log.Printf("closing database: %v", err)
+	}
+	return err
 }

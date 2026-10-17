@@ -24,6 +24,7 @@
     type RenderResult = { name: string; content: string[] };
 
     const HEX_BYTES_PER_LINE = 24;
+    const HEX_COLLAPSE_LINES = 10;
     // hexy default grouping is 2 bytes (4 hex chars). Address is 8 chars + ": "
     // (10); hex column is 2.5 chars per byte, then 1 space before ASCII.
     const HEX_COLUMN_END = 10 + Math.floor(HEX_BYTES_PER_LINE * 2.5) + 1;
@@ -52,6 +53,7 @@
     let eventCreated = $state<Event | undefined>(undefined);
     let disabled = $state(false);
     let expandedFrames = new SvelteSet<number>();
+    let expandedHexdumps = new SvelteSet<string>();
     let showClientHello = $state(false);
 
     let decodedFrames = $derived(
@@ -77,6 +79,7 @@
         eventCreated = undefined;
         disabled = false;
         expandedFrames.clear();
+        expandedHexdumps.clear();
         showClientHello = false;
     });
 
@@ -85,6 +88,14 @@
             expandedFrames.delete(index);
         } else {
             expandedFrames.add(index);
+        }
+    }
+
+    function toggleHexdump(id: string) {
+        if (expandedHexdumps.has(id)) {
+            expandedHexdumps.delete(id);
+        } else {
+            expandedHexdumps.add(id);
         }
     }
 
@@ -141,17 +152,27 @@
     }
 </script>
 
-{#snippet hexdump(payload: string)}
+{#snippet hexdump(payload: string, id: string)}
     {@const results = render(payload)}
+    {@const lineCount = results[0]?.content.length ?? 0}
+    {@const isExpanded = expandedHexdumps.has(id)}
+    {@const visibleCount =
+        lineCount > HEX_COLLAPSE_LINES && !isExpanded ? HEX_COLLAPSE_LINES : lineCount}
     <div class="pre">
         {#each results as renderResult (renderResult.name)}
             <div class={renderResult.name}>
-                {#each renderResult.content as content, i (`${renderResult.name}-${i}`)}
+                {#each renderResult.content.slice(0, visibleCount) as content, i (`${renderResult.name}-${i}`)}
                     <div class={i % 2 == 0 ? 'even' : 'odd'}>{content}</div>
                 {/each}
             </div>
         {/each}
     </div>
+    {#if lineCount > HEX_COLLAPSE_LINES}
+        <button type="button" onclick={() => toggleHexdump(id)}
+            >{isExpanded ? '▾' : '▸'}
+            {isExpanded ? 'Show less' : `Show ${lineCount - HEX_COLLAPSE_LINES} more lines`}</button
+        >
+    {/if}
 {/snippet}
 
 <div class="column" id="content">
@@ -221,14 +242,14 @@
                     >
                     ClientHello{tls.truncated ? ' (truncated at 4 KiB)' : ''}
                     {#if showClientHello}
-                        {@render hexdump(tls.clientHello)}
+                        {@render hexdump(tls.clientHello, 'clientHello')}
                     {/if}
                 {/if}
             </div>
         {/if}
         {#if $currentEvent.payload}
             Payload:
-            {@render hexdump($currentEvent.payload)}
+            {@render hexdump($currentEvent.payload, 'payload')}
         {/if}
         {#if !isShared}
             <button onclick={downloadEvent}>Download</button>
@@ -280,7 +301,7 @@
                             {#if expandedFrames.has(i) && framePayload(frame)}
                                 <tr>
                                     <td colspan={decodedColumns.length + 1}>
-                                        {@render hexdump(framePayload(frame)!)}
+                                        {@render hexdump(framePayload(frame)!, `frame-${i}`)}
                                     </td>
                                 </tr>
                             {/if}

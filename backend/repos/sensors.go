@@ -2,6 +2,7 @@ package repos
 
 import (
 	"strings"
+	"sync"
 
 	"github.com/honeynet/ochi/backend/entities"
 
@@ -18,6 +19,12 @@ type SensorRepo struct {
 	getAllStats *sqlx.Stmt
 	deleteStat  *sqlx.Stmt
 	db          *sqlx.DB
+
+	// registered holds every sensor ID in the table so Exists can answer the publish
+	// path without a query. mu is held for writing across each INSERT and DELETE, so
+	// Exists never observes the set and the table disagreeing.
+	mu         sync.RWMutex
+	registered map[string]struct{}
 }
 
 func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
@@ -85,6 +92,15 @@ func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
 		return nil, err
 	}
 
+	var ids []string
+	if err := db.Select(&ids, `SELECT id FROM sensors`); err != nil {
+		return nil, err
+	}
+	r.registered = make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		r.registered[id] = struct{}{}
+	}
+
 	return r, nil
 }
 
@@ -97,9 +113,13 @@ func (r *SensorRepo) GetSensorsByOwnerId(ownerId string) ([]entities.Sensor, err
 }
 
 func (r *SensorRepo) AddSensors(sensor entities.Sensor) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if _, err := r.addSensor.Exec(sensor); err != nil {
 		return err
 	}
+	r.registered[sensor.ID] = struct{}{}
 	return nil
 }
 
@@ -117,18 +137,35 @@ func (r *SensorRepo) GetSensor(id, ownerId string) (entities.Sensor, error) {
 // and one belonging to somebody else both report 0 and stay indistinguishable to
 // the caller.
 func (r *SensorRepo) DeleteByOwner(id, userID string) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	res, err := r.deleteSensor.Exec(id, userID)
 	if err != nil {
 		return 0, err
 	}
-	affected, err := res.RowsAffected()
+	deleted, err := res.RowsAffected()
 	if err != nil {
 		return 0, err
 	}
-	if affected > 0 {
+	// Only a delete that removed a row may unregister the ID. A non-owner's attempt
+	// removes nothing and must leave the owner's sensor able to publish.
+	if deleted > 0 {
+		delete(r.registered, id)
 		_, _ = r.deleteStat.Exec(id)
 	}
-	return affected, nil
+	return deleted, nil
+}
+
+// Exists reports whether a sensor with the given UUID is registered. It takes the
+// full UUID, not the truncated form published to subscribers, and answers from
+// memory: it runs for every published event, so it must not query the database.
+func (r *SensorRepo) Exists(id string) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	_, ok := r.registered[id]
+	return ok
 }
 
 // LoadAllStats loads all persisted sensor statistics from SQLite.

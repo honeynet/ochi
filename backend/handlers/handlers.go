@@ -22,6 +22,10 @@ type Handlers struct {
 	Sensors *repos.SensorRepo
 	Stats   *services.StatsService
 
+	// RequireRegisteredSensors rejects published events whose sensor UUID is not
+	// in the sensors table.
+	RequireRegisteredSensors bool
+
 	// PublishFunc fans a message out to subscribers; it returns false when rate limited.
 	PublishFunc func(msg []byte) bool
 }
