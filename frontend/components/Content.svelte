@@ -6,10 +6,13 @@
     import { END_REASONS, displayRule, formatDest, formatDuration, hasTime } from '../event';
     import {
         formatFrameCount,
+        frameCountTitle,
         framePayload,
         frameTableColumns,
         formatFrameValue,
         isFrameArray,
+        nestedFrames,
+        type DecodedFrame,
     } from '../decoded';
     import { url } from '@roxi/routify';
     import { copy } from 'svelte-copy';
@@ -175,6 +178,52 @@
     {/if}
 {/snippet}
 
+{#snippet frameTable(frames: DecodedFrame[], label: string, idPrefix: string)}
+    {@const columns = frameTableColumns(frames, label)}
+    <div class="nested-label">{label}: {formatFrameCount(frames)} received/sent</div>
+    <table class="nested-table">
+        <thead>
+            <tr>
+                <th></th>
+                {#each columns as column (column)}
+                    <th>{column}</th>
+                {/each}
+            </tr>
+        </thead>
+        <tbody>
+            {#each frames as frame, j (j)}
+                {@const id = `${idPrefix}-${j}`}
+                <tr class={frame.direction === 'write' ? 'write' : undefined}>
+                    <td>
+                        {#if framePayload(frame)}
+                            <button type="button" onclick={() => toggleHexdump(`row-${id}`)}
+                                >{expandedHexdumps.has(`row-${id}`) ? '▾' : '▸'}</button
+                            >
+                        {/if}
+                    </td>
+                    {#each columns as column (column)}
+                        <td>{formatFrameValue(frame[column], column)}</td>
+                    {/each}
+                </tr>
+                {#if expandedHexdumps.has(`row-${id}`) && framePayload(frame)}
+                    <tr>
+                        <td colspan={columns.length + 1}>
+                            {@render hexdump(framePayload(frame)!, id)}
+                        </td>
+                    </tr>
+                {/if}
+                {#each nestedFrames(frame) as group (group.key)}
+                    <tr class="nested">
+                        <td colspan={columns.length + 1}>
+                            {@render frameTable(group.frames, group.key, `${id}-${group.key}`)}
+                        </td>
+                    </tr>
+                {/each}
+            {/each}
+        </tbody>
+    </table>
+{/snippet}
+
 <div class="column" id="content">
     {#if $currentEvent}
         <span title={$currentEvent.srcPtr || ''}>{$currentEvent.srcHost}</span
@@ -210,7 +259,7 @@
             Payload hash: {$currentEvent.payloadHash} (first frame)<br />
         {/if}
         {#if formatFrameCount($currentEvent.decoded, $currentEvent.frameCount)}
-            Frames: <span title="received/sent"
+            Frames: <span title={frameCountTitle($currentEvent.decoded)}
                 >{formatFrameCount($currentEvent.decoded, $currentEvent.frameCount)}</span
             ><br />
         {/if}
@@ -305,6 +354,17 @@
                                     </td>
                                 </tr>
                             {/if}
+                            {#each nestedFrames(frame) as group (group.key)}
+                                <tr class="nested">
+                                    <td colspan={decodedColumns.length + 1}>
+                                        {@render frameTable(
+                                            group.frames,
+                                            group.key,
+                                            `frame-${i}-${group.key}`,
+                                        )}
+                                    </td>
+                                </tr>
+                            {/each}
                         {/each}
                     </tbody>
                 </table>
@@ -362,6 +422,17 @@
     }
     tr.write {
         background-color: #eef4fb;
+    }
+    tr.nested > td {
+        padding: 4px 0 4px 24px;
+        border: none;
+        border-left: 3px solid #4a7fb5;
+    }
+    .nested-label {
+        padding: 2px 8px;
+        font-family: monospace;
+        font-size: 12px;
+        color: #555;
     }
     .tls {
         margin: 8px 0;

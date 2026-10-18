@@ -3,7 +3,7 @@
     import type { Attachment } from 'svelte/attachments';
     import type { Event } from '../event';
     import { END_REASONS, displayRule, formatPort, getEventById } from '../event';
-    import { formatFrameCount } from '../decoded';
+    import { formatFrameCount, frameCountTitle } from '../decoded';
     import { currentEvent } from '../store';
 
     interface Props {
@@ -77,7 +77,7 @@
             ? (END_REASONS[message.endReason] ?? message.endReason)
             : undefined}>{message.endReason ?? ''}</span
     >
-    <span class="cell frames" title="received/sent"
+    <span class="cell frames" title={frameCountTitle(message.decoded)}
         >{formatFrameCount(message.decoded, message.frameCount)}</span
     >
     <span class="cell details">Details</span>

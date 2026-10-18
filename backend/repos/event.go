@@ -157,6 +157,7 @@ func (r *EventRepo) Create(event entities.Event) (entities.Event, error) {
 		return event, err
 	}
 	event.ID = id.String()
+	event.FrameCount = totalFrameCount(event.Decoded, event.FrameCount)
 	_, err = r.createEvent.Exec(event)
 	if err != nil {
 		return event, err

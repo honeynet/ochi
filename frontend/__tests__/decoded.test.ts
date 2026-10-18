@@ -1,5 +1,12 @@
 import { describe, expect, test } from '@jest/globals';
-import { formatFrameCount, frameTableColumns, formatFrameValue } from '../decoded';
+import {
+    countFrames,
+    formatFrameCount,
+    frameCountTitle,
+    frameTableColumns,
+    formatFrameValue,
+    nestedFrames,
+} from '../decoded';
 import { formatDest, formatDuration, formatPort, hasTime } from '../event';
 import { generateTestEvent } from '../util';
 
@@ -97,5 +104,47 @@ describe('formatFrameCount', () => {
         expect(formatFrameCount({ foo: 'bar' }, 1)).toBe('1');
         expect(formatFrameCount([{ command: 'GET' }], 1)).toBe('1');
         expect(formatFrameCount(undefined)).toBe('');
+    });
+});
+
+describe('nested frames', () => {
+    const socks = [
+        { direction: 'read', command: 'socks4-connect' },
+        { direction: 'write', command: 'socks4-connect', status: 'granted' },
+        {
+            direction: 'read',
+            command: 'tunnel',
+            requests: 1,
+            http: [
+                { direction: 'read', command: 'GET', path: '/ip', payload: 'AA==' },
+                { direction: 'write', status: '200' },
+            ],
+        },
+    ];
+
+    test('nestedFrames finds embedded frame arrays only', () => {
+        expect(nestedFrames(socks[2]).map((n) => [n.key, n.frames.length])).toEqual([['http', 2]]);
+        expect(nestedFrames({ direction: 'read', methods: [0, 2], http: [] })).toEqual([]);
+        expect(nestedFrames({ direction: 'read', args: ['a', 'b'] })).toEqual([]);
+    });
+
+    test('the nested key is not a column of the parent table', () => {
+        expect(frameTableColumns(socks, 'socks')).toEqual([
+            'direction',
+            'command',
+            'status',
+            'requests',
+        ]);
+    });
+
+    test('counts include nested frames', () => {
+        expect(countFrames(socks)).toEqual({ received: 3, sent: 2, nested: 2 });
+        expect(formatFrameCount(socks, 3)).toBe('3/2');
+        expect(frameCountTitle(socks)).toBe('received/sent, including 2 nested');
+    });
+
+    test('flat frames keep the plain title', () => {
+        expect(frameCountTitle([{ direction: 'read' }])).toBe('received/sent');
+        expect(frameCountTitle(undefined)).toBe('received/sent');
     });
 });
