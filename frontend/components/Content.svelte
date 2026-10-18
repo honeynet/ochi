@@ -230,7 +230,10 @@
         >:{$currentEvent.srcPort}
         -> {formatDest($currentEvent)}<br />
         {#if $currentEvent.handler}
-            Handler: {$currentEvent.handler}<br />
+            Handler: {$currentEvent.handler}
+            {#if $currentEvent.handlers && $currentEvent.handlers.length > 1}
+                ({$currentEvent.handlers.join(' → ')})
+            {/if}<br />
         {/if}
         {#if ruleLabel}
             {ruleLabel}<br />

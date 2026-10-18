@@ -24,7 +24,7 @@ type EventRepo struct {
 }
 
 // eventListColumns omits heavy payload/decoded/tls blobs used only on detail views.
-const eventListColumns = `id, ownerID, dstPort, rule, handler, transport, scanner, sensorID, srcHost, srcPort, timestamp, dstHost, endReason, frameCount, payloadHash, sensorVersion, startedAt, durationMs, srcPtr, ruleName`
+const eventListColumns = `id, ownerID, dstPort, rule, handler, handlers, transport, scanner, sensorID, srcHost, srcPort, timestamp, dstHost, endReason, frameCount, payloadHash, sensorVersion, startedAt, durationMs, srcPtr, ruleName`
 
 var eventEnvelopeColumns = []string{
 	"dstHost TEXT",
@@ -37,6 +37,7 @@ var eventEnvelopeColumns = []string{
 	"srcPtr TEXT",
 	"ruleName TEXT",
 	"tls JSON",
+	"handlers JSON",
 }
 
 func addColumnIfMissing(db *sqlx.DB, table, columnDef string) error {
@@ -96,9 +97,9 @@ func NewEventRepo(db *sqlx.DB) (*EventRepo, error) {
 		return nil, err
 	}
 	r.createEvent, err = db.PrepareNamed(`INSERT INTO events
-			(id, ownerID, payload, dstPort, rule, handler, transport, scanner, sensorID, srcHost, srcPort, timestamp, decoded, dstHost, endReason, frameCount, payloadHash, sensorVersion, startedAt, durationMs, srcPtr, ruleName, tls)
+			(id, ownerID, payload, dstPort, rule, handler, transport, scanner, sensorID, srcHost, srcPort, timestamp, decoded, dstHost, endReason, frameCount, payloadHash, sensorVersion, startedAt, durationMs, srcPtr, ruleName, tls, handlers)
 			VALUES
-			(:id, :ownerID, :payload, :dstPort, :rule, :handler, :transport, :scanner, :sensorID, :srcHost, :srcPort, :timestamp, :decoded, :dstHost, :endReason, :frameCount, :payloadHash, :sensorVersion, :startedAt, :durationMs, :srcPtr, :ruleName, :tls)`)
+			(:id, :ownerID, :payload, :dstPort, :rule, :handler, :transport, :scanner, :sensorID, :srcHost, :srcPort, :timestamp, :decoded, :dstHost, :endReason, :frameCount, :payloadHash, :sensorVersion, :startedAt, :durationMs, :srcPtr, :ruleName, :tls, :handlers)`)
 	if err != nil {
 		return nil, err
 	}
