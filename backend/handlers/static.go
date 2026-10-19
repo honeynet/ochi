@@ -11,6 +11,7 @@ func (h *Handlers) Index(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	defer fh.Close()
 	if _, err := io.Copy(w, fh); err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
@@ -23,6 +24,7 @@ func (h *Handlers) CSS(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	defer fh.Close()
 	w.Header().Add("Content-Type", "text/css")
 	if _, err := io.Copy(w, fh); err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)

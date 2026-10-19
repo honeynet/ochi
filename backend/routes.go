@@ -47,6 +47,7 @@ func newRouter(cs *server) (*chi.Mux, error) {
 	r.Get("/global.css", h.CSS)
 	r.Get("/myqueries", h.Index)
 	r.Get("/myevents", h.Index)
+	r.Get("/mysensors", h.Index)
 	r.Get("/events/{id}", h.Index)
 
 	build, err := fs.Sub(cs.fs, "build")
