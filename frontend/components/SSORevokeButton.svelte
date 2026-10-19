@@ -36,7 +36,12 @@
     }
 </script>
 
-<button id="revokeButton" onclick={revokeSSO} disabled={revoking}>
+<button
+    id="revokeButton"
+    onclick={revokeSSO}
+    disabled={revoking || !email}
+    title={!email ? 'Loading user profile...' : 'Revoke Google SSO access'}
+>
     {revoking ? 'Revoking...' : 'Revoke'}
 </button>
 

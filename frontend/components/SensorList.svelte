@@ -82,12 +82,21 @@
         loading = true;
         error = '';
         try {
-            sensors = await getSensors(authToken);
+            const data = await getSensors(authToken);
+            if (authToken !== $token) {
+                return;
+            }
+            sensors = data;
         } catch (e) {
+            if (authToken !== $token) {
+                return;
+            }
             error = e instanceof Error ? e.message : String(e);
             showError(e);
         } finally {
-            loading = false;
+            if (authToken === $token) {
+                loading = false;
+            }
         }
     }
 

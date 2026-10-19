@@ -16,24 +16,7 @@ isAuthenticated.subscribe((value) => {
     localStorage.setItem('isAuthenticated', value === true ? 'true' : 'false');
 });
 
-function loadStoredUser(): UserProfile | null {
-    const raw = localStorage.getItem('user');
-    if (!raw) return null;
-    try {
-        return JSON.parse(raw) as UserProfile;
-    } catch {
-        return null;
-    }
-}
-
-export const user: Writable<UserProfile | null> = writable(loadStoredUser());
-user.subscribe((value) => {
-    if (!value || Object.keys(value).length === 0) {
-        localStorage.removeItem('user');
-    } else {
-        localStorage.setItem('user', JSON.stringify(value));
-    }
-});
+export const user: Writable<UserProfile | null> = writable(null);
 export const maxNumberOfMessages = writable(50);
 
 export const userQueries: Writable<Query[]> = writable([]);

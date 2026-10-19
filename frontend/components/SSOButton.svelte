@@ -1,23 +1,11 @@
 <svelte:options runes={true} />
 
-<script lang="ts">
-    import { onMount } from 'svelte';
+<script module lang="ts">
     import { login } from '../session';
     import { API_ENDPOINT } from '../constants';
     import { showError } from '../toast';
 
-    let buttonElement = $state<HTMLElement | null>(null);
-
-    function renderGoogleButton() {
-        if (!buttonElement || typeof google === 'undefined' || !google.accounts?.id) {
-            return;
-        }
-        buttonElement.innerHTML = '';
-        google.accounts.id.renderButton(buttonElement, {
-            type: 'icon',
-            size: 'small',
-        });
-    }
+    let isSSOInitialized = false;
 
     async function sendCredentials(data: google.accounts.id.CredentialResponse) {
         const res = await fetch(`${API_ENDPOINT}/api/login`, {
@@ -41,21 +29,45 @@
         }
     }
 
-    function initSSO() {
+    function ensureSSOInitialized(): boolean {
+        if (isSSOInitialized) {
+            return true;
+        }
         if (typeof google === 'undefined' || !google.accounts?.id) {
-            return;
+            return false;
         }
         google.accounts.id.initialize({
             client_id: '610036027764-0lveoeejd62j594aqab5e24o2o82r8uf.apps.googleusercontent.com',
             ux_mode: 'popup',
             callback: handleCredentialResponse,
         });
-        renderGoogleButton();
+        isSSOInitialized = true;
+        return true;
+    }
+</script>
+
+<script lang="ts">
+    import { onMount } from 'svelte';
+
+    let buttonElement = $state<HTMLElement | null>(null);
+
+    function renderGoogleButton() {
+        if (!buttonElement || typeof google === 'undefined' || !google.accounts?.id) {
+            return;
+        }
+        if (!ensureSSOInitialized()) {
+            return;
+        }
+        buttonElement.innerHTML = '';
+        google.accounts.id.renderButton(buttonElement, {
+            type: 'icon',
+            size: 'small',
+        });
     }
 
     function handleFallbackClick() {
         if (typeof google !== 'undefined' && google.accounts?.id) {
-            initSSO();
+            ensureSSOInitialized();
             google.accounts.id.prompt();
         } else {
             showError('Google Sign-In is still loading. Please try again.');
@@ -64,13 +76,13 @@
 
     onMount(() => {
         if (typeof google !== 'undefined' && google.accounts?.id) {
-            initSSO();
+            renderGoogleButton();
         } else {
             const existingScript = document.querySelector<HTMLScriptElement>(
-                'script[src="https://accounts.google.com/gsi/client"]',
+                'script[src*="accounts.google.com/gsi/client"]',
             );
             if (existingScript) {
-                existingScript.addEventListener('load', initSSO, { once: true });
+                existingScript.addEventListener('load', renderGoogleButton, { once: true });
             }
         }
     });
@@ -81,10 +93,6 @@
         }
     });
 </script>
-
-<svelte:head>
-    <script src="https://accounts.google.com/gsi/client" onload={initSSO} async defer></script>
-</svelte:head>
 
 <div bind:this={buttonElement} class="googleButton">
     <button
