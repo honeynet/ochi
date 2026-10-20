@@ -1,6 +1,6 @@
 <script lang="ts">
     import { hexy } from 'hexy';
-    import { currentEvent, token, isAuthenticated } from '../store';
+    import { currentEvent, token, isAuthenticated, filterBySensor, userSensors } from '../store';
     import { API_ENDPOINT } from '../constants';
     import type { Event } from '../event';
     import { END_REASONS, displayRule, formatDest, formatDuration, hasTime } from '../event';
@@ -253,10 +253,32 @@
         {:else}
             End: not set<br />
         {/if}
+        {#if $currentEvent.sensorID}
+            {@const matched = $userSensors.find(
+                (s) =>
+                    s.id === $currentEvent?.sensorID ||
+                    s.id.startsWith($currentEvent?.sensorID ?? '') ||
+                    ($currentEvent?.sensorID ?? '').startsWith(s.id),
+            )}
+            Sensor:
+            {#if matched?.name}
+                <strong>{matched.name}</strong> ({$currentEvent.sensorID})
+            {:else}
+                {$currentEvent.sensorID}
+            {/if}
+            <button
+                type="button"
+                class="filter-sensor-btn"
+                onclick={() => filterBySensor($currentEvent?.sensorID ?? '')}
+                title="Filter events by this sensor"
+            >
+                Filter
+            </button><br />
+        {/if}
         {#if $currentEvent.sensorVersion}
-            Sensor: {$currentEvent.sensorVersion}<br />
+            Sensor version: {$currentEvent.sensorVersion}<br />
         {:else}
-            Sensor: unversioned<br />
+            Sensor version: unversioned<br />
         {/if}
         {#if $currentEvent.payloadHash}
             Payload hash: {$currentEvent.payloadHash} (first frame)<br />
@@ -449,5 +471,11 @@
         padding: 4px 8px;
         text-align: left;
         vertical-align: top;
+    }
+    .filter-sensor-btn {
+        margin-left: 6px;
+        padding: 0 4px;
+        font-size: 11px;
+        cursor: pointer;
     }
 </style>
