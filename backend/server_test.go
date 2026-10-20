@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -331,6 +332,7 @@ func TestGetSharedEventByID_NoAuth(t *testing.T) {
 	tmp := t.TempDir()
 	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
 
 	eventRepo, err := repos.NewEventRepo(db)
 	require.NoError(t, err)
@@ -617,10 +619,18 @@ func TestRouter_CorsPreflightAndStaticFiles(t *testing.T) {
 	tmp := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(tmp, "build", "bundle.js"), []byte("console.log(1)"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "index.html"), []byte("<!doctype html>"), 0644))
 
 	cs := &server{fs: os.DirFS(tmp), cfg: Config{JWTSecret: "test-secret"}}
 	mux, err := newRouter(cs)
 	require.NoError(t, err)
+
+	for _, path := range []string{"/", "/myqueries", "/myevents", "/mysensors", "/events/abc"} {
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		assert.Equal(t, http.StatusOK, w.Code, "expected 200 for %s", path)
+		assert.Equal(t, "<!doctype html>", w.Body.String())
+	}
 
 	req := httptest.NewRequest(http.MethodOptions, "/api/events/abc", nil)
 	req.Header.Set("Origin", "http://localhost:5173")
@@ -757,4 +767,131 @@ func TestServer_RunClosesDatabaseOnListenError(t *testing.T) {
 
 	require.Error(t, cs.Run())
 	require.Error(t, db.Ping(), "the database must be closed when the listener fails")
+}
+
+func TestPublish_FiltersByHandler(t *testing.T) {
+	cs := &server{
+		subscribers:    make(map[*subscriber]struct{}),
+		publishLimiter: rate.NewLimiter(rate.Inf, 1),
+	}
+	all := &subscriber{msgs: make(chan []byte, 4)}
+	smb := &subscriber{msgs: make(chan []byte, 4), handlers: parseHandlerFilter(url.Values{"handler": {"smb, ssh"}})}
+	cs.addSubscriber(all)
+	cs.addSubscriber(smb)
+
+	require.True(t, cs.publish([]byte(`{"handler":"smb"}`)))
+	require.True(t, cs.publish([]byte(`{"handler":"http"}`)))
+	require.True(t, cs.publish([]byte(`{"handler":"ssh"}`)))
+	require.True(t, cs.publish([]byte(`{}`)))
+
+	assert.Len(t, all.msgs, 4)
+	assert.Len(t, smb.msgs, 2)
+}
+
+func TestParseHandlerFilter(t *testing.T) {
+	assert.Nil(t, parseHandlerFilter(url.Values{}))
+	assert.Nil(t, parseHandlerFilter(url.Values{"handler": {" , "}}))
+	got := parseHandlerFilter(url.Values{"handler": {"smb,ssh", "http"}})
+	assert.Equal(t, map[string]struct{}{"smb": {}, "ssh": {}, "http": {}}, got)
+}
+
+func TestQueryHandlers_StatusCodes(t *testing.T) {
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	queryRepo, err := repos.NewQueryRepo(db)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	mine, err := queryRepo.Create("owner-1", "tcp.port == 80", "mine", true)
+	require.NoError(t, err)
+	theirs, err := queryRepo.Create("owner-2", "tcp.port == 443", "theirs", true)
+	require.NoError(t, err)
+
+	cs := &server{
+		queryRepo: queryRepo,
+		fs:        os.DirFS(tmp),
+		cfg:       Config{JWTSecret: "test-secret"},
+	}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	token, err := entities.NewToken(entities.NewTokenAuth("test-secret"), entities.User{ID: "owner-1"})
+	require.NoError(t, err)
+
+	do := func(method, path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+
+	// Create with invalid JSON -> 400 Bad Request
+	assert.Equal(t, http.StatusBadRequest, do(http.MethodPost, "/api/queries", "{invalid-json").Code)
+
+	// Update another user's query -> 403 Forbidden
+	updateBody := fmt.Sprintf(`{"id":%q,"content":"udp.port == 53"}`, theirs.ID)
+	assert.Equal(t, http.StatusForbidden, do(http.MethodPatch, "/api/queries/"+theirs.ID, updateBody).Code)
+	theirsAfterUpdate, err := queryRepo.GetByID(theirs.ID)
+	require.NoError(t, err)
+	assert.Equal(t, theirs.Content, theirsAfterUpdate.Content, "unauthorized update must not modify the query")
+
+	// Update with invalid JSON -> 400 Bad Request
+	assert.Equal(t, http.StatusBadRequest, do(http.MethodPatch, "/api/queries/"+mine.ID, "{invalid-json").Code)
+
+	// Delete another user's query -> 403 Forbidden
+	assert.Equal(t, http.StatusForbidden, do(http.MethodDelete, "/api/queries/"+theirs.ID, "").Code)
+	theirsAfterDelete, err := queryRepo.GetByID(theirs.ID)
+	require.NoError(t, err)
+	assert.Equal(t, theirs.ID, theirsAfterDelete.ID, "unauthorized delete must not remove the query")
+}
+
+func TestSensorHandlers_StatusCodes(t *testing.T) {
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	sensorRepo, err := repos.NewSensorRepo(db)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	cs := &server{
+		sensorRepo: sensorRepo,
+		fs:         os.DirFS(tmp),
+		cfg:        Config{JWTSecret: "test-secret"},
+	}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	token, err := entities.NewToken(entities.NewTokenAuth("test-secret"), entities.User{ID: "owner-1"})
+	require.NoError(t, err)
+
+	do := func(method, path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+
+	// AddSensor with invalid JSON -> 400 Bad Request
+	assert.Equal(t, http.StatusBadRequest, do(http.MethodPost, "/api/sensors", "{bad-json").Code)
+}
+
+func TestEventHandlers_StatusCodes(t *testing.T) {
+	do, repo, ids := newEventsTestServer(t, "owner-1", "owner-2")
+
+	// CreateEvent with invalid JSON -> 400 Bad Request
+	assert.Equal(t, http.StatusBadRequest, do(http.MethodPost, "/api/events", "{bad-json").Code)
+
+	// DeleteEvent of another user's event -> 403 Forbidden
+	theirsID := ids["owner-2"][0]
+	assert.Equal(t, http.StatusForbidden, do(http.MethodDelete, "/api/events/"+theirsID, "").Code)
+	theirsAfterDelete, err := repo.GetByID(theirsID)
+	require.NoError(t, err)
+	assert.Equal(t, theirsID, theirsAfterDelete.ID, "unauthorized delete must not remove the event")
 }

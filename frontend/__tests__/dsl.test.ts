@@ -244,6 +244,17 @@ describe('parseDSL', () => {
         ).toBeFalsy();
     });
 
+    test('handler matches any layer of the stack', () => {
+        const eq = parseDSL('handler eq "http"');
+        const ne = parseDSL('handler ne "http"');
+        const stacked = generateTestEvent(1080, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+            handler: 'socks',
+            handlers: ['tcp', 'tls', 'socks', 'http'],
+        });
+        expect(filterEvent(stacked, eq.cst!)).toBeTruthy();
+        expect(filterEvent(stacked, ne.cst!)).toBeFalsy();
+    });
+
     test('parses transport', () => {
         let sx = parseDSL('transport eq "udp"');
         expect(sx.lexErrors).toHaveLength(0);

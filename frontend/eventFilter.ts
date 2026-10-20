@@ -124,7 +124,10 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
             throw new Error('Missing binary operator for handler clause');
         }
         const handlerName = parseStringLiteral(stringToken.image);
-        return equalityCheck(event.handler ?? '', handlerName, binaryOperator.children);
+        // a handler clause matches any layer of the stack (tls, http inside socks, ...)
+        const layers = event.handlers?.length ? event.handlers : [event.handler ?? ''];
+        const found = layers.includes(handlerName);
+        return equalityCheck(found, true, binaryOperator.children);
     } else if (children.TRANSPORT) {
         const stringToken = children.STRING?.[0];
         const binaryOperator = children.binaryOperator?.[0];
