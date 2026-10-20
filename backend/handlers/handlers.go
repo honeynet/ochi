@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/honeynet/ochi/backend/repos"
+	"github.com/honeynet/ochi/backend/services"
 
 	"github.com/go-chi/jwtauth/v5"
 )
@@ -19,6 +20,7 @@ type Handlers struct {
 	Queries *repos.QueryRepo
 	Events  *repos.EventRepo
 	Sensors *repos.SensorRepo
+	Stats   *services.StatsService
 
 	// RequireRegisteredSensors rejects published events whose sensor UUID is not
 	// in the sensors table.
