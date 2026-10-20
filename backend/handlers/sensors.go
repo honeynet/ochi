@@ -102,7 +102,7 @@ func (h *Handlers) AddSensor(w http.ResponseWriter, r *http.Request) {
 
 	var sensor entities.Sensor
 	if err := decoder.Decode(&sensor); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

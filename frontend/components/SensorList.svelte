@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { onMount } from 'svelte';
+    import { untrack } from 'svelte';
     import { env, token } from '../store';
     import { showError } from '../toast';
     import { ENV_DEV, WS_ENDPOINT } from '../constants';
@@ -131,35 +131,57 @@
         }
     }
 
-    onMount(() => {
-        let active = true;
-
-        (async () => {
-            try {
-                sensors = await getSensors($token);
-            } catch (e) {
-                if (active) {
-                    error = e instanceof Error ? e.message : String(e);
-                    showError(e);
-                }
-            } finally {
-                if (active) {
-                    loading = false;
-                }
+    async function loadSensors(authToken: string) {
+        if (!authToken) {
+            sensors = [];
+            stats = {};
+            loading = false;
+            if (ws) {
+                ws.close(1000);
+                ws = null;
             }
-
-            try {
-                const initialStats = await getSensorStats($token);
-                if (active) {
-                    stats = initialStats;
-                }
-            } catch (e) {
-                console.warn('Failed to load initial sensor stats:', e);
+            if (devInterval) {
+                clearInterval(devInterval);
+                devInterval = null;
             }
+            return;
+        }
+        loading = true;
+        error = '';
+        try {
+            const data = await getSensors(authToken);
+            if (authToken !== $token) {
+                return;
+            }
+            sensors = data;
+        } catch (e) {
+            if (authToken !== $token) {
+                return;
+            }
+            error = e instanceof Error ? e.message : String(e);
+            showError(e);
+        } finally {
+            if (authToken === $token) {
+                loading = false;
+            }
+        }
 
-            if (!active) return;
+        try {
+            const initialStats = await getSensorStats(authToken);
+            if (authToken !== $token) {
+                return;
+            }
+            stats = initialStats;
+        } catch (e) {
+            console.warn('Failed to load initial sensor stats:', e);
+        }
 
-            if ($env === ENV_DEV) {
+        if (authToken !== $token) {
+            return;
+        }
+
+        if ($env === ENV_DEV) {
+            if (!devInterval) {
                 devInterval = setInterval(() => {
                     if (sensors.length === 0) return;
                     const randomSensor = sensors[Math.floor(Math.random() * sensors.length)];
@@ -173,15 +195,29 @@
                         },
                     };
                 }, 2000);
-            } else {
+            }
+        } else {
+            if (!ws || ws.readyState === WebSocket.CLOSED) {
                 connectWs();
             }
-        })();
+        }
+    }
+
+    $effect(() => {
+        const currentToken = $token;
+        untrack(() => {
+            loadSensors(currentToken);
+        });
 
         return () => {
-            active = false;
-            if (ws) ws.close();
-            if (devInterval) clearInterval(devInterval);
+            if (ws) {
+                ws.close(1000);
+                ws = null;
+            }
+            if (devInterval) {
+                clearInterval(devInterval);
+                devInterval = null;
+            }
         };
     });
 </script>

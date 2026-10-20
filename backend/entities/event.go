@@ -11,6 +11,7 @@ type Event struct {
 	DstPort       int            `json:"dstPort,omitempty"`   // the connection destination port
 	Rule          *string        `json:"rule,omitempty"`      // the rule that matched the connection
 	Handler       *string        `json:"handler,omitempty"`   // the processing handler
+	Handlers      OptionalJSON   `json:"handlers,omitempty"`  // protocol stack from the wire up, e.g. ["tcp","tls","socks","http"]
 	Transport     string         `json:"transport,omitempty"` // the transport used
 	Scanner       *string        `json:"scanner,omitempty"`   // name of the scanner if detected
 	SensorID      string         `json:"sensorID,omitempty"`  // the id of the sensor

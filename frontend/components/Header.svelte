@@ -26,6 +26,9 @@
     </div>
     <div class="header__right">
         {#if !$isAuthenticated}
+            {#if path === '/'}
+                <a class="header__link" href={$url(path)}>{pathText}</a>
+            {/if}
             <SSOButton />
         {:else}
             <a class="header__link" href={$url(path)}>{pathText}</a>

@@ -17,6 +17,7 @@ export interface Event {
     dstPort: number; // the connection destination port
     rule?: string; // the rule that matched the connection
     handler?: string; // the processing handler
+    handlers?: string[]; // protocol stack from the wire up, e.g. tcp, tls, socks, http
     transport?: string;
     scanner?: string; // name of the scanner if detected
     sensorID: string; // the id of the sensor
@@ -34,6 +35,15 @@ export interface Event {
     frameCount?: number;
     endReason?: string;
     tls?: TLSInfo; // set when the sensor terminated TLS; payload and decoded are then plaintext
+}
+
+// handlerStack is the protocol stack of an event, falling back to the
+// transport and handler for events from sensors that predate handlers.
+export function handlerStack(event: Event): string[] {
+    if (event.handlers?.length) {
+        return event.handlers;
+    }
+    return [event.transport, event.handler].filter((name): name is string => !!name);
 }
 
 export function formatPort(event: Event): string {

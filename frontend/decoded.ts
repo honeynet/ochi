@@ -30,6 +30,29 @@ export function isFrameArray(decoded: unknown): decoded is DecodedFrame[] {
     );
 }
 
+export interface NestedFrames {
+    key: string;
+    frames: DecodedFrame[];
+}
+
+// A frame can embed the frames another handler produced for the same
+// connection (a socks tunnel read carries `http`). Such a key holds a
+// non-empty array of frames, each with a string direction.
+function isNestedValue(value: unknown): value is DecodedFrame[] {
+    return (
+        Array.isArray(value) &&
+        value.length > 0 &&
+        isFrameArray(value) &&
+        value.every((frame) => typeof frame.direction === 'string')
+    );
+}
+
+export function nestedFrames(frame: DecodedFrame): NestedFrames[] {
+    return Object.entries(frame)
+        .filter(([, value]) => isNestedValue(value))
+        .map(([key, value]) => ({ key, frames: value as DecodedFrame[] }));
+}
+
 function hasOwn(frame: DecodedFrame, key: string): boolean {
     return Object.prototype.hasOwnProperty.call(frame, key);
 }
@@ -51,8 +74,11 @@ export function frameTableColumns(frames: DecodedFrame[], handler?: string): str
         }
     }
     for (const frame of frames) {
+        const nested = new Set(nestedFrames(frame).map((n) => n.key));
         for (const key of Object.keys(frame)) {
-            add(key);
+            if (!nested.has(key)) {
+                add(key);
+            }
         }
     }
     return columns;
@@ -111,13 +137,55 @@ export function framePayload(frame: DecodedFrame): string | undefined {
     return typeof payload === 'string' && payload.length > 0 ? payload : undefined;
 }
 
+export interface FrameCounts {
+    received: number;
+    sent: number;
+    nested: number; // frames inside other frames, already included above
+}
+
+function countInto(frames: DecodedFrame[], counts: FrameCounts, depth: number) {
+    for (const frame of frames) {
+        if (frame.direction === 'write') {
+            counts.sent++;
+        } else {
+            counts.received++;
+        }
+        if (depth > 0) {
+            counts.nested++;
+        }
+        for (const { frames: inner } of nestedFrames(frame)) {
+            countInto(inner, counts, depth + 1);
+        }
+    }
+}
+
+// Counts frames by direction, including frames nested inside other frames.
+// Returns undefined when the decoded frames carry no direction.
+export function countFrames(decoded: unknown): FrameCounts | undefined {
+    if (!isFrameArray(decoded) || !decoded.some((frame) => typeof frame.direction === 'string')) {
+        return undefined;
+    }
+    const counts: FrameCounts = { received: 0, sent: 0, nested: 0 };
+    countInto(decoded, counts, 0);
+    return counts;
+}
+
 // Formats the frame count as received/sent, where received frames are the
-// client's reads and sent frames are the handler's writes. Falls back to the
-// sensor's total frame count when the decoded frames carry no direction.
+// client's reads and sent frames are the handler's writes. Frames nested in
+// other frames are included. Falls back to the sensor's total frame count when
+// the decoded frames carry no direction (list pages omit decoded entirely).
 export function formatFrameCount(decoded: unknown, frameCount?: number): string {
-    if (isFrameArray(decoded) && decoded.some((frame) => typeof frame.direction === 'string')) {
-        const sent = decoded.filter((frame) => frame.direction === 'write').length;
-        return `${decoded.length - sent}/${sent}`;
+    const counts = countFrames(decoded);
+    if (counts) {
+        return `${counts.received}/${counts.sent}`;
     }
     return frameCount !== undefined ? String(frameCount) : '';
+}
+
+export function frameCountTitle(decoded: unknown): string {
+    const counts = countFrames(decoded);
+    if (counts && counts.nested > 0) {
+        return `received/sent, including ${counts.nested} nested`;
+    }
+    return 'received/sent';
 }
