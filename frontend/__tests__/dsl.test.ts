@@ -255,6 +255,59 @@ describe('parseDSL', () => {
         expect(filterEvent(stacked, ne.cst!)).toBeFalsy();
     });
 
+    test('parses scanner', () => {
+        let sx = parseDSL('scanner eq "censys"');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    scanner: 'censys',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        // Case insensitive.
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    scanner: 'Censys',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    scanner: 'shodan',
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+    });
+
+    test('scanner ne matches events with no detected scanner', () => {
+        // The core use: hide known scanners to surface unclassified (real) activity.
+        let sx = parseDSL('scanner ne "censys"');
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    scanner: undefined,
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    scanner: 'censys',
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+    });
+
     test('parses transport', () => {
         let sx = parseDSL('transport eq "udp"');
         expect(sx.lexErrors).toHaveLength(0);

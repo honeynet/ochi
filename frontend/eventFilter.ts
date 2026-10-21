@@ -140,6 +140,19 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
         // Compared case insensitively, as the port clauses already treat transport.
         const name = parseStringLiteral(stringToken.image).toLowerCase();
         return equalityCheck((event.transport ?? '').toLowerCase(), name, binaryOperator.children);
+    } else if (children.SCANNER) {
+        const stringToken = children.STRING?.[0];
+        const binaryOperator = children.binaryOperator?.[0];
+        if (!stringToken) {
+            throw new Error('Missing string for scanner clause');
+        }
+        if (!binaryOperator) {
+            throw new Error('Missing binary operator for scanner clause');
+        }
+        // Scanner names (censys, shodan, ...) are case insensitive; an event with no
+        // detected scanner has an empty value, so `scanner ne "censys"` still matches it.
+        const name = parseStringLiteral(stringToken.image).toLowerCase();
+        return equalityCheck((event.scanner ?? '').toLowerCase(), name, binaryOperator.children);
     } else if (children.portItemClause) {
         let portItemClause = children.portItemClause[0].children;
         const port = children.PORT?.[0];
