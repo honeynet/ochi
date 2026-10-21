@@ -134,21 +134,42 @@
             : [...new Set([...selected, ...pageIds])];
     }
 
-    async function deleteSelected() {
+    // Deleting saved events cannot be undone, so it goes through a confirmation dialog.
+    let confirmDialog = $state<HTMLDialogElement | null>(null);
+    let deleting = $state(false);
+
+    function askToDeleteSelected() {
+        if (selected.length === 0) return;
+        if (confirmDialog && !confirmDialog.open) {
+            confirmDialog.showModal();
+        }
+    }
+
+    function closeConfirm() {
+        if (confirmDialog?.open) {
+            confirmDialog.close();
+        }
+    }
+
+    async function confirmDeleteSelected() {
         const toDelete = [...selected];
+        if (toDelete.length === 0) return;
+        deleting = true;
         try {
             await deleteEvents(toDelete, $token);
+            selected = [];
+            const cur = get(currentEvent);
+            if (cur?.id && toDelete.includes(cur.id)) {
+                currentEvent.set(undefined);
+            }
+            closeConfirm();
+            await reloadEvents();
         } catch (e) {
             error = e instanceof Error ? e.message : 'Could not delete events';
             showError(e, 'Could not delete events');
-            return;
+        } finally {
+            deleting = false;
         }
-        selected = [];
-        const cur = get(currentEvent);
-        if (cur?.id && toDelete.includes(cur.id)) {
-            currentEvent.set(undefined);
-        }
-        await reloadEvents();
     }
 </script>
 
@@ -162,7 +183,7 @@
                 <input type="checkbox" checked={allSelected} onchange={toggleAll} />
                 Select page
             </label>
-            <button disabled={selected.length === 0} onclick={deleteSelected}>
+            <button disabled={selected.length === 0 || deleting} onclick={askToDeleteSelected}>
                 Delete selected ({selected.length})
             </button>
         {/if}
@@ -201,6 +222,29 @@
         </div>
     {/if}
 </div>
+
+<dialog
+    bind:this={confirmDialog}
+    onclick={(event) => {
+        if (event.target === event.currentTarget) {
+            closeConfirm();
+        }
+    }}
+>
+    <div class="eventList__confirm">
+        <p>
+            Delete <strong>{selected.length}</strong> selected {selected.length === 1
+                ? 'event'
+                : 'events'}? This action cannot be undone.
+        </p>
+        <div class="eventList__confirm-buttons">
+            <button onclick={closeConfirm} disabled={deleting}>Cancel</button>
+            <button onclick={confirmDeleteSelected} disabled={deleting}>
+                {deleting ? 'Deleting...' : 'Delete'}
+            </button>
+        </div>
+    </div>
+</dialog>
 
 <style>
     .column {
@@ -285,5 +329,26 @@
         gap: 15px;
         padding-top: 8px;
         font-size: 12px;
+    }
+
+    dialog {
+        max-width: 32em;
+        border-radius: 0.2em;
+        border: none;
+        padding: 0;
+    }
+
+    dialog::backdrop {
+        background: rgba(0, 0, 0, 0.3);
+    }
+
+    .eventList__confirm {
+        padding: 1em;
+    }
+
+    .eventList__confirm-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
     }
 </style>
