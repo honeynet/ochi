@@ -145,27 +145,18 @@ describe('parseDSL', () => {
         ).toBeTruthy();
     });
 
-    test('parses ip.dst against dstHost', () => {
+    test('ip.dst is no longer a valid field', () => {
+        // Removed: dstHost is stripped from every event, so ip.dst could never match.
         let sx = parseDSL('ip.dst eq 198.51.100.8');
+        expect(sx.lexErrors.length + sx.parseErrors.length).toBeGreaterThan(0);
+    });
+
+    test('ip.src still filters on srcHost', () => {
+        let sx = parseDSL('ip.src eq 192.168.1.1');
         expect(sx.lexErrors).toHaveLength(0);
         expect(sx.parseErrors).toHaveLength(0);
-        expect(
-            filterEvent(
-                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
-                    dstHost: '198.51.100.8',
-                }),
-                sx.cst!,
-            ),
-        ).toBeTruthy();
-        expect(
-            filterEvent(
-                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
-                    dstHost: '10.0.0.1',
-                }),
-                sx.cst!,
-            ),
-        ).toBeFalsy();
-        expect(filterEvent(generateTestEvent(80, '123', '192.168.1.1'), sx.cst!)).toBeFalsy();
+        expect(filterEvent(generateTestEvent(80, '123', '192.168.1.1'), sx.cst!)).toBeTruthy();
+        expect(filterEvent(generateTestEvent(80, '123', '10.0.0.1'), sx.cst!)).toBeFalsy();
     });
 
     test('parses tcp.port against transport rather than rule text', () => {

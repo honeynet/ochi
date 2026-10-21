@@ -61,8 +61,7 @@ export interface IpItemClauseCstNode extends CstNode {
 }
 
 export type IpItemClauseCstChildren = {
-    IP_SRC?: IToken[];
-    IP_DST?: IToken[];
+    IP_SRC: IToken[];
 };
 
 export interface BinaryClauseCstNode extends CstNode {

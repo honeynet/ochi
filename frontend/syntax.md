@@ -26,7 +26,7 @@ portItemClause
    : "tcp.port" || "udp.port"
 
 ipItemClause
-   : "ip.src" || "ip.dst"
+   : "ip.src"
 
 integer:
    : regex([0-9]+)

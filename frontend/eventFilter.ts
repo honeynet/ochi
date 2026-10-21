@@ -95,13 +95,6 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
             throw new Error('Missing binary operator for ip clause');
         }
 
-        if (children.ipItemClause[0].children.IP_DST) {
-            return equalityCheck(event.dstHost ?? '', ipv4Token.image, binaryOperator.children);
-        }
-        if (!children.ipItemClause[0].children.IP_SRC) {
-            throw new Error('ip.src is missing');
-        }
-
         return equalityCheck(event.srcHost, ipv4Token.image, binaryOperator.children);
     } else if (children.END_REASON) {
         const stringToken = children.STRING?.[0];
