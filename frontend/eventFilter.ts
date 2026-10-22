@@ -162,7 +162,7 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
             return false;
         }
         try {
-            return atob(event.payload).includes(searchString);
+            return atob(event.payload).includes(utf8ByteString(searchString));
         } catch {
             return false;
         }
@@ -183,6 +183,20 @@ function stringMatch(
     return ignoreCase
         ? equalityCheck(actual.toLowerCase(), value.toLowerCase(), binaryOperator)
         : equalityCheck(actual, value, binaryOperator);
+}
+
+// atob() yields one character per byte, so a search term has to be turned into its
+// UTF-8 bytes the same way before comparing; otherwise a term like "café" can never
+// match a UTF-8 payload. ASCII terms come back unchanged.
+function utf8ByteString(s: string): string {
+    try {
+        return encodeURIComponent(s).replace(/%([0-9A-F]{2})/g, (_, hex) =>
+            String.fromCharCode(parseInt(hex, 16)),
+        );
+    } catch {
+        // encodeURIComponent throws on a lone surrogate; compare the raw term instead.
+        return s;
+    }
 }
 
 export function parseStringLiteral(image: string): string {

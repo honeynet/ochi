@@ -101,6 +101,22 @@ describe('parseDSL', () => {
         ).toBeFalsy();
     });
 
+    test('payload contains matches non-ASCII text in a UTF-8 payload', () => {
+        const payload = Buffer.from('GET /café ü', 'utf8').toString('base64');
+        const matches = (term: string) => {
+            const sx = parseDSL(`payload contains ${JSON.stringify(term)}`);
+            expect(sx.lexErrors).toHaveLength(0);
+            expect(sx.parseErrors).toHaveLength(0);
+            return filterEvent(generateTestEvent(80, '123', '192.168.1.1', payload), sx.cst!);
+        };
+        expect(matches('café')).toBeTruthy();
+        expect(matches('ü')).toBeTruthy();
+        // ASCII terms behave as before.
+        expect(matches('GET /caf')).toBeTruthy();
+        // The accent still matters.
+        expect(matches('cafe')).toBeFalsy();
+    });
+
     test('parsing payload with spaces, slashes and punctuation', () => {
         let sx = parseDSL('payload contains "GET / HTTP/1.1"');
         expect(sx.lexErrors).toHaveLength(0);
