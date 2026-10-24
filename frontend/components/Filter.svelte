@@ -151,7 +151,8 @@
             wrap={focused ? 'soft' : 'off'}
             bind:value={filter}
             bind:this={inputField}
-            placeholder="Filter destination port"
+            placeholder="Filter events, e.g. tcp.port == 22"
+            aria-label="Filter events"
             oninput={debouncedFilterChange}
             onkeydown={handleKeydown}
             onfocus={() => {
