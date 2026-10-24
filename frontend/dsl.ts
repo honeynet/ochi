@@ -41,6 +41,7 @@ const payload = createToken({ name: 'PAYLOAD', pattern: /payload/, label: 'paylo
 const endReason = createToken({ name: 'END_REASON', pattern: /end\.reason/, label: 'end.reason' });
 const handler = createToken({ name: 'HANDLER', pattern: /handler/, label: 'handler' });
 const transport = createToken({ name: 'TRANSPORT', pattern: /transport/, label: 'transport' });
+const scanner = createToken({ name: 'SCANNER', pattern: /scanner/, label: 'scanner' });
 const string = createToken({
     name: 'STRING',
     pattern: /\"(?:[^"\\\r\n]|\\.)*\"/,
@@ -86,6 +87,7 @@ let allTokens = [
     endReason,
     handler,
     transport,
+    scanner,
 
     payload,
     string,
@@ -193,6 +195,15 @@ class QueryParser extends CstParser {
         this.CONSUME(ipSrc);
     });
 
+    private stringItemClause = this.RULE('stringItemClause', () => {
+        this.OR([
+            { ALT: () => this.CONSUME(endReason) },
+            { ALT: () => this.CONSUME(handler) },
+            { ALT: () => this.CONSUME(transport) },
+            { ALT: () => this.CONSUME(scanner) },
+        ]);
+    });
+
     private binaryClause = this.RULE('binaryClause', () => {
         this.OR([
             {
@@ -216,23 +227,9 @@ class QueryParser extends CstParser {
             },
             {
                 ALT: () => {
-                    this.CONSUME(endReason);
+                    this.SUBRULE(this.stringItemClause);
                     this.SUBRULE2(this.binaryOperator);
                     this.CONSUME(string);
-                },
-            },
-            {
-                ALT: () => {
-                    this.CONSUME(handler);
-                    this.SUBRULE3(this.binaryOperator);
-                    this.CONSUME1(string);
-                },
-            },
-            {
-                ALT: () => {
-                    this.CONSUME(transport);
-                    this.SUBRULE4(this.binaryOperator);
-                    this.CONSUME2(string);
                 },
             },
         ]);
@@ -278,6 +275,7 @@ const QUERY_START_SUGGESTIONS = [
     'end.reason',
     'handler',
     'transport',
+    'scanner',
     'payload',
     'not',
     '(',
@@ -290,6 +288,7 @@ const FIELD_SUGGESTIONS = [
     'end.reason',
     'handler',
     'transport',
+    'scanner',
     'payload',
     '(',
 ];
@@ -329,7 +328,7 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         return FIELD_SUGGESTIONS;
     }
 
-    if (tokenMatches(lastToken, tcpPort, udpPort, ipSrc, endReason, handler)) {
+    if (tokenMatches(lastToken, tcpPort, udpPort, ipSrc, endReason, handler, transport, scanner)) {
         return OPERATOR_SUGGESTIONS;
     }
 
@@ -346,6 +345,12 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         }
         if (fieldToken && tokenMatches(fieldToken, handler)) {
             return ['"http"'];
+        }
+        if (fieldToken && tokenMatches(fieldToken, transport)) {
+            return ['"tcp"'];
+        }
+        if (fieldToken && tokenMatches(fieldToken, scanner)) {
+            return ['"censys"'];
         }
         return [];
     }
