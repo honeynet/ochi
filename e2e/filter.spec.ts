@@ -101,6 +101,25 @@ test.describe('filter input', () => {
 
         await expect(field).toHaveValue('tcp.port == 80');
     });
+
+    test('suggestions are drawn above the event list header', async ({ page }) => {
+        await page.locator('.filter-input').click();
+        await expect(page.locator('.suggestions')).toBeVisible();
+
+        // Measure and hit-test in one step so the layout cannot shift in between.
+        const onTop = await page.evaluate(() => {
+            const list = document.querySelector('.suggestions')!.getBoundingClientRect();
+            const head = document.querySelector('.event-head')!.getBoundingClientRect();
+            const left = Math.max(list.left, head.left);
+            const right = Math.min(list.right, head.right);
+            const top = Math.max(list.top, head.top);
+            const bottom = Math.min(list.bottom, head.bottom);
+            if (right <= left || bottom <= top) return 'the dropdown does not overlap the header';
+            const hit = document.elementFromPoint((left + right) / 2, (top + bottom) / 2);
+            return hit?.closest('.suggestions') ? 'suggestions' : `covered by .${hit?.className}`;
+        });
+        expect(onTop).toBe('suggestions');
+    });
 });
 
 // The message list moves the selection on ArrowUp/ArrowDown from anywhere on the page.
