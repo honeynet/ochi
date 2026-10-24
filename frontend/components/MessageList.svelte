@@ -114,6 +114,7 @@
         }}
     >
         <div class="event-head">
+            <span>Time</span>
             <span>Sensor</span>
             <span>Source</span>
             <span>Port</span>
@@ -150,7 +151,7 @@
     }
 
     #message-log {
-        --event-cols: 8ch minmax(14ch, 1.4fr) 9ch 8ch minmax(8ch, 0.9fr) 20ch 6ch 7ch;
+        --event-cols: 8ch 8ch minmax(10ch, 1.4fr) 9ch 8ch minmax(6ch, 0.9fr) 13ch 6ch 7ch;
         flex: 1;
         min-height: 0;
         overflow-y: auto;

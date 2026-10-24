@@ -2,7 +2,7 @@
     import { untrack } from 'svelte';
     import type { Attachment } from 'svelte/attachments';
     import type { Event } from '../event';
-    import { END_REASONS, displayRule, formatPort, getEventById } from '../event';
+    import { END_REASONS, displayRule, formatEventTime, formatPort, getEventById } from '../event';
     import { formatFrameCount, frameCountTitle } from '../decoded';
     import { currentEvent } from '../store';
 
@@ -66,6 +66,7 @@
 </script>
 
 {#snippet cells()}
+    <span class="cell time" title={message.timestamp}>{formatEventTime(message.timestamp)}</span>
     <span class="cell sensor" title={message.sensorID}>{message.sensorID}</span>
     <span class="cell source" title={message.srcPtr || source}>{source}</span>
     <span class="cell dest">{destPort}</span>
