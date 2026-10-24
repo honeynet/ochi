@@ -36,7 +36,12 @@ func (h *Handlers) CreateQuery(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	query, err := h.Queries.Create(userID, t.Content, t.Description, t.Active)
+	tags, err := entities.NormalizeTags(t.Tags)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	query, err := h.Queries.Create(userID, t.Content, t.Description, t.Active, tags)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -66,6 +71,11 @@ func (h *Handlers) UpdateQuery(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
+	// The body is decoded over the stored query, so fields it leaves out keep their
+	// stored values. Tags are cleared first: decoding into a populated slice reuses its
+	// elements, so a tag sent without a value would otherwise inherit the value of the
+	// tag that used to be in that position.
+	q.Tags = nil
 	decoder := json.NewDecoder(r.Body)
 	defer r.Body.Close()
 	err = decoder.Decode(&q)
@@ -77,7 +87,16 @@ func (h *Handlers) UpdateQuery(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Ids don't match", http.StatusBadRequest)
 		return
 	}
-	err = h.Queries.Update(q.ID, q.Content, q.Description, q.Active)
+	// Omitted tags are left as stored (nil), without validating them again: tags saved
+	// under older limits must not make an edit to another field fail.
+	var tags []entities.Tag
+	if q.Tags != nil {
+		if tags, err = entities.NormalizeTags(q.Tags); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	err = h.Queries.Update(q.ID, q.Content, q.Description, q.Active, tags)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

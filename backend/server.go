@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -53,22 +54,22 @@ type server struct {
 	fs fs.FS
 }
 
+// sqlitePragmas are passed in the DSN, so the driver runs them on every connection the
+// pool opens. Running them with db.Exec only reached whichever connection executed the
+// statement: the others had no busy_timeout and failed at once with SQLITE_BUSY while
+// another connection held the write lock.
+var sqlitePragmas = []string{"journal_mode(WAL)", "busy_timeout(5000)", "synchronous(NORMAL)"}
+
 func openSQLite(path string) (*sqlx.DB, error) {
-	db, err := sqlx.Connect("sqlite", path)
-	if err != nil {
-		return nil, err
-	}
-	for _, pragma := range []string{
-		"PRAGMA journal_mode=WAL",
-		"PRAGMA busy_timeout=5000",
-		"PRAGMA synchronous=NORMAL",
-	} {
-		if _, err := db.Exec(pragma); err != nil {
-			_ = db.Close()
-			return nil, err
+	dsn := path
+	for i, pragma := range sqlitePragmas {
+		sep := "&"
+		if i == 0 && !strings.Contains(path, "?") {
+			sep = "?"
 		}
+		dsn += sep + "_pragma=" + pragma
 	}
-	return db, nil
+	return sqlx.Connect("sqlite", dsn)
 }
 
 // NewServer constructs a server with the defaults.

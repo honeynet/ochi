@@ -806,9 +806,9 @@ func TestQueryHandlers_StatusCodes(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
 
-	mine, err := queryRepo.Create("owner-1", "tcp.port == 80", "mine", true)
+	mine, err := queryRepo.Create("owner-1", "tcp.port == 80", "mine", true, nil)
 	require.NoError(t, err)
-	theirs, err := queryRepo.Create("owner-2", "tcp.port == 443", "theirs", true)
+	theirs, err := queryRepo.Create("owner-2", "tcp.port == 443", "theirs", true, nil)
 	require.NoError(t, err)
 
 	cs := &server{
@@ -1018,4 +1018,122 @@ func TestAuthenticator_IgnoresJWTCookie(t *testing.T) {
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func newQueriesTestServer(t *testing.T) (do func(method, target, body string) *httptest.ResponseRecorder, repo *repos.QueryRepo) {
+	t.Helper()
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	queryRepo, err := repos.NewQueryRepo(db)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	cs := &server{
+		queryRepo: queryRepo,
+		fs:        os.DirFS(tmp),
+		cfg:       Config{JWTSecret: "test-secret"},
+	}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+	token, err := entities.NewToken(entities.NewTokenAuth("test-secret"), entities.User{ID: "owner-1"})
+	require.NoError(t, err)
+
+	return func(method, target, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, target, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}, queryRepo
+}
+
+func listQueries(t *testing.T, do func(method, target, body string) *httptest.ResponseRecorder) []entities.Query {
+	t.Helper()
+	w := do(http.MethodGet, "/api/queries", "")
+	require.Equal(t, http.StatusOK, w.Code)
+	var qs []entities.Query
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&qs))
+	return qs
+}
+
+func TestQueries_TagsThroughTheAPI(t *testing.T) {
+	do, _ := newQueriesTestServer(t)
+
+	w := do(http.MethodPost, "/api/queries", `{"content":"tcp.port == 445","description":"smb","active":true,
+		"tags":[{"type":" malware ","value":"mirai"},{"type":"malware","value":"mirai"},{"type":"protocol","value":"smb"}]}`)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	var created entities.Query
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&created))
+	want := []entities.Tag{{Type: "malware", Value: "mirai"}, {Type: "protocol", Value: "smb"}}
+	assert.Equal(t, want, created.Tags, "tags are trimmed and de-duplicated")
+	assert.Equal(t, want, listQueries(t, do)[0].Tags)
+
+	patch := func(body string) *httptest.ResponseRecorder {
+		return do(http.MethodPatch, "/api/queries/"+created.ID, `{"id":"`+created.ID+`",`+body+`}`)
+	}
+
+	// Leaving tags out of the update keeps them, as it does for every other field.
+	require.Equal(t, http.StatusOK, patch(`"description":"renamed"`).Code)
+	got := listQueries(t, do)[0]
+	assert.Equal(t, "renamed", got.Description)
+	assert.Equal(t, want, got.Tags)
+
+	require.Equal(t, http.StatusOK, patch(`"tags":[{"type":"severity","value":"high"}]`).Code)
+	assert.Equal(t, []entities.Tag{{Type: "severity", Value: "high"}}, listQueries(t, do)[0].Tags)
+
+	require.Equal(t, http.StatusOK, patch(`"tags":[]`).Code)
+	assert.Empty(t, listQueries(t, do)[0].Tags)
+}
+
+func TestQueries_RejectsInvalidTags(t *testing.T) {
+	do, _ := newQueriesTestServer(t)
+
+	w := do(http.MethodPost, "/api/queries", `{"content":"c","description":"d","tags":[{"type":"t","value":""}]}`)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Empty(t, listQueries(t, do), "a rejected create stores nothing")
+
+	w = do(http.MethodPost, "/api/queries", `{"content":"c","description":"d","tags":[{"type":"t","value":"v"}]}`)
+	require.Equal(t, http.StatusOK, w.Code)
+	var q entities.Query
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&q))
+
+	long := strings.Repeat("x", entities.MaxTagLength+1)
+	w = do(http.MethodPatch, "/api/queries/"+q.ID, `{"id":"`+q.ID+`","description":"changed","tags":[{"type":"t","value":"`+long+`"}]}`)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	got := listQueries(t, do)[0]
+	assert.Equal(t, "d", got.Description, "a rejected update changes nothing")
+	assert.Equal(t, []entities.Tag{{Type: "t", Value: "v"}}, got.Tags)
+}
+
+// The update body is decoded over the stored query. Decoding a JSON array into a
+// populated slice reuses its elements, so without clearing the stored tags first a
+// tag sent with no value would quietly take the value of the tag it replaced.
+func TestQueries_UpdatedTagsDoNotInheritStoredValues(t *testing.T) {
+	do, _ := newQueriesTestServer(t)
+	w := do(http.MethodPost, "/api/queries", `{"content":"c","description":"d","tags":[{"type":"a","value":"stored"}]}`)
+	require.Equal(t, http.StatusOK, w.Code)
+	var q entities.Query
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&q))
+
+	w = do(http.MethodPatch, "/api/queries/"+q.ID, `{"id":"`+q.ID+`","tags":[{"type":"b"}]}`)
+	assert.Equal(t, http.StatusBadRequest, w.Code, "a tag without a value is invalid, not {b, stored}")
+	assert.Equal(t, []entities.Tag{{Type: "a", Value: "stored"}}, listQueries(t, do)[0].Tags)
+}
+
+// Tags already stored are not validated again when an update leaves them out, so an
+// edit to another field still works if they would fail today's limits.
+func TestQueries_UpdateKeepsStoredTagsWithoutRevalidating(t *testing.T) {
+	do, repo := newQueriesTestServer(t)
+	long := []entities.Tag{{Type: "note", Value: strings.Repeat("x", entities.MaxTagLength+10)}}
+	q, err := repo.Create("owner-1", "tcp.port == 22", "ssh", true, long)
+	require.NoError(t, err)
+
+	w := do(http.MethodPatch, "/api/queries/"+q.ID, `{"id":"`+q.ID+`","description":"renamed"}`)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	got := listQueries(t, do)[0]
+	assert.Equal(t, "renamed", got.Description)
+	assert.Equal(t, long, got.Tags)
 }

@@ -47,6 +47,13 @@
                     <p class="queryList__info-field queryList__description">
                         {#if query.description}{query.description}{/if}
                     </p>
+                    {#if query.tags && query.tags.length > 0}
+                        <ul class="queryList__tags" aria-label="Tags">
+                            {#each query.tags as tag (JSON.stringify([tag.type, tag.value]))}
+                                <li class="tag">{tag.type}: {tag.value}</li>
+                            {/each}
+                        </ul>
+                    {/if}
                     <p class="queryList__info-field queryList__active">
                         {#if query.id == $activeFilterId}active{:else}inactive{/if}
                     </p>
@@ -100,6 +107,22 @@
     .queryList__description {
         font-style: italic;
         font-size: 14px;
+    }
+
+    .queryList__tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .tag {
+        padding: 0 8px;
+        border-radius: 999px;
+        background: #e8e8e8;
+        font-size: 13px;
     }
 
     .queryList__active {
