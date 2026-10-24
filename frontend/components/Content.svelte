@@ -377,6 +377,8 @@
                 {JSON.stringify($currentEvent.decoded, null, 2)}
             </div>
         {/if}
+    {:else}
+        <p class="empty">Select an event to see its details. Use ↑/↓ to move between events.</p>
     {/if}
 </div>
 
@@ -385,6 +387,12 @@
         min-width: 0;
         padding: 15px 20px;
         box-sizing: border-box;
+    }
+
+    .empty {
+        margin-top: 2em;
+        text-align: center;
+        color: #777;
     }
 
     .pre {
