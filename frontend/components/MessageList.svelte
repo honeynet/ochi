@@ -11,6 +11,8 @@
 
     let messages = $state<Event[]>([]);
     let follow = $state(true);
+    // Events that arrived while the list was paused, shown on the Resume button.
+    let missed = $state(0);
 
     function isTypingTarget(target: EventTarget | null): boolean {
         if (!(target instanceof HTMLElement)) {
@@ -96,6 +98,9 @@
         if (!$parsedFilter || filterEvent(message, $parsedFilter)) {
             messages.push(message);
             messages = messages;
+            if (!follow) {
+                missed++;
+            }
 
             if ($maxNumberOfMessages < messages.length) {
                 messages = messages.slice(messages.length - $maxNumberOfMessages);
@@ -133,8 +138,9 @@
         <button
             onclick={() => {
                 follow = true;
+                missed = 0;
             }}
-            id="resume-btn">Resume</button
+            id="resume-btn">Resume{missed > 0 ? ` (${missed} new)` : ''}</button
         >
     {/if}
 </div>
