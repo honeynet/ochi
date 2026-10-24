@@ -58,6 +58,8 @@
         // it alone while an IME is composing, where Enter confirms the composed text.
         if (event.key === 'Enter' && !event.isComposing) {
             event.preventDefault();
+            // Drop the pending suggestion refresh, or it would reopen the list after applying.
+            debouncedFilterChange.cancel();
             hideSuggestions = true;
             applyFilter();
         }

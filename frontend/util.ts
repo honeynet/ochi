@@ -8,17 +8,21 @@ import type { Event } from './event';
  * in UI widgets like text inputs.
  * @param callback Function to be called
  * @param delay Milliseconds to wait after last event before the function is called
- * @returns
+ * @returns The debounced function, with a `cancel` method that drops a pending call
  */
-export function debounce<T extends (...args: any[]) => void>(callback: T, delay: number): T {
+export function debounce<T extends (...args: any[]) => void>(
+    callback: T,
+    delay: number,
+): T & { cancel: () => void } {
     let timeoutId: NodeJS.Timeout | undefined = undefined;
 
-    return <T>((...args: any[]): void => {
+    const debounced = <T>((...args: any[]): void => {
         clearTimeout(timeoutId);
         timeoutId = setTimeout(() => {
             callback(...args);
         }, delay);
     });
+    return Object.assign(debounced, { cancel: () => clearTimeout(timeoutId) });
 }
 
 const handlers: (string | undefined)[] = ['http', 'rdp', '', undefined];
