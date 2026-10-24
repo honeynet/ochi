@@ -26,6 +26,7 @@ func newRouter(cs *server) (*chi.Mux, error) {
 		PublishFunc: cs.publish,
 
 		RequireRegisteredSensors: cs.cfg.RequireRegisteredSensors,
+		AdminEmails:              cs.cfg.AdminEmails,
 	}
 
 	r := chi.NewRouter()
@@ -48,6 +49,7 @@ func newRouter(cs *server) (*chi.Mux, error) {
 	r.Get("/myqueries", h.Index)
 	r.Get("/myevents", h.Index)
 	r.Get("/mysensors", h.Index)
+	r.Get("/users", h.Index)
 	r.Get("/events/{id}", h.Index)
 
 	build, err := fs.Sub(cs.fs, "build")
@@ -93,6 +95,9 @@ func newRouter(cs *server) (*chi.Mux, error) {
 			r.Get("/sensors", h.GetSensorsByUser)
 			r.Post("/sensors", h.AddSensor)
 			r.Delete("/sensors/{id}", h.DeleteSensor)
+
+			// admin
+			r.With(h.RequirePermission(entities.PermListUsers)).Get("/users", h.ListUsers)
 		})
 	})
 

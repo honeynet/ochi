@@ -625,7 +625,7 @@ func TestRouter_CorsPreflightAndStaticFiles(t *testing.T) {
 	mux, err := newRouter(cs)
 	require.NoError(t, err)
 
-	for _, path := range []string{"/", "/myqueries", "/myevents", "/mysensors", "/events/abc"} {
+	for _, path := range []string{"/", "/myqueries", "/myevents", "/mysensors", "/users", "/events/abc"} {
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
 		assert.Equal(t, http.StatusOK, w.Code, "expected 200 for %s", path)
@@ -894,4 +894,77 @@ func TestEventHandlers_StatusCodes(t *testing.T) {
 	theirsAfterDelete, err := repo.GetByID(theirsID)
 	require.NoError(t, err)
 	assert.Equal(t, theirsID, theirsAfterDelete.ID, "unauthorized delete must not remove the event")
+}
+
+// Listing users and choosing a sensor ID are admin-only; everyone else gets a 403
+// and their sensors get a server-generated ID.
+func TestAdminPermissions(t *testing.T) {
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	uRepo, err := repos.NewUserRepo(db)
+	require.NoError(t, err)
+	sensorRepo, err := repos.NewSensorRepo(db)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	admin, err := uRepo.Find("admin@test")
+	require.NoError(t, err)
+	require.NoError(t, uRepo.GrantRole(admin.ID, entities.RoleAdmin))
+	plain, err := uRepo.Find("plain@test")
+	require.NoError(t, err)
+
+	cs := &server{
+		uRepo:      uRepo,
+		sensorRepo: sensorRepo,
+		fs:         os.DirFS(tmp),
+		cfg:        Config{JWTSecret: "test-secret"},
+	}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	tokenAuth := entities.NewTokenAuth("test-secret")
+	adminToken, err := entities.NewToken(tokenAuth, admin)
+	require.NoError(t, err)
+	plainToken, err := entities.NewToken(tokenAuth, plain)
+	require.NoError(t, err)
+
+	do := func(token, method, path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+
+	// List users
+	assert.Equal(t, http.StatusForbidden, do(plainToken, http.MethodGet, "/api/users", "").Code)
+	w := do(adminToken, http.MethodGet, "/api/users", "")
+	require.Equal(t, http.StatusOK, w.Code)
+	var users []entities.User
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &users))
+	require.Len(t, users, 2)
+	assert.Equal(t, []entities.Role{entities.RoleAdmin}, users[0].Roles)
+
+	// Add sensor by ID
+	const chosen = "44444444-4444-4444-4444-444444444444"
+	body := fmt.Sprintf(`{"id":%q,"name":"s"}`, chosen)
+	assert.Equal(t, http.StatusForbidden, do(plainToken, http.MethodPost, "/api/sensors", body).Code)
+	assert.False(t, sensorRepo.Exists(chosen), "a refused add must not register the sensor")
+
+	assert.Equal(t, http.StatusBadRequest, do(adminToken, http.MethodPost, "/api/sensors", `{"id":"not-a-uuid"}`).Code)
+	require.Equal(t, http.StatusOK, do(adminToken, http.MethodPost, "/api/sensors", body).Code)
+	assert.True(t, sensorRepo.Exists(chosen))
+	assert.Equal(t, http.StatusConflict, do(adminToken, http.MethodPost, "/api/sensors", body).Code)
+
+	// Without an ID anyone may add a sensor, and the server picks the ID.
+	w = do(plainToken, http.MethodPost, "/api/sensors", `{"name":"mine"}`)
+	require.Equal(t, http.StatusOK, w.Code)
+	var added entities.Sensor
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &added))
+	assert.NotEmpty(t, added.ID)
+	assert.Equal(t, plain.ID, added.UserID)
+	assert.True(t, sensorRepo.Exists(added.ID))
 }

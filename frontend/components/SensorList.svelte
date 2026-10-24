@@ -1,6 +1,7 @@
 <script lang="ts">
     import { untrack } from 'svelte';
-    import { token } from '../store';
+    import { token, permissions } from '../store';
+    import { PERM_ADD_SENSOR_BY_ID } from '../user';
     import { showError } from '../toast';
     import {
         type Sensor,
@@ -17,6 +18,8 @@
     let error = $state('');
 
     let newName = $state('');
+    let newId = $state('');
+    let canAddById = $derived($permissions.includes(PERM_ADD_SENSOR_BY_ID));
     let adding = $state(false);
     let addError = $state('');
 
@@ -59,12 +62,14 @@
         adding = true;
         addError = '';
         try {
+            const id = canAddById ? newId.trim() : '';
             const sensor = await addSensor($token, {
-                id: crypto.randomUUID(),
+                ...(id ? { id } : {}),
                 name: newName.trim(),
             });
             sensors = [...sensors, sensor];
             newName = '';
+            newId = '';
         } catch (e) {
             addError = e instanceof Error ? e.message : String(e);
             showError(e);
@@ -111,6 +116,14 @@
 <h2 class="sensorList__title">Sensors</h2>
 <form class="sensorList__add" onsubmit={handleAdd}>
     <input type="text" placeholder="Sensor name" bind:value={newName} disabled={adding} />
+    {#if canAddById}
+        <input
+            type="text"
+            placeholder="Sensor ID (optional)"
+            bind:value={newId}
+            disabled={adding}
+        />
+    {/if}
     <button type="submit" disabled={adding}>Add sensor</button>
 </form>
 {#if addError}

@@ -45,6 +45,37 @@ func (h *Handlers) AddSensor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Choosing the sensor ID is privileged: it lets the caller claim a sensor that
+	// is already running with that ID baked into its binary. Everyone else gets a
+	// server-generated one.
+	if sensor.ID != "" {
+		ok, err := h.hasPermission(r, entities.PermAddSensorByID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+			return
+		}
+		// The id is written into a fixed-width slot in the binary, so only the canonical form is accepted.
+		if parsed, err := uuid.Parse(sensor.ID); err != nil || parsed.String() != sensor.ID {
+			http.Error(w, "sensor id must be a canonical UUID", http.StatusBadRequest)
+			return
+		}
+		if h.Sensors.Exists(sensor.ID) {
+			http.Error(w, "sensor id already registered", http.StatusConflict)
+			return
+		}
+	} else {
+		id, err := uuid.NewRandom()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		sensor.ID = id.String()
+	}
+
 	sensor.UserID = userId
 	if strings.TrimSpace(sensor.Name) == "" {
 		sensor.Name = entities.RandomName()

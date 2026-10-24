@@ -12,14 +12,20 @@ import (
 )
 
 type response struct {
-	User  entities.User `json:"user,omitempty"`
-	Token string        `json:"token,omitempty"`
+	User        entities.User         `json:"user,omitempty"`
+	Token       string                `json:"token,omitempty"`
+	Permissions []entities.Permission `json:"permissions"`
 }
 
 // Session creates a new token for the user
 func (h *Handlers) Session(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromCtx(r.Context())
 	user, err := h.Users.Get(userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	user.Roles, err = h.syncRoles(user)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -32,7 +38,7 @@ func (h *Handlers) Session(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	if err = json.NewEncoder(w).Encode(response{user, token}); err != nil {
+	if err = json.NewEncoder(w).Encode(response{user, token, entities.PermissionsFor(user.Roles)}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -70,6 +76,11 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	user.Roles, err = h.syncRoles(user)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	token, err := entities.NewToken(h.TokenAuth, user)
 	if err != nil {
@@ -78,7 +89,7 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	if err = json.NewEncoder(w).Encode(response{user, token}); err != nil {
+	if err = json.NewEncoder(w).Encode(response{user, token, entities.PermissionsFor(user.Roles)}); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

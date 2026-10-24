@@ -5,7 +5,8 @@
     import LogoutButton from './LogoutButton.svelte';
     import SSORevokeButton from './SSORevokeButton.svelte';
     import Config from './Config.svelte';
-    import { isAuthenticated } from '../store';
+    import { isAuthenticated, permissions } from '../store';
+    import { PERM_LIST_USERS } from '../user';
 
     interface Props {
         path: string;
@@ -34,6 +35,9 @@
             <a class="header__link" href={$url(path)}>{pathText}</a>
             {#if showEvents}<a class="header__link" href={$url('/myevents')}>Events</a>
                 <a class="header__link" href={$url('/mysensors')}>Sensors</a>
+                {#if $permissions.includes(PERM_LIST_USERS)}
+                    <a class="header__link" href={$url('/users')}>Users</a>
+                {/if}
             {/if}
             <LogoutButton />
             <SSORevokeButton />

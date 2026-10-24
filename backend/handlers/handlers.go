@@ -24,6 +24,9 @@ type Handlers struct {
 	// in the sensors table.
 	RequireRegisteredSensors bool
 
+	// AdminEmails are granted the admin role on login.
+	AdminEmails []string
+
 	// PublishFunc fans a message out to subscribers; it returns false when rate limited.
 	PublishFunc func(msg []byte) bool
 }
