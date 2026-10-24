@@ -32,6 +32,9 @@ export interface BooleanClauseCstNode extends CstNode {
 
 export type BooleanClauseCstChildren = {
     binaryClause?: BinaryClauseCstNode[];
+    LPAREN?: IToken[];
+    query?: QueryCstNode[];
+    RPAREN?: IToken[];
 };
 
 export interface SearchClauseCstNode extends CstNode {

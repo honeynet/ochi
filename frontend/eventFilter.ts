@@ -77,6 +77,12 @@ function transportMatches(event: Event, protocol: 'tcp' | 'udp'): boolean {
 }
 
 function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClauseCstNode): boolean {
+    // A parenthesized group is evaluated as a query of its own
+    const group = booleanClauseCstNode.children.query?.[0];
+    if (group) {
+        return filterEvent(event, group);
+    }
+
     // We do not support unary clause yet, only binary clause is supported
     const binaryClause = booleanClauseCstNode.children.binaryClause?.[0];
     if (!binaryClause) {

@@ -392,3 +392,54 @@ describe('filterEvent on events that matched no rule', () => {
         expect(filterEvent(noRule(), sx.cst!)).toBeTruthy();
     });
 });
+
+describe('parenthesized groups', () => {
+    const fromSrc = (port: number, src: string) => generateTestEvent(port, '123', src);
+
+    test('groups an or before an and', () => {
+        let sx = parseDSL('(ip.src eq 1.1.1.1 or ip.src eq 2.2.2.2) and tcp.port == 22');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(filterEvent(fromSrc(22, '1.1.1.1'), sx.cst!)).toBeTruthy();
+        expect(filterEvent(fromSrc(22, '2.2.2.2'), sx.cst!)).toBeTruthy();
+        expect(filterEvent(fromSrc(22, '3.3.3.3'), sx.cst!)).toBeFalsy();
+        // Without the group this would read as 1.1.1.1 or (2.2.2.2 and port 22).
+        expect(filterEvent(fromSrc(80, '1.1.1.1'), sx.cst!)).toBeFalsy();
+    });
+
+    test('negates a whole group', () => {
+        let sx = parseDSL('not (tcp.port == 22 or tcp.port == 23)');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(filterEvent(fromSrc(22, '1.1.1.1'), sx.cst!)).toBeFalsy();
+        expect(filterEvent(fromSrc(23, '1.1.1.1'), sx.cst!)).toBeFalsy();
+        expect(filterEvent(fromSrc(80, '1.1.1.1'), sx.cst!)).toBeTruthy();
+    });
+
+    test('supports nested groups', () => {
+        let sx = parseDSL(
+            '((tcp.port == 22 or tcp.port == 23) and ip.src eq 1.1.1.1) or ip.src eq 9.9.9.9',
+        );
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(filterEvent(fromSrc(23, '1.1.1.1'), sx.cst!)).toBeTruthy();
+        expect(filterEvent(fromSrc(80, '9.9.9.9'), sx.cst!)).toBeTruthy();
+        expect(filterEvent(fromSrc(80, '1.1.1.1'), sx.cst!)).toBeFalsy();
+    });
+
+    test('rejects unbalanced parentheses', () => {
+        expect(parseDSL('(tcp.port == 22').parseErrors.length).toBeGreaterThan(0);
+        expect(parseDSL('tcp.port == 22)').parseErrors.length).toBeGreaterThan(0);
+        expect(parseDSL('()').parseErrors.length).toBeGreaterThan(0);
+    });
+
+    test('suggests closing an open group', () => {
+        const filterState = { suggestions: [], partialToken: null };
+        parseDSL('(tcp.port == 22 ', filterState);
+        expect(filterState.suggestions).toEqual(['and', 'or', ')']);
+        parseDSL('(tcp.port == 22) ', filterState);
+        expect(filterState.suggestions).toEqual(['and', 'or']);
+        parseDSL('not ', filterState);
+        expect(filterState.suggestions).toContain('(');
+    });
+});

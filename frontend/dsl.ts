@@ -14,6 +14,10 @@ const and = createToken({ name: 'AND', pattern: /and/, label: 'and' });
 const or = createToken({ name: 'OR', pattern: /or/, label: 'or' });
 const not = createToken({ name: 'NOT', pattern: /not/, label: 'not' });
 
+// Grouping
+const lParen = createToken({ name: 'LPAREN', pattern: /\(/, label: '(' });
+const rParen = createToken({ name: 'RPAREN', pattern: /\)/, label: ')' });
+
 // Search and match operators
 const contains = createToken({ name: 'CONTAINS', pattern: /contains/, label: 'contains' });
 const matches = createToken({ name: 'MATCHES', pattern: /matches/, label: 'matches' });
@@ -66,6 +70,9 @@ let allTokens = [
     and,
     or,
     not,
+
+    lParen,
+    rParen,
 
     contains,
     matches,
@@ -139,6 +146,13 @@ class QueryParser extends CstParser {
             {
                 ALT: () => {
                     this.SUBRULE(this.binaryClause);
+                },
+            },
+            {
+                ALT: () => {
+                    this.CONSUME(lParen);
+                    this.SUBRULE(this.query);
+                    this.CONSUME(rParen);
                 },
             },
             // {
@@ -279,6 +293,7 @@ const QUERY_START_SUGGESTIONS = [
     'transport',
     'payload',
     'not',
+    '(',
 ];
 
 const FIELD_SUGGESTIONS = [
@@ -290,6 +305,7 @@ const FIELD_SUGGESTIONS = [
     'handler',
     'transport',
     'payload',
+    '(',
 ];
 
 const OPERATOR_SUGGESTIONS = ['eq', 'ne', '==', '!='];
@@ -299,6 +315,19 @@ function tokenMatches(token: IToken, ...types: TokenType[]): boolean {
     return types.includes(token.tokenType);
 }
 
+// Number of groups opened but not yet closed, so ')' is only offered when it can match.
+function openGroups(tokens: IToken[]): number {
+    let depth = 0;
+    for (const token of tokens) {
+        if (tokenMatches(token, lParen)) {
+            depth++;
+        } else if (tokenMatches(token, rParen) && depth > 0) {
+            depth--;
+        }
+    }
+    return depth;
+}
+
 function computeSuggestions(assistTokens: IToken[]): string[] {
     if (assistTokens.length === 0) {
         return QUERY_START_SUGGESTIONS;
@@ -306,7 +335,7 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
 
     const lastToken = assistTokens[assistTokens.length - 1];
 
-    if (tokenMatches(lastToken, and, or)) {
+    if (tokenMatches(lastToken, and, or, lParen)) {
         return QUERY_START_SUGGESTIONS;
     }
 
@@ -335,8 +364,10 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         return [];
     }
 
-    if (tokenMatches(lastToken, port, ipv4, string)) {
-        return BOOLEAN_SUFFIX_SUGGESTIONS;
+    if (tokenMatches(lastToken, port, ipv4, string, rParen)) {
+        return openGroups(assistTokens) > 0
+            ? [...BOOLEAN_SUFFIX_SUGGESTIONS, ')']
+            : BOOLEAN_SUFFIX_SUGGESTIONS;
     }
 
     if (tokenMatches(lastToken, payload)) {
