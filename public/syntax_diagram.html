@@ -260,6 +260,67 @@
   },
   {
     "type": "Rule",
+    "name": "stringItemClause",
+    "orgText": "",
+    "definition": [
+      {
+        "type": "Alternation",
+        "idx": 0,
+        "definition": [
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "END_REASON",
+                "label": "end.reason",
+                "idx": 0,
+                "pattern": "end\\.reason"
+              }
+            ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "HANDLER",
+                "label": "handler",
+                "idx": 0,
+                "pattern": "handler"
+              }
+            ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "TRANSPORT",
+                "label": "transport",
+                "idx": 0,
+                "pattern": "transport"
+              }
+            ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "SCANNER",
+                "label": "scanner",
+                "idx": 0,
+                "pattern": "scanner"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "Rule",
     "name": "binaryClause",
     "orgText": "",
     "definition": [
@@ -325,11 +386,9 @@
             "type": "Alternative",
             "definition": [
               {
-                "type": "Terminal",
-                "name": "END_REASON",
-                "label": "end.reason",
-                "idx": 0,
-                "pattern": "end\\.reason"
+                "type": "NonTerminal",
+                "name": "stringItemClause",
+                "idx": 0
               },
               {
                 "type": "NonTerminal",
@@ -341,54 +400,6 @@
                 "name": "STRING",
                 "label": "\"msg\"",
                 "idx": 0,
-                "pattern": "\\\"(?:[^\"\\\\\\r\\n]|\\\\.)*\\\""
-              }
-            ]
-          },
-          {
-            "type": "Alternative",
-            "definition": [
-              {
-                "type": "Terminal",
-                "name": "HANDLER",
-                "label": "handler",
-                "idx": 0,
-                "pattern": "handler"
-              },
-              {
-                "type": "NonTerminal",
-                "name": "binaryOperator",
-                "idx": 3
-              },
-              {
-                "type": "Terminal",
-                "name": "STRING",
-                "label": "\"msg\"",
-                "idx": 1,
-                "pattern": "\\\"(?:[^\"\\\\\\r\\n]|\\\\.)*\\\""
-              }
-            ]
-          },
-          {
-            "type": "Alternative",
-            "definition": [
-              {
-                "type": "Terminal",
-                "name": "TRANSPORT",
-                "label": "transport",
-                "idx": 0,
-                "pattern": "transport"
-              },
-              {
-                "type": "NonTerminal",
-                "name": "binaryOperator",
-                "idx": 4
-              },
-              {
-                "type": "Terminal",
-                "name": "STRING",
-                "label": "\"msg\"",
-                "idx": 2,
                 "pattern": "\\\"(?:[^\"\\\\\\r\\n]|\\\\.)*\\\""
               }
             ]
