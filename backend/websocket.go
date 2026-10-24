@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -16,6 +17,9 @@ import (
 type subscriber struct {
 	msgs      chan []byte
 	closeSlow func()
+	// kicked is set by the first publish that finds msgs full, so only that
+	// publish starts a closeSlow goroutine for this subscriber.
+	kicked atomic.Bool
 	// handlers restricts delivery to events whose handler is in the set.
 	// nil means no filtering.
 	handlers map[string]struct{}
@@ -130,7 +134,9 @@ func (cs *server) publish(msg []byte) bool {
 		select {
 		case s.msgs <- msg:
 		default:
-			go s.closeSlow()
+			if s.kicked.CompareAndSwap(false, true) {
+				go s.closeSlow()
+			}
 		}
 	}
 	return true

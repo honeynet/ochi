@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -967,4 +968,21 @@ func TestAdminPermissions(t *testing.T) {
 	assert.NotEmpty(t, added.ID)
 	assert.Equal(t, plain.ID, added.UserID)
 	assert.True(t, sensorRepo.Exists(added.ID))
+}
+
+func TestPublish_KicksSlowSubscriberOnce(t *testing.T) {
+	cs := &server{
+		subscribers:    make(map[*subscriber]struct{}),
+		publishLimiter: rate.NewLimiter(rate.Inf, 0),
+	}
+	var kicks atomic.Int32
+	sub := &subscriber{msgs: make(chan []byte, 1), closeSlow: func() { kicks.Add(1) }}
+	cs.addSubscriber(sub)
+
+	for i := 0; i < 20; i++ {
+		require.True(t, cs.publish([]byte(`{"ok":true}`)))
+	}
+	assert.Eventually(t, func() bool { return kicks.Load() == 1 }, time.Second, 10*time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, int32(1), kicks.Load(), "closeSlow must run once per subscriber, not once per dropped message")
 }
