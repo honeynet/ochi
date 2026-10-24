@@ -1,12 +1,22 @@
 import { API_ENDPOINT } from './constants';
 import { showError } from './toast';
 
+export interface Tag {
+    type: string;
+    value: string;
+}
+
+// Mirror entities.MaxTagsPerQuery and entities.MaxTagLength, which the backend enforces.
+export const MAX_TAGS = 20;
+export const MAX_TAG_LENGTH = 64;
+
 export interface Query {
     id?: string; // query id
     content?: string; //query content
     owner_id?: string; // user id
     active?: boolean; // TODO: currently unused
     description?: string; // description of the query
+    tags?: Tag[]; // labels for the query
 }
 
 export async function saveQuery(queryToEdit: Query, token: string) {
@@ -40,6 +50,8 @@ export async function updateQuery(queryToEdit: Query, token: string): Promise<vo
             content: queryToEdit.content,
             description: queryToEdit.description,
             active: queryToEdit.active,
+            // Omitted tags are kept as they are by the backend, so only send them when known.
+            ...(queryToEdit.tags ? { tags: queryToEdit.tags } : {}),
         }),
     });
 
@@ -89,6 +101,7 @@ export async function createQuery(queryToEdit: Query, token: string): Promise<Qu
             content: queryToEdit.content,
             description: queryToEdit.description,
             active: queryToEdit.active,
+            tags: queryToEdit.tags ?? [],
         }),
     });
 
