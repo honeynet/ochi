@@ -17,7 +17,7 @@ booleanClause
    : binaryClause || unaryClause
 
 binaryClause
-   : portItemClause binaryOperator integer || ipItemClause binaryOperator ipv4 || searchClause || "end.reason" binaryOperator string || "handler" binaryOperator string || "transport" binaryOperator string
+   : portItemClause binaryOperator integer || ipItemClause binaryOperator ipv4 || searchClause || "end.reason" binaryOperator string || "handler" binaryOperator string || "transport" binaryOperator string || "scanner" binaryOperator string
 
 binaryOperator
    : "eq" || "==" || "ne" || "!="
@@ -58,6 +58,8 @@ string:
 `not (ip.src != 192.168.1.12)`  
 `handler eq "http"`  
 `transport eq "udp"`  
+`scanner eq "censys"`  
+`not scanner eq "censys"`  
 `transport ne "tcp" and payload contains "something"`  
 `payload contains "GET / HTTP/1.1"`  
 `payload contains "192.168.1.1"`  

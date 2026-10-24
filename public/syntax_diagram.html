@@ -391,6 +391,30 @@
                 "pattern": "\\\"(?:[^\"\\\\\\r\\n]|\\\\.)*\\\""
               }
             ]
+          },
+          {
+            "type": "Alternative",
+            "definition": [
+              {
+                "type": "Terminal",
+                "name": "SCANNER",
+                "label": "scanner",
+                "idx": 0,
+                "pattern": "scanner"
+              },
+              {
+                "type": "NonTerminal",
+                "name": "binaryOperator",
+                "idx": 5
+              },
+              {
+                "type": "Terminal",
+                "name": "STRING",
+                "label": "\"msg\"",
+                "idx": 3,
+                "pattern": "\\\"(?:[^\"\\\\\\r\\n]|\\\\.)*\\\""
+              }
+            ]
           }
         ]
       }

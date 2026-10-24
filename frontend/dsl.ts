@@ -38,6 +38,7 @@ const payload = createToken({ name: 'PAYLOAD', pattern: /payload/, label: 'paylo
 const endReason = createToken({ name: 'END_REASON', pattern: /end\.reason/, label: 'end.reason' });
 const handler = createToken({ name: 'HANDLER', pattern: /handler/, label: 'handler' });
 const transport = createToken({ name: 'TRANSPORT', pattern: /transport/, label: 'transport' });
+const scanner = createToken({ name: 'SCANNER', pattern: /scanner/, label: 'scanner' });
 const string = createToken({
     name: 'STRING',
     pattern: /\"(?:[^"\\\r\n]|\\.)*\"/,
@@ -81,6 +82,7 @@ let allTokens = [
     endReason,
     handler,
     transport,
+    scanner,
 
     payload,
     string,
@@ -233,6 +235,13 @@ class QueryParser extends CstParser {
                     this.CONSUME2(string);
                 },
             },
+            {
+                ALT: () => {
+                    this.CONSUME(scanner);
+                    this.SUBRULE5(this.binaryOperator);
+                    this.CONSUME3(string);
+                },
+            },
         ]);
     });
 
@@ -277,6 +286,7 @@ const QUERY_START_SUGGESTIONS = [
     'end.reason',
     'handler',
     'transport',
+    'scanner',
     'payload',
     'not',
 ];
@@ -289,6 +299,7 @@ const FIELD_SUGGESTIONS = [
     'end.reason',
     'handler',
     'transport',
+    'scanner',
     'payload',
 ];
 
@@ -314,7 +325,19 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         return FIELD_SUGGESTIONS;
     }
 
-    if (tokenMatches(lastToken, tcpPort, udpPort, ipSrc, ipDst, endReason, handler)) {
+    if (
+        tokenMatches(
+            lastToken,
+            tcpPort,
+            udpPort,
+            ipSrc,
+            ipDst,
+            endReason,
+            handler,
+            transport,
+            scanner,
+        )
+    ) {
         return OPERATOR_SUGGESTIONS;
     }
 
