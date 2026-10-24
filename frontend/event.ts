@@ -62,6 +62,26 @@ export function hasTime(value?: string): value is string {
     return !!value && !value.startsWith('0001-01-01');
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// formatEventTime shows when an event happened in local time, short enough for the
+// list's 8ch column: HH:MM:SS for events from today, "Jan 02" for older ones (saved
+// events can be days old). The full timestamp goes in the cell's tooltip.
+export function formatEventTime(timestamp?: string, now: Date = new Date()): string {
+    if (!hasTime(timestamp)) {
+        return '';
+    }
+    const t = new Date(timestamp);
+    if (Number.isNaN(t.getTime())) {
+        return '';
+    }
+    const pad = (n: number) => String(n).padStart(2, '0');
+    if (t.toDateString() === now.toDateString()) {
+        return `${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`;
+    }
+    return `${MONTHS[t.getMonth()]} ${pad(t.getDate())}`;
+}
+
 export function formatDuration(ms: number): string {
     if (ms < 1000) {
         return `${ms}ms`;
