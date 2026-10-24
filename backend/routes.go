@@ -73,7 +73,11 @@ func newRouter(cs *server) (*chi.Mux, error) {
 		// the request context, Authenticator turns a missing or bad one into a 401
 		// before any handler runs.
 		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Verifier(tokenAuth))
+			// Only accept the token from the Authorization header. jwtauth.Verifier
+			// also reads a "jwt" cookie, which the browser would send cross-site; the
+			// frontend never sets that cookie, so restricting it removes a CSRF path
+			// that wildcard CORS would otherwise open.
+			r.Use(jwtauth.Verify(tokenAuth, jwtauth.TokenFromHeader))
 			r.Use(handlers.Authenticator)
 
 			// user

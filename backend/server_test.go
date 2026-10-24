@@ -986,3 +986,36 @@ func TestPublish_KicksSlowSubscriberOnce(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	assert.Equal(t, int32(1), kicks.Load(), "closeSlow must run once per subscriber, not once per dropped message")
 }
+
+// jwtauth.Verifier also reads a "jwt" cookie; the router restricts it to the
+// Authorization header. A valid token presented only in a cookie must not
+// authenticate, so wildcard CORS cannot be turned into a CSRF path.
+func TestAuthenticator_IgnoresJWTCookie(t *testing.T) {
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	eventRepo, err := repos.NewEventRepo(db)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	cs := &server{eventRepo: eventRepo, fs: os.DirFS(tmp), cfg: Config{JWTSecret: "test-secret"}}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	token, err := entities.NewToken(entities.NewTokenAuth("test-secret"), entities.User{ID: "owner-1"})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/events", nil)
+	req.AddCookie(&http.Cookie{Name: "jwt", Value: token})
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusUnauthorized, w.Code, "a token in a cookie must not authenticate")
+
+	// The same token in the Authorization header still works.
+	req = httptest.NewRequest(http.MethodGet, "/api/events", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+}
