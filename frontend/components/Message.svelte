@@ -68,7 +68,10 @@
 {#snippet cells()}
     <span class="cell time" title={message.timestamp}>{formatEventTime(message.timestamp)}</span>
     <span class="cell sensor" title={message.sensorID}>{message.sensorID}</span>
-    <span class="cell source" title={message.srcPtr || source}>{source}</span>
+    <!-- The source port is ephemeral, so the column shows the host and the tooltip the port. -->
+    <span class="cell source" title={message.srcPtr ? `${message.srcPtr} (${source})` : source}
+        >{message.srcHost}</span
+    >
     <span class="cell dest">{destPort}</span>
     <span class="cell handler" title={handlerLabel || undefined}>{handlerLabel}</span>
     <span class="cell scanner" title={message.scanner}>{message.scanner ?? ''}</span>
