@@ -255,3 +255,16 @@ func TestQueryTags_FailedUpdateChangesNothing(t *testing.T) {
 	require.Equal(t, "content", got.Content, "the query must be left as it was")
 	require.Equal(t, []entities.Tag{{Type: "a", Value: "1"}}, got.Tags, "and so must its tags")
 }
+
+func TestQueryTags_UpdateWithNilKeepsTags(t *testing.T) {
+	r := initRepo(t)
+	tags := []entities.Tag{{Type: "a", Value: "1"}}
+	q, err := r.Create("001", "content", "description", true, tags)
+	require.NoError(t, err)
+
+	require.NoError(t, r.Update(q.ID, "new content", "description", true, nil))
+	got, err := r.GetByID(q.ID)
+	require.NoError(t, err)
+	require.Equal(t, "new content", got.Content)
+	require.Equal(t, tags, got.Tags, "nil tags leave the stored ones as they are")
+}

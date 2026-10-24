@@ -1020,7 +1020,7 @@ func TestAuthenticator_IgnoresJWTCookie(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 }
 
-func newQueriesTestServer(t *testing.T) (do func(method, target, body string) *httptest.ResponseRecorder) {
+func newQueriesTestServer(t *testing.T) (do func(method, target, body string) *httptest.ResponseRecorder, repo *repos.QueryRepo) {
 	t.Helper()
 	tmp := t.TempDir()
 	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
@@ -1046,7 +1046,7 @@ func newQueriesTestServer(t *testing.T) (do func(method, target, body string) *h
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 		return w
-	}
+	}, queryRepo
 }
 
 func listQueries(t *testing.T, do func(method, target, body string) *httptest.ResponseRecorder) []entities.Query {
@@ -1059,7 +1059,7 @@ func listQueries(t *testing.T, do func(method, target, body string) *httptest.Re
 }
 
 func TestQueries_TagsThroughTheAPI(t *testing.T) {
-	do := newQueriesTestServer(t)
+	do, _ := newQueriesTestServer(t)
 
 	w := do(http.MethodPost, "/api/queries", `{"content":"tcp.port == 445","description":"smb","active":true,
 		"tags":[{"type":" malware ","value":"mirai"},{"type":"malware","value":"mirai"},{"type":"protocol","value":"smb"}]}`)
@@ -1088,7 +1088,7 @@ func TestQueries_TagsThroughTheAPI(t *testing.T) {
 }
 
 func TestQueries_RejectsInvalidTags(t *testing.T) {
-	do := newQueriesTestServer(t)
+	do, _ := newQueriesTestServer(t)
 
 	w := do(http.MethodPost, "/api/queries", `{"content":"c","description":"d","tags":[{"type":"t","value":""}]}`)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
@@ -1111,7 +1111,7 @@ func TestQueries_RejectsInvalidTags(t *testing.T) {
 // populated slice reuses its elements, so without clearing the stored tags first a
 // tag sent with no value would quietly take the value of the tag it replaced.
 func TestQueries_UpdatedTagsDoNotInheritStoredValues(t *testing.T) {
-	do := newQueriesTestServer(t)
+	do, _ := newQueriesTestServer(t)
 	w := do(http.MethodPost, "/api/queries", `{"content":"c","description":"d","tags":[{"type":"a","value":"stored"}]}`)
 	require.Equal(t, http.StatusOK, w.Code)
 	var q entities.Query
@@ -1120,4 +1120,20 @@ func TestQueries_UpdatedTagsDoNotInheritStoredValues(t *testing.T) {
 	w = do(http.MethodPatch, "/api/queries/"+q.ID, `{"id":"`+q.ID+`","tags":[{"type":"b"}]}`)
 	assert.Equal(t, http.StatusBadRequest, w.Code, "a tag without a value is invalid, not {b, stored}")
 	assert.Equal(t, []entities.Tag{{Type: "a", Value: "stored"}}, listQueries(t, do)[0].Tags)
+}
+
+// Tags already stored are not validated again when an update leaves them out, so an
+// edit to another field still works if they would fail today's limits.
+func TestQueries_UpdateKeepsStoredTagsWithoutRevalidating(t *testing.T) {
+	do, repo := newQueriesTestServer(t)
+	long := []entities.Tag{{Type: "note", Value: strings.Repeat("x", entities.MaxTagLength+10)}}
+	q, err := repo.Create("owner-1", "tcp.port == 22", "ssh", true, long)
+	require.NoError(t, err)
+
+	w := do(http.MethodPatch, "/api/queries/"+q.ID, `{"id":"`+q.ID+`","description":"renamed"}`)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	got := listQueries(t, do)[0]
+	assert.Equal(t, "renamed", got.Description)
+	assert.Equal(t, long, got.Tags)
 }

@@ -10,6 +10,19 @@ export interface Tag {
 export const MAX_TAGS = 20;
 export const MAX_TAG_LENGTH = 64;
 
+// tagLength counts code points, as the server does (utf8.RuneCountInString). An input's
+// maxlength counts UTF-16 units instead, which disagrees for characters outside the BMP.
+export function tagLength(s: string): number {
+    return [...s].length;
+}
+
+// apiError turns a failed response into an Error carrying the server's message, so the
+// caller can show why a request was rejected.
+async function apiError(res: Response, fallback: string): Promise<Error> {
+    const message = (await res.text()).trim();
+    return new Error(message || fallback);
+}
+
 export interface Query {
     id?: string; // query id
     content?: string; //query content
@@ -56,7 +69,7 @@ export async function updateQuery(queryToEdit: Query, token: string): Promise<vo
     });
 
     if (!res.ok) {
-        throw new Error('Could not update a query');
+        throw await apiError(res, 'Could not update a query');
     }
 }
 
@@ -108,6 +121,6 @@ export async function createQuery(queryToEdit: Query, token: string): Promise<Qu
     if (res.ok) {
         return await res.json();
     } else {
-        throw new Error('Could not create a query');
+        throw await apiError(res, 'Could not create a query');
     }
 }

@@ -1,6 +1,13 @@
 <script lang="ts">
     import { token, userQueries } from '../store';
-    import { createQuery, getQueries, updateQuery, MAX_TAGS, MAX_TAG_LENGTH } from '../query';
+    import {
+        createQuery,
+        getQueries,
+        updateQuery,
+        tagLength,
+        MAX_TAGS,
+        MAX_TAG_LENGTH,
+    } from '../query';
     import type { Query, Tag } from '../query';
 
     let dialog = $state<HTMLDialogElement | null>(null);
@@ -9,9 +16,22 @@
     let newTagValue = $state('');
 
     let tags = $derived(queryToEdit.tags ?? []);
-    let canAddTag = $derived(
-        newTagType.trim() !== '' && newTagValue.trim() !== '' && tags.length < MAX_TAGS,
+    let saveError = $state('');
+
+    let tagTooLong = $derived(
+        tagLength(newTagType.trim()) > MAX_TAG_LENGTH ||
+            tagLength(newTagValue.trim()) > MAX_TAG_LENGTH,
     );
+    let canAddTag = $derived(
+        newTagType.trim() !== '' &&
+            newTagValue.trim() !== '' &&
+            !tagTooLong &&
+            tags.length < MAX_TAGS,
+    );
+    // A tag typed into the inputs but not added yet. A complete one is added when the
+    // query is saved; one that can't be added blocks saving rather than being dropped.
+    let hasPendingTag = $derived(newTagType.trim() !== '' || newTagValue.trim() !== '');
+    let pendingTagBlocksSave = $derived(hasPendingTag && !canAddTag);
 
     export function showModal(objectToEdit: Query) {
         if (!dialog) return;
@@ -23,6 +43,7 @@
         queryToEdit = { ...objectToEdit, tags: [...(objectToEdit.tags ?? [])] };
         newTagType = '';
         newTagValue = '';
+        saveError = '';
     }
 
     function sameTag(a: Tag, b: Tag) {
@@ -90,15 +111,23 @@
         await reloadQueries();
     }
 
-    async function confirmAndCloseModal() {
-        await saveQueryAndReload();
+    // save adds a pending tag, runs the request and closes the dialog. If the server
+    // rejects the query, the dialog stays open and shows the server's message.
+    async function save(request: () => Promise<void>) {
+        if (pendingTagBlocksSave) return;
+        if (hasPendingTag) addTag();
+        saveError = '';
+        try {
+            await request();
+        } catch (e) {
+            saveError = e instanceof Error ? e.message : String(e);
+            return;
+        }
         closeModal();
     }
 
-    async function updateAndCloseModal() {
-        await updateQueryAndReload();
-        closeModal();
-    }
+    const confirmAndCloseModal = () => save(saveQueryAndReload);
+    const updateAndCloseModal = () => save(updateQueryAndReload);
 </script>
 
 <dialog bind:this={dialog} onclose={closeModal}>
@@ -133,7 +162,6 @@
                     type="text"
                     placeholder="type"
                     aria-label="Tag type"
-                    maxlength={MAX_TAG_LENGTH}
                     bind:value={newTagType}
                     onkeydown={addTagOnEnter}
                 />
@@ -141,7 +169,6 @@
                     type="text"
                     placeholder="value"
                     aria-label="Tag value"
-                    maxlength={MAX_TAG_LENGTH}
                     bind:value={newTagValue}
                     onkeydown={addTagOnEnter}
                 />
@@ -150,11 +177,26 @@
             {#if tags.length >= MAX_TAGS}
                 <p class="queryModal__hint">A query can have at most {MAX_TAGS} tags.</p>
             {/if}
+            {#if tagTooLong}
+                <p class="queryModal__hint">
+                    A tag type or value can be at most {MAX_TAG_LENGTH} characters.
+                </p>
+            {:else if pendingTagBlocksSave}
+                <p class="queryModal__hint">Finish or clear the tag before saving.</p>
+            {/if}
         </fieldset>
+        {#if saveError}
+            <!-- Inside the dialog: a toast would be hidden behind the modal. -->
+            <p class="queryModal__error" role="alert">{saveError}</p>
+        {/if}
         {#if queryToEdit && queryToEdit.id}
-            <button type="button" onclick={updateAndCloseModal}>Update</button>
+            <button type="button" onclick={updateAndCloseModal} disabled={pendingTagBlocksSave}
+                >Update</button
+            >
         {:else}
-            <button type="button" onclick={confirmAndCloseModal}>Confirm</button>
+            <button type="button" onclick={confirmAndCloseModal} disabled={pendingTagBlocksSave}
+                >Confirm</button
+            >
         {/if}
 
         <button type="button" onclick={closeModal}>Cancel</button>
@@ -236,6 +278,11 @@
 
     .queryModal__tag-add button {
         margin: 0;
+    }
+
+    .queryModal__error {
+        margin: 0 0 0.5em;
+        color: #b00020;
     }
 
     .queryModal__hint {

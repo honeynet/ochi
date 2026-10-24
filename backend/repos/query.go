@@ -20,7 +20,9 @@ type QueryRepo struct {
 	getByIdQuery     *sqlx.Stmt
 	tagsForQuery     *sqlx.Stmt
 	tagsForOwner     *sqlx.Stmt
-	db               *sqlx.DB
+	// db is only used to start transactions. It is shared with the other repos and
+	// owned by the server, which closes it on shutdown, so the repo never closes it.
+	db *sqlx.DB
 }
 
 // NewQueryRepo creates a query repo
@@ -140,7 +142,8 @@ func (r *QueryRepo) Create(owner_id, content, description string, active bool, t
 	return q, err
 }
 
-// Update updates an existing query and replaces its tags with the ones given.
+// Update updates an existing query. A nil tags leaves its tags as they are; any other
+// value, including an empty slice, replaces them.
 func (r *QueryRepo) Update(id, content, description string, active bool, tags []entities.Tag) error {
 	return r.inTx(func(tx *sqlx.Tx) error {
 		res, err := tx.Stmtx(r.updateQuery).Exec(content, active, description, id)
@@ -151,6 +154,9 @@ func (r *QueryRepo) Update(id, content, description string, active bool, tags []
 			return err
 		} else if cnt == 0 {
 			return fmt.Errorf("%s not found", id)
+		}
+		if tags == nil {
+			return nil
 		}
 		if _, err := tx.Exec("DELETE FROM query_tags WHERE query_id=?", id); err != nil {
 			return err
@@ -190,14 +196,6 @@ func (r *QueryRepo) Delete(id string) error {
 		}
 		return nil
 	})
-}
-
-// Close closes DB connection held by this repo.
-func (r *QueryRepo) Close() error {
-	if r.db != nil {
-		return r.db.Close()
-	}
-	return nil
 }
 
 // inTx runs fn in a transaction, committing only when it returns nil, so a query
