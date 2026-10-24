@@ -250,34 +250,11 @@
     "orgText": "",
     "definition": [
       {
-        "type": "Alternation",
+        "type": "Terminal",
+        "name": "IP_SRC",
+        "label": "ip.src",
         "idx": 0,
-        "definition": [
-          {
-            "type": "Alternative",
-            "definition": [
-              {
-                "type": "Terminal",
-                "name": "IP_SRC",
-                "label": "ip.src",
-                "idx": 0,
-                "pattern": "ip\\.src"
-              }
-            ]
-          },
-          {
-            "type": "Alternative",
-            "definition": [
-              {
-                "type": "Terminal",
-                "name": "IP_DST",
-                "label": "ip.dst",
-                "idx": 0,
-                "pattern": "ip\\.dst"
-              }
-            ]
-          }
-        ]
+        "pattern": "ip\\.src"
       }
     ]
   },

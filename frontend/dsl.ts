@@ -33,7 +33,6 @@ const ipv4 = createToken({
 });
 
 const ipSrc = createToken({ name: 'IP_SRC', pattern: /ip\.src/, label: 'ip.src' });
-const ipDst = createToken({ name: 'IP_DST', pattern: /ip\.dst/, label: 'ip.dst' });
 
 const tcpPort = createToken({ name: 'TCP_PORT', pattern: /tcp\.port/, label: 'tcp.port' });
 const udpPort = createToken({ name: 'UDP_PORT', pattern: /udp\.port/, label: 'udp.port' });
@@ -82,7 +81,6 @@ let allTokens = [
     port,
 
     ipSrc,
-    ipDst,
     tcpPort,
     udpPort,
     endReason,
@@ -191,18 +189,8 @@ class QueryParser extends CstParser {
     });
 
     private ipItemClause = this.RULE('ipItemClause', () => {
-        this.OR([
-            {
-                ALT: () => {
-                    this.CONSUME(ipSrc);
-                },
-            },
-            {
-                ALT: () => {
-                    this.CONSUME(ipDst);
-                },
-            },
-        ]);
+        // ip.dst was removed: dstHost is stripped from every event, so it could never match.
+        this.CONSUME(ipSrc);
     });
 
     private binaryClause = this.RULE('binaryClause', () => {
@@ -287,7 +275,6 @@ const QUERY_START_SUGGESTIONS = [
     'tcp.port',
     'udp.port',
     'ip.src',
-    'ip.dst',
     'end.reason',
     'handler',
     'transport',
@@ -300,7 +287,6 @@ const FIELD_SUGGESTIONS = [
     'tcp.port',
     'udp.port',
     'ip.src',
-    'ip.dst',
     'end.reason',
     'handler',
     'transport',
@@ -343,7 +329,7 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         return FIELD_SUGGESTIONS;
     }
 
-    if (tokenMatches(lastToken, tcpPort, udpPort, ipSrc, ipDst, endReason, handler)) {
+    if (tokenMatches(lastToken, tcpPort, udpPort, ipSrc, endReason, handler)) {
         return OPERATOR_SUGGESTIONS;
     }
 
@@ -352,7 +338,7 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         if (fieldToken && tokenMatches(fieldToken, tcpPort, udpPort)) {
             return ['<PORT>'];
         }
-        if (fieldToken && tokenMatches(fieldToken, ipSrc, ipDst)) {
+        if (fieldToken && tokenMatches(fieldToken, ipSrc)) {
             return ['<IP>'];
         }
         if (fieldToken && tokenMatches(fieldToken, endReason)) {
