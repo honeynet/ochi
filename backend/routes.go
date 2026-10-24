@@ -26,6 +26,7 @@ func newRouter(cs *server) (*chi.Mux, error) {
 		PublishFunc: cs.publish,
 
 		RequireRegisteredSensors: cs.cfg.RequireRegisteredSensors,
+		AdminEmails:              cs.cfg.AdminEmails,
 	}
 
 	r := chi.NewRouter()
@@ -48,6 +49,7 @@ func newRouter(cs *server) (*chi.Mux, error) {
 	r.Get("/myqueries", h.Index)
 	r.Get("/myevents", h.Index)
 	r.Get("/mysensors", h.Index)
+	r.Get("/users", h.Index)
 	r.Get("/events/{id}", h.Index)
 
 	build, err := fs.Sub(cs.fs, "build")
@@ -71,7 +73,11 @@ func newRouter(cs *server) (*chi.Mux, error) {
 		// the request context, Authenticator turns a missing or bad one into a 401
 		// before any handler runs.
 		r.Group(func(r chi.Router) {
-			r.Use(jwtauth.Verifier(tokenAuth))
+			// Only accept the token from the Authorization header. jwtauth.Verifier
+			// also reads a "jwt" cookie, which the browser would send cross-site; the
+			// frontend never sets that cookie, so restricting it removes a CSRF path
+			// that wildcard CORS would otherwise open.
+			r.Use(jwtauth.Verify(tokenAuth, jwtauth.TokenFromHeader))
 			r.Use(handlers.Authenticator)
 
 			// user
@@ -93,6 +99,9 @@ func newRouter(cs *server) (*chi.Mux, error) {
 			r.Get("/sensors", h.GetSensorsByUser)
 			r.Post("/sensors", h.AddSensor)
 			r.Delete("/sensors/{id}", h.DeleteSensor)
+
+			// admin
+			r.With(h.RequirePermission(entities.PermListUsers)).Get("/users", h.ListUsers)
 		})
 	})
 

@@ -32,6 +32,9 @@ export interface BooleanClauseCstNode extends CstNode {
 
 export type BooleanClauseCstChildren = {
     binaryClause?: BinaryClauseCstNode[];
+    LPAREN?: IToken[];
+    query?: QueryCstNode[];
+    RPAREN?: IToken[];
 };
 
 export interface SearchClauseCstNode extends CstNode {
@@ -61,8 +64,19 @@ export interface IpItemClauseCstNode extends CstNode {
 }
 
 export type IpItemClauseCstChildren = {
-    IP_SRC?: IToken[];
-    IP_DST?: IToken[];
+    IP_SRC: IToken[];
+};
+
+export interface StringItemClauseCstNode extends CstNode {
+    name: 'stringItemClause';
+    children: StringItemClauseCstChildren;
+}
+
+export type StringItemClauseCstChildren = {
+    END_REASON?: IToken[];
+    HANDLER?: IToken[];
+    TRANSPORT?: IToken[];
+    SCANNER?: IToken[];
 };
 
 export interface BinaryClauseCstNode extends CstNode {
@@ -77,10 +91,8 @@ export type BinaryClauseCstChildren = {
     ipItemClause?: IpItemClauseCstNode[];
     IPV4?: IToken[];
     searchClause?: SearchClauseCstNode[];
-    END_REASON?: IToken[];
+    stringItemClause?: StringItemClauseCstNode[];
     STRING?: IToken[];
-    HANDLER?: IToken[];
-    TRANSPORT?: IToken[];
 };
 
 export interface BinaryOperatorCstNode extends CstNode {
@@ -102,6 +114,7 @@ export interface ICstNodeVisitor<IN, OUT> extends ICstVisitor<IN, OUT> {
     searchClause(children: SearchClauseCstChildren, param?: IN): OUT;
     portItemClause(children: PortItemClauseCstChildren, param?: IN): OUT;
     ipItemClause(children: IpItemClauseCstChildren, param?: IN): OUT;
+    stringItemClause(children: StringItemClauseCstChildren, param?: IN): OUT;
     binaryClause(children: BinaryClauseCstChildren, param?: IN): OUT;
     binaryOperator(children: BinaryOperatorCstChildren, param?: IN): OUT;
 }

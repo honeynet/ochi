@@ -123,7 +123,7 @@
             <span class="frames" title="received/sent">Frames</span>
             <span></span>
         </div>
-        {#each messages as message (message.timestamp)}
+        {#each messages as message (message)}
             <Message {message} {follow} />
         {/each}
     </div>

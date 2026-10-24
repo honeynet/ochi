@@ -19,9 +19,11 @@ export async function getSensors(token: string): Promise<Sensor[]> {
     return (await res.json()) ?? [];
 }
 
+// Leave id unset to have the server generate one; setting it needs the
+// sensors:add_by_id permission.
 export async function addSensor(
     token: string,
-    sensor: Pick<Sensor, 'id' | 'name'>,
+    sensor: { id?: string; name: string },
 ): Promise<Sensor> {
     const res = await fetch(`${API_ENDPOINT}/api/sensors`, {
         method: 'POST',

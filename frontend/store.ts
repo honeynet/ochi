@@ -17,6 +17,9 @@ isAuthenticated.subscribe((value) => {
 });
 
 export const user: Writable<UserProfile | null> = writable(null);
+// Permissions granted by the user's roles, as returned by /api/session. The
+// server enforces them; the UI only uses them to decide what to show.
+export const permissions: Writable<string[]> = writable([]);
 export const maxNumberOfMessages = writable(50);
 
 export const userQueries: Writable<Query[]> = writable([]);

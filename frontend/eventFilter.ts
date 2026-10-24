@@ -77,6 +77,12 @@ function transportMatches(event: Event, protocol: 'tcp' | 'udp'): boolean {
 }
 
 function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClauseCstNode): boolean {
+    // A parenthesized group is evaluated as a query of its own
+    const group = booleanClauseCstNode.children.query?.[0];
+    if (group) {
+        return filterEvent(event, group);
+    }
+
     // We do not support unary clause yet, only binary clause is supported
     const binaryClause = booleanClauseCstNode.children.binaryClause?.[0];
     if (!binaryClause) {
@@ -95,51 +101,32 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
             throw new Error('Missing binary operator for ip clause');
         }
 
-        if (children.ipItemClause[0].children.IP_DST) {
-            return equalityCheck(event.dstHost ?? '', ipv4Token.image, binaryOperator.children);
-        }
-        if (!children.ipItemClause[0].children.IP_SRC) {
-            throw new Error('ip.src is missing');
-        }
-
         return equalityCheck(event.srcHost, ipv4Token.image, binaryOperator.children);
-    } else if (children.END_REASON) {
+    } else if (children.stringItemClause) {
+        const field = children.stringItemClause[0].children;
         const stringToken = children.STRING?.[0];
         const binaryOperator = children.binaryOperator?.[0];
         if (!stringToken) {
-            throw new Error('Missing string for end.reason clause');
+            throw new Error('Missing string for string clause');
         }
         if (!binaryOperator) {
-            throw new Error('Missing binary operator for end.reason clause');
+            throw new Error('Missing binary operator for string clause');
         }
-        const reason = parseStringLiteral(stringToken.image);
-        return equalityCheck(event.endReason ?? '', reason, binaryOperator.children);
-    } else if (children.HANDLER) {
-        const stringToken = children.STRING?.[0];
-        const binaryOperator = children.binaryOperator?.[0];
-        if (!stringToken) {
-            throw new Error('Missing string for handler clause');
+        const value = parseStringLiteral(stringToken.image);
+        if (field.END_REASON) {
+            return stringMatch(event.endReason, value, binaryOperator.children);
+        } else if (field.HANDLER) {
+            // a handler clause matches any layer of the stack (tls, http inside socks, ...)
+            const layers = event.handlers?.length ? event.handlers : [event.handler ?? ''];
+            return equalityCheck(layers.includes(value), true, binaryOperator.children);
+        } else if (field.TRANSPORT) {
+            // Compared case insensitively, as the port clauses already treat transport.
+            return stringMatch(event.transport, value, binaryOperator.children, true);
+        } else if (field.SCANNER) {
+            // Scanner names (censys, shodan, ...) are case insensitive.
+            return stringMatch(event.scanner, value, binaryOperator.children, true);
         }
-        if (!binaryOperator) {
-            throw new Error('Missing binary operator for handler clause');
-        }
-        const handlerName = parseStringLiteral(stringToken.image);
-        // a handler clause matches any layer of the stack (tls, http inside socks, ...)
-        const layers = event.handlers?.length ? event.handlers : [event.handler ?? ''];
-        const found = layers.includes(handlerName);
-        return equalityCheck(found, true, binaryOperator.children);
-    } else if (children.TRANSPORT) {
-        const stringToken = children.STRING?.[0];
-        const binaryOperator = children.binaryOperator?.[0];
-        if (!stringToken) {
-            throw new Error('Missing string for transport clause');
-        }
-        if (!binaryOperator) {
-            throw new Error('Missing binary operator for transport clause');
-        }
-        // Compared case insensitively, as the port clauses already treat transport.
-        const name = parseStringLiteral(stringToken.image).toLowerCase();
-        return equalityCheck((event.transport ?? '').toLowerCase(), name, binaryOperator.children);
+        throw new Error('Unexpected field in string clause');
     } else if (children.portItemClause) {
         let portItemClause = children.portItemClause[0].children;
         const port = children.PORT?.[0];
@@ -182,6 +169,20 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
     } else {
         throw new Error('Unexpected booleanClauseCstNode');
     }
+}
+
+// stringMatch compares an event field with the string from a clause. A field the event
+// did not report counts as empty, so `ne` still matches such events.
+function stringMatch(
+    field: string | undefined,
+    value: string,
+    binaryOperator: BinaryOperatorCstChildren,
+    ignoreCase = false,
+): boolean {
+    const actual = field ?? '';
+    return ignoreCase
+        ? equalityCheck(actual.toLowerCase(), value.toLowerCase(), binaryOperator)
+        : equalityCheck(actual, value, binaryOperator);
 }
 
 export function parseStringLiteral(image: string): string {

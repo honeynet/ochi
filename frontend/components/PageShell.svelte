@@ -34,5 +34,8 @@
         flex: 1;
         min-height: 0;
         overflow: auto;
+        /* Keep the page's own layers (sticky table headers, overlays) below anything the
+           header opens over the content, such as the filter suggestions. */
+        isolation: isolate;
     }
 </style>

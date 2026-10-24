@@ -23,25 +23,43 @@
         messageList?.onNewMessage(message);
     }
 
+    // Drops the current connection. Clearing conn first stops its close
+    // listener from scheduling a reconnect.
+    function hangUp() {
+        const old = conn;
+        conn = null;
+        old?.close(1000);
+    }
+
     function dial() {
         if ($env == ENV_DEV) {
             return;
         }
+        hangUp();
         let wsUrl = `${WS_ENDPOINT}/api/subscribe`;
         // location.protocol === 'https:'
         //     ? `wss://${location.host}/api/subscribe`
         //     : `ws://${location.host}/api/subscribe`;
-        conn = new WebSocket(wsUrl);
+        const ws = new WebSocket(wsUrl);
+        conn = ws;
 
-        conn.addEventListener('close', (ev) => {
-            if (ev.code !== 1001) {
-                setTimeout(dial, 1000);
+        ws.addEventListener('close', (ev) => {
+            if (ws !== conn || ev.code === 1001) {
+                return;
             }
+            setTimeout(() => {
+                if (ws === conn) {
+                    dial();
+                }
+            }, 1000);
         });
-        conn.addEventListener('open', () => {
+        ws.addEventListener('open', () => {
             console.info('websocket connected');
         });
-        conn.addEventListener('message', (ev) => {
+        ws.addEventListener('message', (ev) => {
+            if (ws !== conn) {
+                return;
+            }
             const obj = JSON.parse(ev.data);
             addMessage(obj);
         });
@@ -50,8 +68,12 @@
 
     const sleep = (ms: number) => new Promise((f) => setTimeout(f, ms));
 
+    // Bumped on every mode switch so a loop from an earlier dev session exits.
+    let testRun = 0;
+
     const test = async () => {
-        while ($env == ENV_DEV) {
+        const run = ++testRun;
+        while (run === testRun && $env == ENV_DEV) {
             addMessage(generateRandomTestEvent());
             await sleep(1000);
         }
@@ -61,8 +83,10 @@
         const mode = $env;
         untrack(() => {
             if (mode === ENV_DEV) {
+                hangUp();
                 test();
             } else if (mode === ENV_PROD) {
+                testRun++;
                 dial();
             }
         });

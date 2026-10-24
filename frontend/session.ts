@@ -1,4 +1,4 @@
-import { isAuthenticated, user, token } from './store';
+import { isAuthenticated, user, token, permissions } from './store';
 import { showError } from './toast';
 
 import { API_ENDPOINT } from './constants';
@@ -28,11 +28,13 @@ export async function validate() {
 export function logout() {
     isAuthenticated.set(false);
     user.set({});
+    permissions.set([]);
     token.set('');
 }
 
 export function login(data: any) {
     user.set(data['user']);
+    permissions.set(data['permissions'] ?? []);
     token.set(data['token']);
     isAuthenticated.set(true);
 }

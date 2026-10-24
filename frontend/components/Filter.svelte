@@ -54,11 +54,22 @@
     });
 
     function handleKeydown(event: KeyboardEvent) {
-        // A filter is one expression, so Enter must not add a newline. Leave it alone while
-        // an IME is composing, where Enter confirms the composed text.
+        // A filter is one expression, so Enter applies it instead of adding a newline. Leave
+        // it alone while an IME is composing, where Enter confirms the composed text.
         if (event.key === 'Enter' && !event.isComposing) {
             event.preventDefault();
+            // Drop the pending suggestion refresh, or it would reopen the list after applying.
+            debouncedFilterChange.cancel();
+            hideSuggestions = true;
+            applyFilter();
         }
+    }
+
+    // Keep focus in the field while a button beside it is pressed. Losing it would collapse
+    // the field mid-click and slide the button out from under the pointer, so the release
+    // lands elsewhere and the click never fires.
+    function keepFocus(event: MouseEvent) {
+        event.preventDefault();
     }
 
     function clearFilter() {
@@ -151,7 +162,8 @@
             wrap={focused ? 'soft' : 'off'}
             bind:value={filter}
             bind:this={inputField}
-            placeholder="Filter destination port"
+            placeholder="Filter events, e.g. tcp.port == 22"
+            aria-label="Filter events"
             oninput={debouncedFilterChange}
             onkeydown={handleKeydown}
             onfocus={() => {
@@ -194,9 +206,14 @@
             }}
         />
     </div>
-    <Button disabled={!filterValid} onClick={applyFilter} text="Apply" />
+    <Button disabled={!filterValid} onClick={applyFilter} onMouseDown={keepFocus} text="Apply" />
     {#if $isAuthenticated}<QueryModal bind:this={saveModal} />
-        <Button disabled={!filterValid} onClick={openSaveQuery} text="Save" />
+        <Button
+            disabled={!filterValid}
+            onClick={openSaveQuery}
+            onMouseDown={keepFocus}
+            text="Save"
+        />
     {/if}
 </section>
 

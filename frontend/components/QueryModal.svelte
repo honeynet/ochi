@@ -11,13 +11,14 @@
         if (!dialog.open) {
             dialog.showModal();
         }
-        queryToEdit = objectToEdit;
+        queryToEdit = { ...objectToEdit };
     }
 
     function closeModal() {
         if (dialog?.open) {
             dialog.close();
         }
+        queryToEdit = {};
     }
 
     async function saveQueryAndReload() {
@@ -62,15 +63,15 @@
     }
 </script>
 
-<dialog bind:this={dialog}>
+<dialog bind:this={dialog} onclose={closeModal}>
     <form class="queryModal__form">
         <label
             >Content
-            <input id="messages-input-box" type="text" bind:value={queryToEdit.content} />
+            <input type="text" bind:value={queryToEdit.content} />
         </label>
         <label
             >Description
-            <input id="messages-input-box" type="text" bind:value={queryToEdit.description} />
+            <input type="text" bind:value={queryToEdit.description} />
         </label>
         {#if queryToEdit && queryToEdit.id}
             <button type="button" onclick={updateAndCloseModal}>Update</button>

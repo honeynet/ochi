@@ -48,6 +48,22 @@ Set `require_registered_sensors: true` to accept published events only from sens
 
 On first start, the server creates `config.yaml` with local defaults (`localhost:3000`, publish token `token`, JWT secret `secret`). Pass `-config path/to/config.yaml` to use a different file.
 
+### Roles & Permissions
+
+Users can hold roles, and each role grants a fixed set of permissions (defined in `backend/entities/role.go`). The only role so far is `admin`, which grants:
+
+- `users:list`: list every registered user (`GET /api/users`, and the **Users** page).
+- `sensors:add_by_id`: register a sensor under a chosen UUID (`POST /api/sensors` with an `id`). Without it, the server generates the sensor ID.
+
+To make someone an admin, add their Google account email to `config.yaml`; the role is granted the next time they log in or reload the page:
+
+```yaml
+admin_emails:
+  - you@example.com
+```
+
+Removing an address from `admin_emails` does not revoke the role. Delete the row from the `user_roles` table to do that.
+
 ### Security Best Practices
 
 > [!WARNING]

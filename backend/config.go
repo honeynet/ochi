@@ -22,6 +22,9 @@ type Config struct {
 	// through /sensors, including ones provisioned by /download, would stop being
 	// accepted.
 	RequireRegisteredSensors bool `yaml:"require_registered_sensors"`
+	// AdminEmails are granted the admin role when they log in. Removing an
+	// address does not revoke a role that was already granted.
+	AdminEmails []string `yaml:"admin_emails,omitempty"`
 }
 
 func defaultConfig() Config {

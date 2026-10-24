@@ -53,7 +53,6 @@
                 </div>
             </div>
             <div class="queryList__buttons-container">
-                <QueryModal bind:this={saveModal} />
                 <button onclick={() => saveModal?.showModal(query)}>edit</button>
                 <button onclick={() => deleteQueryAndReload(query.id)}>Delete</button>
                 {#if $activeFilterId != query.id}
@@ -65,6 +64,8 @@
         </li>
     {/each}
 </ul>
+
+<QueryModal bind:this={saveModal} />
 
 <style>
     .queryList__items {

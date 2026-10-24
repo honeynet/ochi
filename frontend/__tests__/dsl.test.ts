@@ -145,27 +145,18 @@ describe('parseDSL', () => {
         ).toBeTruthy();
     });
 
-    test('parses ip.dst against dstHost', () => {
+    test('ip.dst is no longer a valid field', () => {
+        // Removed: dstHost is stripped from every event, so ip.dst could never match.
         let sx = parseDSL('ip.dst eq 198.51.100.8');
+        expect(sx.lexErrors.length + sx.parseErrors.length).toBeGreaterThan(0);
+    });
+
+    test('ip.src still filters on srcHost', () => {
+        let sx = parseDSL('ip.src eq 192.168.1.1');
         expect(sx.lexErrors).toHaveLength(0);
         expect(sx.parseErrors).toHaveLength(0);
-        expect(
-            filterEvent(
-                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
-                    dstHost: '198.51.100.8',
-                }),
-                sx.cst!,
-            ),
-        ).toBeTruthy();
-        expect(
-            filterEvent(
-                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
-                    dstHost: '10.0.0.1',
-                }),
-                sx.cst!,
-            ),
-        ).toBeFalsy();
-        expect(filterEvent(generateTestEvent(80, '123', '192.168.1.1'), sx.cst!)).toBeFalsy();
+        expect(filterEvent(generateTestEvent(80, '123', '192.168.1.1'), sx.cst!)).toBeTruthy();
+        expect(filterEvent(generateTestEvent(80, '123', '10.0.0.1'), sx.cst!)).toBeFalsy();
     });
 
     test('parses tcp.port against transport rather than rule text', () => {
@@ -253,6 +244,59 @@ describe('parseDSL', () => {
         });
         expect(filterEvent(stacked, eq.cst!)).toBeTruthy();
         expect(filterEvent(stacked, ne.cst!)).toBeFalsy();
+    });
+
+    test('parses scanner', () => {
+        let sx = parseDSL('scanner eq "censys"');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    scanner: 'censys',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        // Case insensitive.
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    scanner: 'Censys',
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    scanner: 'shodan',
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
+    });
+
+    test('scanner ne matches events with no detected scanner', () => {
+        // The core use: hide known scanners to surface unclassified (real) activity.
+        let sx = parseDSL('scanner ne "censys"');
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    scanner: undefined,
+                }),
+                sx.cst!,
+            ),
+        ).toBeTruthy();
+        expect(
+            filterEvent(
+                generateTestEvent(80, '123', '192.168.1.1', undefined, 'Rule: TCP', {
+                    scanner: 'censys',
+                }),
+                sx.cst!,
+            ),
+        ).toBeFalsy();
     });
 
     test('parses transport', () => {
@@ -390,5 +434,69 @@ describe('filterEvent on events that matched no rule', () => {
         let sx = parseDSL('tcp.port == 445 and ip.src eq 203.0.113.10');
         expect(sx.parseErrors).toHaveLength(0);
         expect(filterEvent(noRule(), sx.cst!)).toBeTruthy();
+    });
+});
+
+describe('parenthesized groups', () => {
+    const fromSrc = (port: number, src: string) => generateTestEvent(port, '123', src);
+
+    test('groups an or before an and', () => {
+        let sx = parseDSL('(ip.src eq 1.1.1.1 or ip.src eq 2.2.2.2) and tcp.port == 22');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(filterEvent(fromSrc(22, '1.1.1.1'), sx.cst!)).toBeTruthy();
+        expect(filterEvent(fromSrc(22, '2.2.2.2'), sx.cst!)).toBeTruthy();
+        expect(filterEvent(fromSrc(22, '3.3.3.3'), sx.cst!)).toBeFalsy();
+        // Without the group this would read as 1.1.1.1 or (2.2.2.2 and port 22).
+        expect(filterEvent(fromSrc(80, '1.1.1.1'), sx.cst!)).toBeFalsy();
+    });
+
+    test('negates a whole group', () => {
+        let sx = parseDSL('not (tcp.port == 22 or tcp.port == 23)');
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(filterEvent(fromSrc(22, '1.1.1.1'), sx.cst!)).toBeFalsy();
+        expect(filterEvent(fromSrc(23, '1.1.1.1'), sx.cst!)).toBeFalsy();
+        expect(filterEvent(fromSrc(80, '1.1.1.1'), sx.cst!)).toBeTruthy();
+    });
+
+    test('supports nested groups', () => {
+        let sx = parseDSL(
+            '((tcp.port == 22 or tcp.port == 23) and ip.src eq 1.1.1.1) or ip.src eq 9.9.9.9',
+        );
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(filterEvent(fromSrc(23, '1.1.1.1'), sx.cst!)).toBeTruthy();
+        expect(filterEvent(fromSrc(80, '9.9.9.9'), sx.cst!)).toBeTruthy();
+        expect(filterEvent(fromSrc(80, '1.1.1.1'), sx.cst!)).toBeFalsy();
+    });
+
+    test('rejects unbalanced parentheses', () => {
+        expect(parseDSL('(tcp.port == 22').parseErrors.length).toBeGreaterThan(0);
+        expect(parseDSL('tcp.port == 22)').parseErrors.length).toBeGreaterThan(0);
+        expect(parseDSL('()').parseErrors.length).toBeGreaterThan(0);
+    });
+
+    test('suggests closing an open group', () => {
+        const filterState = { suggestions: [], partialToken: null };
+        parseDSL('(tcp.port == 22 ', filterState);
+        expect(filterState.suggestions).toEqual(['and', 'or', ')']);
+        parseDSL('(tcp.port == 22) ', filterState);
+        expect(filterState.suggestions).toEqual(['and', 'or']);
+        parseDSL('not ', filterState);
+        expect(filterState.suggestions).toContain('(');
+    });
+
+    test('suggests an example value for each string field', () => {
+        const filterState = { suggestions: [], partialToken: null };
+        for (const [field, hint] of [
+            ['end.reason', '"timeout"'],
+            ['handler', '"http"'],
+            ['transport', '"tcp"'],
+            ['scanner', '"censys"'],
+        ]) {
+            parseDSL(`${field} eq `, filterState);
+            expect(filterState.suggestions).toEqual([hint]);
+        }
     });
 });

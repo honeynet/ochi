@@ -14,6 +14,10 @@ const and = createToken({ name: 'AND', pattern: /and/, label: 'and' });
 const or = createToken({ name: 'OR', pattern: /or/, label: 'or' });
 const not = createToken({ name: 'NOT', pattern: /not/, label: 'not' });
 
+// Grouping
+const lParen = createToken({ name: 'LPAREN', pattern: /\(/, label: '(' });
+const rParen = createToken({ name: 'RPAREN', pattern: /\)/, label: ')' });
+
 // Search and match operators
 const contains = createToken({ name: 'CONTAINS', pattern: /contains/, label: 'contains' });
 const matches = createToken({ name: 'MATCHES', pattern: /matches/, label: 'matches' });
@@ -29,7 +33,6 @@ const ipv4 = createToken({
 });
 
 const ipSrc = createToken({ name: 'IP_SRC', pattern: /ip\.src/, label: 'ip.src' });
-const ipDst = createToken({ name: 'IP_DST', pattern: /ip\.dst/, label: 'ip.dst' });
 
 const tcpPort = createToken({ name: 'TCP_PORT', pattern: /tcp\.port/, label: 'tcp.port' });
 const udpPort = createToken({ name: 'UDP_PORT', pattern: /udp\.port/, label: 'udp.port' });
@@ -38,6 +41,7 @@ const payload = createToken({ name: 'PAYLOAD', pattern: /payload/, label: 'paylo
 const endReason = createToken({ name: 'END_REASON', pattern: /end\.reason/, label: 'end.reason' });
 const handler = createToken({ name: 'HANDLER', pattern: /handler/, label: 'handler' });
 const transport = createToken({ name: 'TRANSPORT', pattern: /transport/, label: 'transport' });
+const scanner = createToken({ name: 'SCANNER', pattern: /scanner/, label: 'scanner' });
 const string = createToken({
     name: 'STRING',
     pattern: /\"(?:[^"\\\r\n]|\\.)*\"/,
@@ -67,6 +71,9 @@ let allTokens = [
     or,
     not,
 
+    lParen,
+    rParen,
+
     contains,
     matches,
     matchesSmb,
@@ -75,12 +82,12 @@ let allTokens = [
     port,
 
     ipSrc,
-    ipDst,
     tcpPort,
     udpPort,
     endReason,
     handler,
     transport,
+    scanner,
 
     payload,
     string,
@@ -141,6 +148,13 @@ class QueryParser extends CstParser {
                     this.SUBRULE(this.binaryClause);
                 },
             },
+            {
+                ALT: () => {
+                    this.CONSUME(lParen);
+                    this.SUBRULE(this.query);
+                    this.CONSUME(rParen);
+                },
+            },
             // {
             //     ALT: () => {
             //         this.SUBRULE(this.unaryClause);
@@ -177,17 +191,16 @@ class QueryParser extends CstParser {
     });
 
     private ipItemClause = this.RULE('ipItemClause', () => {
+        // ip.dst was removed: dstHost is stripped from every event, so it could never match.
+        this.CONSUME(ipSrc);
+    });
+
+    private stringItemClause = this.RULE('stringItemClause', () => {
         this.OR([
-            {
-                ALT: () => {
-                    this.CONSUME(ipSrc);
-                },
-            },
-            {
-                ALT: () => {
-                    this.CONSUME(ipDst);
-                },
-            },
+            { ALT: () => this.CONSUME(endReason) },
+            { ALT: () => this.CONSUME(handler) },
+            { ALT: () => this.CONSUME(transport) },
+            { ALT: () => this.CONSUME(scanner) },
         ]);
     });
 
@@ -214,23 +227,9 @@ class QueryParser extends CstParser {
             },
             {
                 ALT: () => {
-                    this.CONSUME(endReason);
+                    this.SUBRULE(this.stringItemClause);
                     this.SUBRULE2(this.binaryOperator);
                     this.CONSUME(string);
-                },
-            },
-            {
-                ALT: () => {
-                    this.CONSUME(handler);
-                    this.SUBRULE3(this.binaryOperator);
-                    this.CONSUME1(string);
-                },
-            },
-            {
-                ALT: () => {
-                    this.CONSUME(transport);
-                    this.SUBRULE4(this.binaryOperator);
-                    this.CONSUME2(string);
                 },
             },
         ]);
@@ -273,23 +272,25 @@ const QUERY_START_SUGGESTIONS = [
     'tcp.port',
     'udp.port',
     'ip.src',
-    'ip.dst',
     'end.reason',
     'handler',
     'transport',
+    'scanner',
     'payload',
     'not',
+    '(',
 ];
 
 const FIELD_SUGGESTIONS = [
     'tcp.port',
     'udp.port',
     'ip.src',
-    'ip.dst',
     'end.reason',
     'handler',
     'transport',
+    'scanner',
     'payload',
+    '(',
 ];
 
 const OPERATOR_SUGGESTIONS = ['eq', 'ne', '==', '!='];
@@ -299,6 +300,19 @@ function tokenMatches(token: IToken, ...types: TokenType[]): boolean {
     return types.includes(token.tokenType);
 }
 
+// Number of groups opened but not yet closed, so ')' is only offered when it can match.
+function openGroups(tokens: IToken[]): number {
+    let depth = 0;
+    for (const token of tokens) {
+        if (tokenMatches(token, lParen)) {
+            depth++;
+        } else if (tokenMatches(token, rParen) && depth > 0) {
+            depth--;
+        }
+    }
+    return depth;
+}
+
 function computeSuggestions(assistTokens: IToken[]): string[] {
     if (assistTokens.length === 0) {
         return QUERY_START_SUGGESTIONS;
@@ -306,7 +320,7 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
 
     const lastToken = assistTokens[assistTokens.length - 1];
 
-    if (tokenMatches(lastToken, and, or)) {
+    if (tokenMatches(lastToken, and, or, lParen)) {
         return QUERY_START_SUGGESTIONS;
     }
 
@@ -314,7 +328,7 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         return FIELD_SUGGESTIONS;
     }
 
-    if (tokenMatches(lastToken, tcpPort, udpPort, ipSrc, ipDst, endReason, handler)) {
+    if (tokenMatches(lastToken, tcpPort, udpPort, ipSrc, endReason, handler, transport, scanner)) {
         return OPERATOR_SUGGESTIONS;
     }
 
@@ -323,7 +337,7 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         if (fieldToken && tokenMatches(fieldToken, tcpPort, udpPort)) {
             return ['<PORT>'];
         }
-        if (fieldToken && tokenMatches(fieldToken, ipSrc, ipDst)) {
+        if (fieldToken && tokenMatches(fieldToken, ipSrc)) {
             return ['<IP>'];
         }
         if (fieldToken && tokenMatches(fieldToken, endReason)) {
@@ -332,11 +346,19 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         if (fieldToken && tokenMatches(fieldToken, handler)) {
             return ['"http"'];
         }
+        if (fieldToken && tokenMatches(fieldToken, transport)) {
+            return ['"tcp"'];
+        }
+        if (fieldToken && tokenMatches(fieldToken, scanner)) {
+            return ['"censys"'];
+        }
         return [];
     }
 
-    if (tokenMatches(lastToken, port, ipv4, string)) {
-        return BOOLEAN_SUFFIX_SUGGESTIONS;
+    if (tokenMatches(lastToken, port, ipv4, string, rParen)) {
+        return openGroups(assistTokens) > 0
+            ? [...BOOLEAN_SUFFIX_SUGGESTIONS, ')']
+            : BOOLEAN_SUFFIX_SUGGESTIONS;
     }
 
     if (tokenMatches(lastToken, payload)) {
