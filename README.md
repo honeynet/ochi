@@ -40,7 +40,7 @@ Set `require_registered_sensors: true` to accept published events only from sens
 3. Update the Glutton config to include:
    1. `producers.enabled` to `true` [here](https://github.com/mushorg/glutton/blob/305a9d23a58d065f49ac25edeaeb374f4fe9c59b/config/config.yaml#L9)
    2. `producers.http.enabled` to `true` [here](https://github.com/mushorg/glutton/blob/305a9d23a58d065f49ac25edeaeb374f4fe9c59b/config/config.yaml#L11)
-   3. `producers.http.remote` to `http://localhost:3000/api/publish?token=token` (use the `publish_token` from your `config.yaml`)
+   3. `producers.http.remote` to `http://sensor:token@localhost:3000/api/publish` (use the `publish_token` from your `config.yaml` as the password). Glutton sends the userinfo as an HTTP Basic auth header, keeping the token out of the URL and so out of proxy access logs. The older `?token=token` query form still works but is logged, so prefer the userinfo form.
 4. Start Glutton server.
 5. Open `http://localhost:3000` and you should see Glutton events if everything is working as expected.
 
