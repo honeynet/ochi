@@ -128,7 +128,7 @@
     .message {
         display: grid;
         grid-template-columns: var(--event-cols);
-        column-gap: 6px;
+        column-gap: 5px;
         align-items: center;
         width: 100%;
         margin: 0;

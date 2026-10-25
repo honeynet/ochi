@@ -157,7 +157,8 @@
     }
 
     #message-log {
-        --event-cols: 8ch 8ch minmax(10ch, 1.4fr) 9ch 8ch minmax(6ch, 0.9fr) 13ch 6ch 7ch;
+        --event-cols: 8ch 8ch minmax(14ch, 1.6fr) 9ch 8ch minmax(6ch, 0.9fr) minmax(11ch, 13ch) 6ch
+            7ch;
         flex: 1;
         min-height: 0;
         overflow-y: auto;
@@ -168,7 +169,7 @@
     .event-head {
         display: grid;
         grid-template-columns: var(--event-cols);
-        column-gap: 6px;
+        column-gap: 5px;
         position: sticky;
         top: 0;
         z-index: 1;
