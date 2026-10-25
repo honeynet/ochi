@@ -47,8 +47,6 @@ test.describe('event list source column', () => {
 
         await expect(sources.nth(0)).toHaveText('203.0.113.214');
         await expect(sources.nth(0)).toHaveAttribute('title', '203.0.113.214:54321');
-        // The whole address fits in the column, so it is not cut off with an ellipsis.
-        expect(await sources.nth(0).evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
 
         // A reverse DNS name stays in the tooltip, next to the address and port.
         await expect(sources.nth(1)).toHaveText('198.51.100.7');
@@ -56,5 +54,28 @@ test.describe('event list source column', () => {
             'title',
             'scanner.example. (198.51.100.7:40000)',
         );
+    });
+
+    // The column has to stay wide enough for an address once the Time column is there too.
+    // The check runs in a wider monospace font as well, like the ones Linux uses, because
+    // the default one on Windows is narrower and hides the problem.
+    test('does not cut the address off at the default width', async ({ page }) => {
+        const source = page.locator('.message .cell.source').first();
+        const log = page.locator('#message-log');
+
+        for (const font of ['monospace', 'Courier New']) {
+            await page.addStyleTag({
+                content: `.event-head, .message { font-family: '${font}', monospace !important; }`,
+            });
+            expect(
+                await source.evaluate((el) => el.scrollWidth <= el.clientWidth),
+                `address is cut off in ${font}`,
+            ).toBe(true);
+            // Rows still fit, so the Details link at the end is never clipped.
+            expect(
+                await log.evaluate((el) => el.scrollWidth <= el.clientWidth),
+                `rows overflow the list in ${font}`,
+            ).toBe(true);
+        }
     });
 });
