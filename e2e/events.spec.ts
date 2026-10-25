@@ -32,8 +32,8 @@ test.describe('saved events list and bulk delete confirmation', () => {
 
         await page.route('**/api/**', (route) => {
             const req = route.request();
-            const url = req.url();
-            if (url.includes('/api/events')) {
+            const url = new URL(req.url());
+            if (url.pathname === '/api/events') {
                 if (req.method() === 'GET') {
                     return route.fulfill({
                         status: 200,
@@ -49,7 +49,7 @@ test.describe('saved events list and bulk delete confirmation', () => {
                     return route.fulfill({ status: 200, json: {} });
                 }
             }
-            if (url.endsWith('/api/queries')) {
+            if (url.pathname === '/api/queries') {
                 return route.fulfill({ json: [] });
             }
             return route.fulfill({ status: 401, json: {} });
@@ -72,27 +72,38 @@ test.describe('saved events list and bulk delete confirmation', () => {
         await expect(deleteButton).toBeEnabled();
         await expect(deleteButton).toHaveText('Delete selected (2)');
 
-        // Clicking "Delete selected" must open the confirmation dialog, not delete immediately
-        await deleteButton.click();
+        const dialog = page.locator('dialog:has(.confirm-dialog)');
 
-        const dialog = page.locator('dialog:has(.eventList__confirm)');
+        // 1. Clicking Cancel closes the dialog without firing DELETE request
+        await deleteButton.click();
         await expect(dialog).toBeVisible();
         await expect(dialog).toContainText(
             'Delete 2 selected events? This action cannot be undone.',
         );
-
-        // Clicking Cancel closes the dialog without firing DELETE request
         await dialog.getByRole('button', { name: 'Cancel' }).click();
         await expect(dialog).not.toBeVisible();
         expect(deletedIds).toBeNull();
 
-        // Re-open and confirm deletion
+        // 2. Pressing Escape closes the dialog without firing DELETE request
+        await deleteButton.click();
+        await expect(dialog).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(dialog).not.toBeVisible();
+        expect(deletedIds).toBeNull();
+
+        // 3. Clicking the backdrop closes the dialog without firing DELETE request
+        await deleteButton.click();
+        await expect(dialog).toBeVisible();
+        // Click outside the dialog content box to hit the backdrop
+        await page.mouse.click(10, 10);
+        await expect(dialog).not.toBeVisible();
+        expect(deletedIds).toBeNull();
+
+        // 4. Confirming deletion sends DELETE request with selected IDs
         await deleteButton.click();
         await expect(dialog).toBeVisible();
         await dialog.getByRole('button', { name: 'Delete' }).click();
+        await expect.poll(() => deletedIds).toEqual(['event-1', 'event-2']);
         await expect(dialog).not.toBeVisible();
-
-        // Now DELETE was sent with the selected IDs
-        expect(deletedIds).toEqual(['event-1', 'event-2']);
     });
 });

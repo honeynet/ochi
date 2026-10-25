@@ -3,6 +3,7 @@
     import { token, permissions } from '../store';
     import { PERM_ADD_SENSOR_BY_ID } from '../user';
     import { showError } from '../toast';
+    import ConfirmDialog from './ConfirmDialog.svelte';
     import {
         type Sensor,
         addSensor,
@@ -24,21 +25,17 @@
     let addError = $state('');
 
     // Deleting a sensor cannot be undone, so it goes through a confirmation dialog.
-    let confirmDialog = $state<HTMLDialogElement | null>(null);
+    let confirmDialog = $state<ConfirmDialog | null>(null);
     let sensorToDelete = $state<Sensor | null>(null);
     let deleting = $state(false);
 
     function askToDelete(sensor: Sensor) {
         sensorToDelete = sensor;
-        if (confirmDialog && !confirmDialog.open) {
-            confirmDialog.showModal();
-        }
+        confirmDialog?.showModal();
     }
 
     function closeConfirm() {
-        if (confirmDialog?.open) {
-            confirmDialog.close();
-        }
+        confirmDialog?.close();
         sensorToDelete = null;
     }
 
@@ -151,27 +148,20 @@
     </ul>
 {/if}
 
-<dialog
+<ConfirmDialog
     bind:this={confirmDialog}
-    onclick={(event) => {
-        if (event.target === event.currentTarget) {
-            closeConfirm();
-        }
+    confirmText={deleting ? 'Deleting...' : 'Delete'}
+    busy={deleting}
+    onconfirm={confirmDelete}
+    onclose={() => {
+        sensorToDelete = null;
     }}
 >
-    <div class="sensorList__confirm">
-        <p>
-            Delete <strong>{sensorToDelete?.name || 'this sensor'}</strong>? Its events are kept,
-            but the download link for this sensor will stop working.
-        </p>
-        <div class="sensorList__confirm-buttons">
-            <button onclick={closeConfirm} disabled={deleting}>Cancel</button>
-            <button onclick={confirmDelete} disabled={deleting}>
-                {deleting ? 'Deleting...' : 'Delete'}
-            </button>
-        </div>
-    </div>
-</dialog>
+    <p>
+        Delete <strong>{sensorToDelete?.name || 'this sensor'}</strong>? Its events are kept, but
+        the download link for this sensor will stop working.
+    </p>
+</ConfirmDialog>
 
 <style>
     .sensorList__title,
@@ -204,26 +194,5 @@
         font-family: monospace;
         font-size: 14px;
         font-style: italic;
-    }
-
-    dialog {
-        max-width: 32em;
-        border-radius: 0.2em;
-        border: none;
-        padding: 0;
-    }
-
-    dialog::backdrop {
-        background: rgba(0, 0, 0, 0.3);
-    }
-
-    .sensorList__confirm {
-        padding: 1em;
-    }
-
-    .sensorList__confirm-buttons {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
     }
 </style>

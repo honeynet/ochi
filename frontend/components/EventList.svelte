@@ -6,6 +6,7 @@
     import { token, currentEvent } from '../store';
     import { type Event, deleteEvents, getEventById, getEvents } from '../event';
     import Message from './Message.svelte';
+    import ConfirmDialog from './ConfirmDialog.svelte';
     import { showError } from '../toast';
 
     const PAGE_SIZE = 20;
@@ -135,25 +136,19 @@
     }
 
     // Deleting saved events cannot be undone, so it goes through a confirmation dialog.
-    let confirmDialog = $state<HTMLDialogElement | null>(null);
+    let confirmDialog = $state<ConfirmDialog | null>(null);
     let deleting = $state(false);
 
     function askToDeleteSelected() {
-        if (selected.length === 0) return;
-        if (confirmDialog && !confirmDialog.open) {
-            confirmDialog.showModal();
-        }
+        confirmDialog?.showModal();
     }
 
     function closeConfirm() {
-        if (confirmDialog?.open) {
-            confirmDialog.close();
-        }
+        confirmDialog?.close();
     }
 
     async function confirmDeleteSelected() {
         const toDelete = [...selected];
-        if (toDelete.length === 0) return;
         deleting = true;
         try {
             await deleteEvents(toDelete, $token);
@@ -165,7 +160,6 @@
             closeConfirm();
             await reloadEvents();
         } catch (e) {
-            error = e instanceof Error ? e.message : 'Could not delete events';
             showError(e, 'Could not delete events');
         } finally {
             deleting = false;
@@ -224,28 +218,18 @@
     {/if}
 </div>
 
-<dialog
+<ConfirmDialog
     bind:this={confirmDialog}
-    onclick={(event) => {
-        if (event.target === event.currentTarget) {
-            closeConfirm();
-        }
-    }}
+    confirmText={deleting ? 'Deleting...' : 'Delete'}
+    busy={deleting}
+    onconfirm={confirmDeleteSelected}
 >
-    <div class="eventList__confirm">
-        <p>
-            Delete <strong>{selected.length}</strong> selected {selected.length === 1
-                ? 'event'
-                : 'events'}? This action cannot be undone.
-        </p>
-        <div class="eventList__confirm-buttons">
-            <button onclick={closeConfirm} disabled={deleting}>Cancel</button>
-            <button onclick={confirmDeleteSelected} disabled={deleting}>
-                {deleting ? 'Deleting...' : 'Delete'}
-            </button>
-        </div>
-    </div>
-</dialog>
+    <p>
+        Delete <strong>{selected.length}</strong> selected {selected.length === 1
+            ? 'event'
+            : 'events'}? This action cannot be undone.
+    </p>
+</ConfirmDialog>
 
 <style>
     .column {
@@ -331,26 +315,5 @@
         gap: 15px;
         padding-top: 8px;
         font-size: 12px;
-    }
-
-    dialog {
-        max-width: 32em;
-        border-radius: 0.2em;
-        border: none;
-        padding: 0;
-    }
-
-    dialog::backdrop {
-        background: rgba(0, 0, 0, 0.3);
-    }
-
-    .eventList__confirm {
-        padding: 1em;
-    }
-
-    .eventList__confirm-buttons {
-        display: flex;
-        justify-content: flex-end;
-        gap: 10px;
     }
 </style>
