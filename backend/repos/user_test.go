@@ -1,7 +1,6 @@
 package repos
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -12,10 +11,11 @@ import (
 )
 
 func TestUser(t *testing.T) {
-	os.Remove("./test.db")
-	db, err := sqlx.Connect("sqlite", "./test.db")
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	db, err := sqlx.Connect("sqlite", dbPath)
 	require.NoError(t, err)
-	defer os.Remove("./test.db")
+	t.Cleanup(func() { _ = db.Close() })
+
 	r, err := NewUserRepo(db)
 	require.NoError(t, err)
 	require.NotNil(t, r)
