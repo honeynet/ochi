@@ -12,7 +12,22 @@ export default defineConfig({
         baseURL: `http://localhost:${port}`,
         trace: 'on-first-retry',
     },
-    projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+    projects: [
+        {
+            name: 'chromium',
+            use: {
+                ...devices['Desktop Chrome'],
+                // index.html loads Google's Sign-In script for the login button. No test signs
+                // in, but the script runs on every page and sometimes throws while a test is
+                // navigating, which fails the run on an unrelated page error. Stopping the
+                // browser from resolving the host keeps the tests off the network. The login
+                // button already shows its own fallback until the script loads.
+                launchOptions: {
+                    args: ['--host-resolver-rules=MAP accounts.google.com ~NOTFOUND'],
+                },
+            },
+        },
+    ],
     webServer: {
         command: `npx sirv public --single --port ${port}`,
         url: `http://localhost:${port}`,
