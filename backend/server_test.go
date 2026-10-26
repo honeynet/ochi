@@ -621,6 +621,7 @@ func TestRouter_CorsPreflightAndStaticFiles(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(tmp, "build", "bundle.js"), []byte("console.log(1)"), 0644))
 	require.NoError(t, os.WriteFile(filepath.Join(tmp, "index.html"), []byte("<!doctype html>"), 0644))
+	require.NoError(t, os.WriteFile(filepath.Join(tmp, "global.css"), []byte("body {}"), 0644))
 
 	cs := &server{fs: os.DirFS(tmp), cfg: Config{JWTSecret: "test-secret"}}
 	mux, err := newRouter(cs)
@@ -631,6 +632,7 @@ func TestRouter_CorsPreflightAndStaticFiles(t *testing.T) {
 		mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
 		assert.Equal(t, http.StatusOK, w.Code, "expected 200 for %s", path)
 		assert.Equal(t, "<!doctype html>", w.Body.String())
+		assert.Equal(t, "text/html; charset=utf-8", w.Header().Get("Content-Type"))
 	}
 
 	req := httptest.NewRequest(http.MethodOptions, "/api/events/abc", nil)
@@ -656,6 +658,12 @@ func TestRouter_CorsPreflightAndStaticFiles(t *testing.T) {
 	assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
 	assert.Equal(t, "X-Total-Count", w.Header().Get("Access-Control-Expose-Headers"))
 	assert.Equal(t, "console.log(1)", w.Body.String())
+
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/global.css", nil))
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "text/css", w.Header().Get("Content-Type"))
+	assert.Equal(t, "body {}", w.Body.String())
 }
 
 func newRunnableServer(t *testing.T) *server {
