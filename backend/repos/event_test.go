@@ -18,6 +18,8 @@ func initEventRepo(t *testing.T) *EventRepo {
 	dbPath := fmt.Sprintf("%s/test.db", tmp)
 	db, err := sqlx.Connect("sqlite", dbPath)
 	require.NoError(t, err)
+	// Release the handle so t.TempDir() can remove the file on Windows.
+	t.Cleanup(func() { _ = db.Close() })
 
 	// defer os.Remove("./querytest.db")
 	r, err := NewEventRepo(db)
@@ -132,6 +134,8 @@ func TestEventRepo_MigratesLegacySchema(t *testing.T) {
 	tmp := t.TempDir()
 	db, err := sqlx.Connect("sqlite", fmt.Sprintf("%s/legacy.db", tmp))
 	require.NoError(t, err)
+	// Release the handle so t.TempDir() can remove the file on Windows.
+	t.Cleanup(func() { _ = db.Close() })
 
 	_, err = db.Exec(`CREATE TABLE events (
 		id TEXT PRIMARY KEY NOT NULL
