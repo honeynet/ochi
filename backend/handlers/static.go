@@ -12,6 +12,7 @@ func (h *Handlers) Index(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer fh.Close()
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if _, err := io.Copy(w, fh); err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
