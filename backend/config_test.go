@@ -3,6 +3,7 @@ package backend
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,7 +21,9 @@ func TestLoadConfig_CreatesDefaultWhenMissing(t *testing.T) {
 
 	info, err := os.Stat(path)
 	require.NoError(t, err)
-	assert.True(t, info.Mode().Perm()&0o077 == 0, "config file should not be group/world readable")
+	if runtime.GOOS != "windows" {
+		assert.True(t, info.Mode().Perm()&0o077 == 0, "config file should not be group/world readable")
+	}
 }
 
 func TestLoadConfig_ReadsExistingFile(t *testing.T) {
