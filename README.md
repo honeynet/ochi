@@ -10,6 +10,9 @@ Eventually we want to be able to enabled to quickly react to new trends, improve
 
 ## Development Requirements
 
+> [!NOTE]
+> Linux will be the only supported operating system.
+
 1. [Golang version 1.26 or later](https://go.dev/doc/install)
 2. [Node.js 26 or later](https://nodejs.org/en/download/)
 
@@ -28,7 +31,7 @@ Eventually we want to be able to enabled to quickly react to new trends, improve
 ##### For Frontend and backend development
 
 1. To build the project, run `make build` (or `npm run build && go build -o server .`)
-2. To start a local server, run `make local` (or `./server` / `./server.exe`)
+2. To start a local server, run `make local` (or `./server`)
 3. Open `http://localhost:3000` in your browser.
 4. To generate simulated events, switch to **Development** mode via the **Config** button in the UI.
 
