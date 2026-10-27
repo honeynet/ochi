@@ -1,0 +1,43 @@
+# Dependabot security updates are already enabled for this repository; this file adds
+# scheduled version updates on top of them. The github-actions entry is what keeps the
+# commit SHAs in .github/workflows from going stale: Dependabot rewrites both the SHA
+# and the version comment next to it, so pinning does not become manual upkeep.
+#
+# Routine minor and patch bumps are grouped into one pull request per ecosystem to keep
+# the review queue short. Majors are deliberately left ungrouped so each one arrives on
+# its own and can be read properly.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      actions-minor-and-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      go-minor-and-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      npm-minor-and-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
