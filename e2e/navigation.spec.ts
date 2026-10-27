@@ -17,8 +17,24 @@ async function navigate(page: Page, path: string) {
     await expect(page).toHaveURL(path);
 }
 
-// The routed page's body; Home renders its own shell, which stays in the DOM while hidden.
+// The routed page's body inside the application shell.
 const pageContent = (page: Page) => page.locator('.shell__body:not(.home .shell__body)');
+
+async function authenticate(page: Page, userPermissions: string[] = []) {
+    await page.addInitScript(() => {
+        localStorage.setItem('isAuthenticated', 'true');
+        localStorage.setItem('token', 'test-token');
+    });
+    await page.route('**/api/session', (route) =>
+        route.fulfill({
+            json: {
+                user: { email: 'user@example.com' },
+                permissions: userPermissions,
+                token: 'test-token',
+            },
+        }),
+    );
+}
 
 test.describe('routing', () => {
     let pageErrors: Error[];
@@ -98,5 +114,107 @@ test.describe('routing', () => {
         await expect(page.locator('.home')).toHaveCount(1);
         await expect(home).toHaveAttribute('data-e2e-mark', 'original');
         expect(sockets).toBe(1);
+    });
+
+    test('authenticated user can navigate directly between views via header links', async ({
+        page,
+    }) => {
+        await authenticate(page, ['users:list']);
+
+        await page.goto('/myevents');
+        const nav = page.locator('.header__nav');
+
+        // All navigation links are visible on /myevents
+        await expect(nav.getByRole('link', { name: 'Live' })).toBeVisible();
+        await expect(nav.getByRole('link', { name: 'Queries' })).toBeVisible();
+        await expect(nav.getByRole('link', { name: 'Events' })).toBeVisible();
+        await expect(nav.getByRole('link', { name: 'Sensors' })).toBeVisible();
+        await expect(nav.getByRole('link', { name: 'Users' })).toBeVisible();
+
+        // Direct navigation to Sensors from Events
+        await nav.getByRole('link', { name: 'Sensors' }).click();
+        await expect(page).toHaveURL('/mysensors');
+        await expect(pageContent(page)).toContainText('Sensors');
+
+        // Direct navigation to Queries from Sensors
+        await nav.getByRole('link', { name: 'Queries' }).click();
+        await expect(page).toHaveURL('/myqueries');
+        await expect(pageContent(page)).toContainText('Saved Queries');
+
+        // Direct navigation to Live from Queries
+        await nav.getByRole('link', { name: 'Live' }).click();
+        await expect(page).toHaveURL('/');
+        await expect(page.locator('.home')).toBeVisible();
+
+        // Brand link navigates home as well
+        await page.goto('/myevents');
+        await page.locator('.header__brand').click();
+        await expect(page).toHaveURL('/');
+        await expect(page.locator('.home')).toBeVisible();
+    });
+
+    test('active link state reflects current page visually and via aria-current="page"', async ({
+        page,
+    }) => {
+        await authenticate(page);
+        await page.goto('/');
+
+        const nav = page.locator('.header__nav');
+        const liveLink = nav.getByRole('link', { name: 'Live' });
+        const queriesLink = nav.getByRole('link', { name: 'Queries' });
+
+        await expect(liveLink).toHaveClass(/header__link--active/);
+        await expect(liveLink).toHaveAttribute('aria-current', 'page');
+        await expect(queriesLink).not.toHaveClass(/header__link--active/);
+        await expect(queriesLink).not.toHaveAttribute('aria-current', 'page');
+
+        await queriesLink.click();
+        await expect(page).toHaveURL('/myqueries');
+        await expect(queriesLink).toHaveClass(/header__link--active/);
+        await expect(queriesLink).toHaveAttribute('aria-current', 'page');
+        await expect(liveLink).not.toHaveClass(/header__link--active/);
+        await expect(liveLink).not.toHaveAttribute('aria-current', 'page');
+    });
+
+    test('Users link is permission-gated behind users:list', async ({ page }) => {
+        // Authenticate without users:list permission
+        await authenticate(page, []);
+        await page.goto('/');
+
+        const nav = page.locator('.header__nav');
+        await expect(nav.getByRole('link', { name: 'Live' })).toBeVisible();
+        await expect(nav.getByRole('link', { name: 'Users' })).toHaveCount(0);
+    });
+
+    test('logged-out visitors on subpages see Go back fallback and no main nav', async ({
+        page,
+    }) => {
+        await page.goto('/myqueries');
+
+        // Authenticated nav is hidden
+        await expect(page.locator('.header__nav')).toHaveCount(0);
+
+        // "Go back" link is displayed
+        const goBack = page.locator('.header__left a.header__link', { hasText: 'Go back' });
+        await expect(goBack).toBeVisible();
+
+        // Clicking "Go back" navigates home
+        await goBack.click();
+        await expect(page).toHaveURL('/');
+        await expect(page.locator('.home')).toBeVisible();
+
+        // On home, "Go back" is not rendered
+        await expect(
+            page.locator('.header__left a.header__link', { hasText: 'Go back' }),
+        ).toHaveCount(0);
+    });
+
+    test('header preserves repository link to GitHub', async ({ page }) => {
+        await page.goto('/');
+
+        const githubLink = page.locator('.header__right a.header__link', { hasText: 'GitHub' });
+        await expect(githubLink).toBeVisible();
+        await expect(githubLink).toHaveAttribute('href', 'https://github.com/honeynet/ochi');
+        await expect(githubLink).toHaveAttribute('target', '_blank');
     });
 });

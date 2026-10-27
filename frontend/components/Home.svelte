@@ -1,8 +1,6 @@
 <script lang="ts">
-    import PageShell from './PageShell.svelte';
     import ColumnSplit from './ColumnSplit.svelte';
     import MessageList from './MessageList.svelte';
-    import Filter from './Filter.svelte';
     import Content from './Content.svelte';
 
     import { onMount, untrack } from 'svelte';
@@ -117,26 +115,25 @@
 </script>
 
 <div class="home" hidden={!active}>
-    <PageShell path="/myqueries" pathText="Queries" showEvents>
-        {#snippet headerCenter()}
-            <Filter />
-        {/snippet}
-        <main>
-            <ColumnSplit>
-                {#snippet left()}
-                    <MessageList bind:this={messageList} {active} />
-                {/snippet}
-                {#snippet right()}
-                    <Content isShared={false} />
-                {/snippet}
-            </ColumnSplit>
-        </main>
-    </PageShell>
+    <main>
+        <ColumnSplit>
+            {#snippet left()}
+                <MessageList bind:this={messageList} {active} />
+            {/snippet}
+            {#snippet right()}
+                <Content isShared={false} />
+            {/snippet}
+        </ColumnSplit>
+    </main>
 </div>
 
 <style>
     .home {
         height: 100%;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
     }
 
     .home[hidden] {
