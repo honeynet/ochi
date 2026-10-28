@@ -89,7 +89,11 @@
         }
         let parseResult = parseDSL(filter, filterState);
         filterState = { ...filterState }; // force reactivity to update suggestions
-        if (parseResult.lexErrors.length > 0 || parseResult.parseErrors.length > 0) {
+        if (
+            parseResult.lexErrors.length > 0 ||
+            parseResult.parseErrors.length > 0 ||
+            parseResult.regexErrors.length > 0
+        ) {
             filterValid = false;
             // TODO: highlight in red
         } else {
@@ -122,6 +126,12 @@
         }
         if (parseResult.parseErrors.length > 0) {
             showError(`Invalid filter: ${parseResult.parseErrors[0].message}`);
+            filterActive.set(false);
+            filterValid = false;
+            return;
+        }
+        if (parseResult.regexErrors.length > 0) {
+            showError(`Invalid filter: ${parseResult.regexErrors[0]}`);
             filterActive.set(false);
             filterValid = false;
             return;

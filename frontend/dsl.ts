@@ -1,7 +1,7 @@
 import { createToken, CstParser, Rule, Lexer, EMPTY_ALT } from 'chevrotain';
 
-import type { ILexingError, IRecognitionException, IToken, TokenType } from 'chevrotain';
-import type { QueryCstNode } from './generated/chevrotain_dts';
+import type { CstNode, ILexingError, IRecognitionException, IToken, TokenType } from 'chevrotain';
+import type { QueryCstNode, SearchClauseCstChildren } from './generated/chevrotain_dts';
 
 // Comparison
 const eq = createToken({ name: 'EQUAL', pattern: /eq/, label: 'eq' });
@@ -164,14 +164,16 @@ class QueryParser extends CstParser {
     });
 
     private searchClause = this.RULE('searchClause', () => {
+        this.CONSUME(payload);
+        this.SUBRULE(this.searchOperator);
+        this.CONSUME(string);
+    });
+
+    private searchOperator = this.RULE('searchOperator', () => {
         this.OR([
-            {
-                ALT: () => {
-                    this.CONSUME(payload);
-                    this.CONSUME(contains);
-                    this.CONSUME(string);
-                },
-            },
+            { ALT: () => this.CONSUME(contains) },
+            { ALT: () => this.CONSUME(matches) },
+            { ALT: () => this.CONSUME(matchesSmb) },
         ]);
     });
 
@@ -261,6 +263,9 @@ export interface ParseResult {
     cst?: QueryCstNode;
     lexErrors: ILexingError[];
     parseErrors: IRecognitionException[];
+    // Patterns in `payload matches` clauses that the browser could not compile. The grammar
+    // cannot catch these, and an invalid pattern must not reach filterEvent.
+    regexErrors: string[];
 }
 
 export const productions: Record<string, Rule> = parser.getGAstProductions();
@@ -362,14 +367,87 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
     }
 
     if (tokenMatches(lastToken, payload)) {
-        return ['contains'];
+        return ['contains', 'matches'];
     }
 
     if (tokenMatches(lastToken, contains)) {
         return ['"msg"'];
     }
 
+    if (tokenMatches(lastToken, matches, matchesSmb)) {
+        return ['"regex"'];
+    }
+
     return [];
+}
+
+// parseStringLiteral turns a STRING token's image into the text it stands for. It lives here,
+// next to the token it decodes, so both the parser and the filter can use it.
+export function parseStringLiteral(image: string): string {
+    const raw = image.slice(1, -1);
+    try {
+        return JSON.parse(image);
+    } catch {
+        return raw.replace(/\\(.)/g, '$1');
+    }
+}
+
+// A `matches` operand is a pattern, not text, so it keeps its backslashes. Unescaping it the
+// way parseStringLiteral does would quietly change what it matches: "\.php" would become
+// ".php", where . matches any character, "\d+" would become "d+", and "\b" would become a
+// backspace instead of a word boundary. The pattern is therefore the literal text between the
+// quotes; \\" needs no unescaping either, since a regular expression reads it as a quote.
+const inlineFlags = /^\(\?([ims]+)\)/;
+
+export function compilePattern(image: string): RegExp {
+    const source = image.slice(1, -1);
+    // A leading (?i), the way Go and Python write it. JavaScript takes flags separately, so
+    // the group is translated rather than passed through, which RegExp would reject.
+    const inline = inlineFlags.exec(source);
+    return inline ? new RegExp(source.slice(inline[0].length), inline[1]) : new RegExp(source);
+}
+
+// Each pattern is compiled once, while the parse result is still being built, and is then
+// looked up by the token it came from. filterEvent never compiles anything itself, so it
+// cannot disagree with what parseDSL accepted. A token lives exactly as long as the parsed
+// filter that holds it, so the entry goes away with it.
+const compiledPatterns = new WeakMap<IToken, RegExp>();
+
+export function patternFor(token: IToken): RegExp {
+    const pattern = compiledPatterns.get(token);
+    if (!pattern) {
+        // Only reachable if a filter is evaluated without parseDSL having accepted it.
+        throw new Error('Pattern for search clause was never compiled');
+    }
+    return pattern;
+}
+
+// compilePatterns walks the searchClause nodes of a parsed filter and compiles the pattern of
+// every `matches` / `~` clause, so one that does not compile is reported like a syntax error
+// rather than thrown while events are being filtered. It walks the same nodes filterEvent
+// evaluates; re-scanning the token stream instead would let the two drift apart.
+function compilePatterns(node: CstNode, errors: string[]): void {
+    if (node.name === 'searchClause') {
+        const children = node.children as SearchClauseCstChildren;
+        const operator = children.searchOperator[0].children;
+        if (!operator.MATCHES && !operator.MATCHES_SMB) {
+            return;
+        }
+        const token = children.STRING[0];
+        try {
+            compiledPatterns.set(token, compilePattern(token.image));
+        } catch (e) {
+            errors.push(e instanceof Error ? e.message : String(e));
+        }
+        return;
+    }
+    for (const children of Object.values(node.children)) {
+        for (const child of children) {
+            if ('children' in child) {
+                compilePatterns(child, errors);
+            }
+        }
+    }
 }
 
 export function parseDSL(
@@ -384,6 +462,7 @@ export function parseDSL(
         return {
             lexErrors: lexResult.errors,
             parseErrors: [],
+            regexErrors: [],
         };
     }
     // setting a new input will RESET the parser instance's state.
@@ -413,11 +492,19 @@ export function parseDSL(
     // any top level rule may be used as an entry point
     const cst = parser.query();
 
+    // Only worth walking once the clauses are known to be well formed; a failed parse leaves
+    // a partial tree whose searchClause nodes may be missing the operator or the pattern.
+    const regexErrors: string[] = [];
+    if (parser.errors.length === 0) {
+        compilePatterns(cst, regexErrors);
+    }
+
     return {
         // This is a pure grammar, the value will be undefined until we add embedded actions
         // or enable automatic CST creation.
         cst: cst as QueryCstNode,
         lexErrors: lexResult.errors,
         parseErrors: parser.errors,
+        regexErrors,
     };
 }
