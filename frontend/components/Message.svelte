@@ -4,7 +4,7 @@
     import type { Event } from '../event';
     import { END_REASONS, displayRule, formatEventTime, formatPort, getEventById } from '../event';
     import { formatFrameCount, frameCountTitle } from '../decoded';
-    import { currentEvent } from '../store';
+    import { currentEvent, filterBySensor, userSensors } from '../store';
 
     interface Props {
         message: Event;
@@ -25,6 +25,20 @@
     let handlerLabel = $derived(message.handler || displayRule(message) || '');
     let selected = $derived(
         message.id ? $currentEvent?.id === message.id : $currentEvent === message,
+    );
+    let matchedSensor = $derived(
+        $userSensors.find(
+            (s) =>
+                s.id === message.sensorID ||
+                s.id.startsWith(message.sensorID) ||
+                message.sensorID.startsWith(s.id),
+        ),
+    );
+    let sensorName = $derived(matchedSensor?.name);
+    let sensorTitle = $derived(
+        sensorName
+            ? `${sensorName} (${message.sensorID}) - Click to filter`
+            : `Filter by sensor: ${message.sensorID}`,
     );
 
     async function click() {
@@ -51,6 +65,23 @@
         e.stopPropagation();
     }
 
+    function onSensorClick(e: MouseEvent) {
+        e.stopPropagation();
+        if (message.sensorID) {
+            filterBySensor(message.sensorID);
+        }
+    }
+
+    function onSensorKeydown(e: KeyboardEvent) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            if (message.sensorID) {
+                filterBySensor(message.sensorID);
+            }
+        }
+    }
+
     // untrack so Resume (follow toggled later) does not re-scroll existing rows.
     const scrollIntoViewIfFollowing: Attachment = (element) => {
         if (untrack(() => follow)) {
@@ -67,7 +98,16 @@
 
 {#snippet cells()}
     <span class="cell time" title={message.timestamp}>{formatEventTime(message.timestamp)}</span>
-    <span class="cell sensor" title={message.sensorID}>{message.sensorID}</span>
+    <span
+        class="cell sensor"
+        role="button"
+        tabindex="0"
+        title={sensorTitle}
+        onclick={onSensorClick}
+        onkeydown={onSensorKeydown}
+    >
+        {message.sensorID}
+    </span>
     <!-- The source port is ephemeral, so the column shows the host and the tooltip the port. -->
     <span class="cell source" title={message.srcPtr ? `${message.srcPtr} (${source})` : source}
         >{message.srcHost}</span
@@ -112,16 +152,18 @@
         {@render cells()}
     </div>
 {:else}
-    <button
-        type="button"
+    <div
         class={['message', { selected }]}
+        role="button"
+        tabindex="0"
         onclick={click}
+        onkeydown={onKeydown}
         {@attach scrollIntoViewIfFollowing}
         {@attach scrollIntoViewIfSelected}
         aria-pressed={selected}
     >
         {@render cells()}
-    </button>
+    </div>
 {/if}
 
 <style>
@@ -157,6 +199,15 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+
+    .cell.sensor {
+        cursor: pointer;
+    }
+
+    .cell.sensor:hover {
+        text-decoration: underline;
+        color: #0066cc;
     }
 
     .check {
