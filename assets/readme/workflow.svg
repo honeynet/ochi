@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-labelledby="flowTitle flowDesc">
+  <title id="flowTitle">How Ochi receives and displays events</title>
+  <desc id="flowDesc">A Glutton sensor posts token-authenticated events to the Ochi server, which stores them in SQLite and pushes them over a WebSocket to the browser console.</desc>
+
+  <rect width="1200" height="300" rx="24" fill="#F4F2ED"/>
+  <rect x="0.5" y="0.5" width="1199" height="299" rx="23.5" fill="none" stroke="#E2DCD0"/>
+
+  <text x="64" y="64" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" font-weight="600" letter-spacing="2.6" fill="#8B8477">EVENT FLOW</text>
+
+  <g id="sensor-node">
+    <rect x="64" y="104" width="200" height="128" rx="14" fill="#FBFAF7" stroke="#E2DCD0"/>
+    <text x="164" y="156" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="21" font-weight="700" fill="#15171B">Glutton sensor</text>
+    <text x="164" y="186" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" fill="#6C6E75">honeypot daemon</text>
+  </g>
+
+  <g id="ingest-arrow">
+    <text x="382" y="126" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" fill="#15171B">POST /api/publish</text>
+    <text x="382" y="150" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" fill="#7C776C">publish token</text>
+    <line x1="264" y1="172" x2="490" y2="172" stroke="#C2410C" stroke-width="2"/>
+    <path d="M500 172 L488 166 L488 178 Z" fill="#C2410C"/>
+  </g>
+
+  <g id="server-node">
+    <rect x="500" y="104" width="200" height="128" rx="14" fill="#17191D"/>
+    <text x="600" y="156" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="21" font-weight="700" fill="#F4F2ED">Ochi server</text>
+    <text x="600" y="186" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" fill="#A9A399">event hub + SQLite</text>
+  </g>
+
+  <g id="stream-arrow">
+    <text x="818" y="126" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" fill="#15171B">WebSocket</text>
+    <text x="818" y="150" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" fill="#7C776C">/api/subscribe</text>
+    <line x1="700" y1="172" x2="926" y2="172" stroke="#C2410C" stroke-width="2"/>
+    <path d="M936 172 L924 166 L924 178 Z" fill="#C2410C"/>
+  </g>
+
+  <g id="browser-node">
+    <rect x="936" y="104" width="200" height="128" rx="14" fill="#FBFAF7" stroke="#E2DCD0"/>
+    <text x="1036" y="156" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="21" font-weight="700" fill="#15171B">Browser</text>
+    <text x="1036" y="186" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="18" fill="#6C6E75">live event console</text>
+  </g>
+</svg>
