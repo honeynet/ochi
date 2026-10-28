@@ -4,6 +4,7 @@ import type {
     BinaryOperatorCstChildren,
     BooleanSuffixClauseCstNode,
 } from './generated/chevrotain_dts';
+import type { IToken } from 'chevrotain';
 import type { Event } from './event';
 
 export function filterEvent(event: Event, cst: QueryCstNode): boolean {
@@ -157,15 +158,20 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
         if (!stringToken) {
             throw new Error('Missing string token for search clause');
         }
-        const searchString = parseStringLiteral(stringToken.image);
         if (!event.payload) {
             return false;
         }
+        let bytes: string;
         try {
-            return atob(event.payload).includes(searchString);
+            bytes = atob(event.payload);
         } catch {
             return false;
         }
+        // A payload is bytes, and a term can be meant either way round: "\u0090\u0090" is two
+        // raw bytes of a NOP sled, while "café" is text the payload carries as UTF-8. Both
+        // readings are tried, so gaining the second does not give up the first.
+        const term = searchTerm(stringToken);
+        return bytes.includes(term.raw) || (term.utf8 !== term.raw && bytes.includes(term.utf8));
     } else {
         throw new Error('Unexpected booleanClauseCstNode');
     }
@@ -183,6 +189,37 @@ function stringMatch(
     return ignoreCase
         ? equalityCheck(actual.toLowerCase(), value.toLowerCase(), binaryOperator)
         : equalityCheck(actual, value, binaryOperator);
+}
+
+// Both readings of a search term, kept together. filterEvent runs for every event in the list,
+// and again for every stored message whenever the filter changes, so a term is converted once
+// per filter rather than once per event. A token lives exactly as long as the parsed filter
+// that holds it, so the entry goes away with it.
+const searchTerms = new WeakMap<IToken, { raw: string; utf8: string }>();
+
+function searchTerm(token: IToken): { raw: string; utf8: string } {
+    let term = searchTerms.get(token);
+    if (!term) {
+        const raw = parseStringLiteral(token.image);
+        term = { raw, utf8: utf8ByteString(raw) };
+        searchTerms.set(token, term);
+    }
+    return term;
+}
+
+// atob() yields one character per byte, so a term meant as text has to be turned into its UTF-8
+// bytes before comparing; otherwise a term like "café" could never match a UTF-8 payload. ASCII
+// terms come back unchanged. This is what unescape(encodeURIComponent(s)) does, written out
+// because unescape is deprecated.
+function utf8ByteString(s: string): string {
+    // A lone surrogate is not text any encoder can represent, and encodeURIComponent rejects it
+    // outright. UTF-8 encoders substitute U+FFFD for one, so do the same first: the term then
+    // encodes like any other, instead of falling back to a value that, holding a code unit
+    // above U+00FF, could never match a byte string anyway.
+    const text = s.replace(/\p{Surrogate}/gu, '\uFFFD');
+    return encodeURIComponent(text).replace(/%([0-9A-F]{2})/g, (_, hex) =>
+        String.fromCharCode(parseInt(hex, 16)),
+    );
 }
 
 export function parseStringLiteral(image: string): string {
