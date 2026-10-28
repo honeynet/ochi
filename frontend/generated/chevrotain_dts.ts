@@ -77,6 +77,7 @@ export type StringItemClauseCstChildren = {
     HANDLER?: IToken[];
     TRANSPORT?: IToken[];
     SCANNER?: IToken[];
+    SENSOR?: IToken[];
 };
 
 export interface BinaryClauseCstNode extends CstNode {

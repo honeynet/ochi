@@ -125,6 +125,14 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
         } else if (field.SCANNER) {
             // Scanner names (censys, shodan, ...) are case insensitive.
             return stringMatch(event.scanner, value, binaryOperator.children, true);
+        } else if (field.SENSOR) {
+            const sensorQuery = value.toLowerCase();
+            const eventSensor = (event.sensorID ?? '').toLowerCase();
+            const matches =
+                eventSensor === sensorQuery ||
+                (sensorQuery.length >= 8 && eventSensor.startsWith(sensorQuery)) ||
+                (eventSensor.length >= 8 && sensorQuery.startsWith(eventSensor));
+            return equalityCheck(matches, true, binaryOperator.children);
         }
         throw new Error('Unexpected field in string clause');
     } else if (children.portItemClause) {

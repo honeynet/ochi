@@ -41,6 +41,7 @@ const payload = createToken({ name: 'PAYLOAD', pattern: /payload/, label: 'paylo
 const endReason = createToken({ name: 'END_REASON', pattern: /end\.reason/, label: 'end.reason' });
 const handler = createToken({ name: 'HANDLER', pattern: /handler/, label: 'handler' });
 const transport = createToken({ name: 'TRANSPORT', pattern: /transport/, label: 'transport' });
+const sensor = createToken({ name: 'SENSOR', pattern: /sensor/, label: 'sensor' });
 const scanner = createToken({ name: 'SCANNER', pattern: /scanner/, label: 'scanner' });
 const string = createToken({
     name: 'STRING',
@@ -50,7 +51,7 @@ const string = createToken({
 
 const partial = createToken({
     name: 'PARTIAL',
-    pattern: /[a-zA-Z][a-zA-Z0-9]*|\?/,
+    pattern: /\"[a-zA-Z0-9_-]*|[a-zA-Z][a-zA-Z0-9]*|\?/,
     label: 'partial',
 });
 
@@ -87,6 +88,7 @@ let allTokens = [
     endReason,
     handler,
     transport,
+    sensor,
     scanner,
 
     payload,
@@ -201,6 +203,7 @@ class QueryParser extends CstParser {
             { ALT: () => this.CONSUME(handler) },
             { ALT: () => this.CONSUME(transport) },
             { ALT: () => this.CONSUME(scanner) },
+            { ALT: () => this.CONSUME(sensor) },
         ]);
     });
 
@@ -252,9 +255,20 @@ export interface PartialToken {
     startOffset: number;
 }
 
+export interface SuggestionItem {
+    value: string;
+    label?: string;
+}
+
+export type Suggestion = string | SuggestionItem;
+
 export interface FilterState {
-    suggestions: string[];
+    suggestions: Suggestion[];
     partialToken: PartialToken | null;
+}
+
+export interface ParseDSLOptions {
+    sensors?: { id: string; name?: string }[];
 }
 
 export interface ParseResult {
@@ -276,6 +290,7 @@ const QUERY_START_SUGGESTIONS = [
     'handler',
     'transport',
     'scanner',
+    'sensor',
     'payload',
     'not',
     '(',
@@ -289,6 +304,7 @@ const FIELD_SUGGESTIONS = [
     'handler',
     'transport',
     'scanner',
+    'sensor',
     'payload',
     '(',
 ];
@@ -313,7 +329,10 @@ function openGroups(tokens: IToken[]): number {
     return depth;
 }
 
-function computeSuggestions(assistTokens: IToken[]): string[] {
+function computeSuggestions(
+    assistTokens: IToken[],
+    sensors?: { id: string; name?: string }[],
+): Suggestion[] {
     if (assistTokens.length === 0) {
         return QUERY_START_SUGGESTIONS;
     }
@@ -328,7 +347,19 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         return FIELD_SUGGESTIONS;
     }
 
-    if (tokenMatches(lastToken, tcpPort, udpPort, ipSrc, endReason, handler, transport, scanner)) {
+    if (
+        tokenMatches(
+            lastToken,
+            tcpPort,
+            udpPort,
+            ipSrc,
+            endReason,
+            handler,
+            transport,
+            scanner,
+            sensor,
+        )
+    ) {
         return OPERATOR_SUGGESTIONS;
     }
 
@@ -351,6 +382,15 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
         }
         if (fieldToken && tokenMatches(fieldToken, scanner)) {
             return ['"censys"'];
+        }
+        if (fieldToken && tokenMatches(fieldToken, sensor)) {
+            if (sensors && sensors.length > 0) {
+                return sensors.map((s) => ({
+                    value: `"${s.id}"`,
+                    label: s.name ? `"${s.id}" (${s.name})` : `"${s.id}"`,
+                }));
+            }
+            return ['"sensor-id"'];
         }
         return [];
     }
@@ -375,6 +415,7 @@ function computeSuggestions(assistTokens: IToken[]): string[] {
 export function parseDSL(
     text: string,
     filterState: FilterState = { suggestions: [], partialToken: null },
+    options?: ParseDSLOptions,
 ): ParseResult {
     const lexResult = queryLexer.tokenize(text);
 
@@ -397,10 +438,26 @@ export function parseDSL(
         partialSuggestion = true;
     }
 
-    let suggestions = computeSuggestions(assistTokens);
+    let suggestions = computeSuggestions(assistTokens, options?.sensors);
     if (partialSuggestion && lastToken && lastToken.image !== '?') {
         const partialImage = lastToken.image;
-        suggestions = suggestions.filter((suggestion) => suggestion.startsWith(partialImage));
+        const cleanPartial = partialImage.replace(/^"|"$/g, '');
+        suggestions = suggestions.filter((suggestion) => {
+            const val = typeof suggestion === 'string' ? suggestion : suggestion.value;
+            const label =
+                typeof suggestion === 'string'
+                    ? suggestion
+                    : (suggestion.label ?? suggestion.value);
+            const cleanVal = val.replace(/^"|"$/g, '');
+            return (
+                val.startsWith(partialImage) ||
+                cleanVal.startsWith(partialImage) ||
+                (cleanPartial.length > 0 && cleanVal.startsWith(cleanPartial)) ||
+                label.toLowerCase().includes(partialImage.toLowerCase()) ||
+                (cleanPartial.length > 0 &&
+                    label.toLowerCase().includes(cleanPartial.toLowerCase()))
+            );
+        });
     }
 
     filterState.suggestions = suggestions;
@@ -420,4 +477,18 @@ export function parseDSL(
         lexErrors: lexResult.errors,
         parseErrors: parser.errors,
     };
+}
+
+export function applySensorFilter(currentQuery: string, sensorID: string): string {
+    if (!sensorID) return currentQuery;
+    const clause = `sensor == "${sensorID}"`;
+    const trimmed = currentQuery.trim();
+    if (!trimmed) {
+        return clause;
+    }
+    const sensorPattern = /\bsensor\s*(?:==|!=|eq|ne)\s*"[^"]*"/i;
+    if (sensorPattern.test(trimmed)) {
+        return trimmed.replace(sensorPattern, clause);
+    }
+    return `${trimmed} and ${clause}`;
 }

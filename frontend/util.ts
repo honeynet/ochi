@@ -59,6 +59,12 @@ function generateUUID() {
     });
 }
 
+export const DEMO_SENSORS = [
+    { id: 'alpha-node', name: 'honeypot-us-east' },
+    { id: 'beta-node', name: 'glutton-prod' },
+    { id: 'gamma-node', name: 'dmz-sensor' },
+];
+
 /**
  * Generates a random event used for UI testing
  * @returns test event
@@ -68,13 +74,14 @@ export function generateRandomTestEvent(): Event {
     const payload = btoa(payloadText);
     const kinds = ['smb', 'http', 'rdp', 'tcp'] as const;
     const kind = kinds[Math.floor(Math.random() * kinds.length)];
+    const demo = DEMO_SENSORS[Math.floor(Math.random() * DEMO_SENSORS.length)];
     const base: Event = {
         connKey: [2, 2],
         dstPort: 80,
         dstHost: '198.51.100.8',
         rule: 'Rule: TCP',
         scanner: Math.random() > 0.5 ? 'censys' : undefined,
-        sensorID: generateUUID().split('-')[0],
+        sensorID: demo.id,
         sensorVersion: Math.random() > 0.3 ? '1.2.3' : undefined,
         srcHost: '203.0.113.10',
         srcPort: '4321',

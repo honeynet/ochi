@@ -9,9 +9,9 @@
     import { get } from 'svelte/store';
     import { ENV_DEV, ENV_PROD, WS_ENDPOINT } from '../constants';
     import type { Event } from '../event';
-    import { generateRandomTestEvent } from '../util';
+    import { DEMO_SENSORS, generateRandomTestEvent } from '../util';
     import { validate } from '../session';
-    import { currentEvent, env } from '../store';
+    import { currentEvent, env, userSensors } from '../store';
     import type { Event as OchiEvent } from '../event';
 
     let { active }: { active: boolean } = $props();
@@ -73,6 +73,9 @@
 
     const test = async () => {
         const run = ++testRun;
+        if (get(userSensors).length === 0) {
+            userSensors.set(DEMO_SENSORS.map((s) => ({ ...s, user_id: 'dev' })));
+        }
         while (run === testRun && $env == ENV_DEV) {
             addMessage(generateRandomTestEvent());
             await sleep(1000);
