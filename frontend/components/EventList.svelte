@@ -271,8 +271,9 @@
     }
 
     #message-log {
-        --event-cols: 2ch 8ch 8ch minmax(14ch, 1.6fr) 9ch 8ch minmax(6ch, 0.9fr) minmax(11ch, 13ch)
-            6ch 7ch;
+        /* See MessageList.svelte: capped tracks, with the slack in the empty track at the end. */
+        --event-cols: 2ch 8ch 8ch minmax(14ch, 26ch) 9ch 8ch minmax(6ch, 12ch) minmax(11ch, 13ch)
+            6ch 7ch minmax(0, 1fr);
         flex: 1;
         min-height: 0;
         overflow-y: auto;
