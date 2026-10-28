@@ -1,9 +1,11 @@
 <script lang="ts">
+    import type { Suggestion } from '../dsl';
+
     interface Props {
         suggestionId?: string;
         hide?: boolean;
         onSelect: (value: string) => void;
-        suggestions?: string[];
+        suggestions?: Suggestion[];
         suggestionsDiv?: HTMLDivElement | undefined;
     }
 
@@ -14,6 +16,18 @@
         suggestions = [],
         suggestionsDiv = $bindable(undefined),
     }: Props = $props();
+
+    function getLabel(item: Suggestion): string {
+        return typeof item === 'string' ? item : (item.label ?? item.value);
+    }
+
+    function getValue(item: Suggestion): string {
+        return typeof item === 'string' ? item : item.value;
+    }
+
+    function getKey(item: Suggestion, idx: number): string {
+        return typeof item === 'string' ? `${item}-${idx}` : `${item.value}-${item.label ?? idx}`;
+    }
 </script>
 
 <div
@@ -23,20 +37,20 @@
     bind:this={suggestionsDiv}
 >
     <ul>
-        {#each suggestions as suggestion (suggestion)}
+        {#each suggestions as suggestion, i (getKey(suggestion, i))}
             <li
                 role="option"
                 aria-selected="false"
                 tabindex="0"
-                onclick={() => onSelect(suggestion)}
+                onclick={() => onSelect(getValue(suggestion))}
                 onkeydown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault();
-                        onSelect(suggestion);
+                        onSelect(getValue(suggestion));
                     }
                 }}
             >
-                {suggestion}
+                {getLabel(suggestion)}
             </li>
         {/each}
     </ul>

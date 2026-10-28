@@ -1,6 +1,6 @@
 <script lang="ts">
     import { untrack } from 'svelte';
-    import { token, permissions } from '../store';
+    import { token, permissions, userSensors } from '../store';
     import { PERM_ADD_SENSOR_BY_ID } from '../user';
     import { showError } from '../toast';
     import ConfirmDialog from './ConfirmDialog.svelte';
@@ -46,6 +46,7 @@
         try {
             await deleteSensor($token, sensor.id);
             sensors = sensors.filter((s) => s.id !== sensor.id);
+            userSensors.set(sensors);
             closeConfirm();
         } catch (e) {
             showError(e);
@@ -65,6 +66,7 @@
                 name: newName.trim(),
             });
             sensors = [...sensors, sensor];
+            userSensors.set(sensors);
             newName = '';
             newId = '';
         } catch (e) {
@@ -89,6 +91,7 @@
                 return;
             }
             sensors = data;
+            userSensors.set(data);
         } catch (e) {
             if (authToken !== $token) {
                 return;
