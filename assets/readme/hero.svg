@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="heroTitle heroDesc">
+  <title id="heroTitle">Ochi — live event console for Glutton honeypots</title>
+  <desc id="heroDesc">Ochi wordmark with the line “A live console for Glutton honeypot events. Filter the noise. Keep what matters.” Next to it, a live event panel filtered by the query scanner eq “censys”, listing four attacks from documentation IP ranges with one event highlighted.</desc>
+
+  <rect width="1200" height="360" rx="24" fill="#F4F2ED"/>
+  <rect x="0.5" y="0.5" width="1199" height="359" rx="23.5" fill="none" stroke="#E2DCD0"/>
+
+  <g id="title-block" transform="translate(64 0)">
+    <text x="0" y="76" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" font-weight="600" letter-spacing="2.6" fill="#8B8477">HONEYPOT EVENT CONSOLE</text>
+
+    <text x="-4" y="180" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="104" font-weight="700" letter-spacing="-4" fill="#15171B">Ochi</text>
+
+    <text x="0" y="226" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="26" fill="#454A52">A live console for Glutton honeypot events.</text>
+    <text x="0" y="260" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="26" fill="#454A52">Filter the noise. Keep what matters.</text>
+
+    <text x="0" y="316" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" fill="#7C776C">Go · Svelte · SQLite · WebSocket</text>
+  </g>
+
+  <g id="event-panel">
+    <rect x="704" y="64" width="432" height="244" rx="14" fill="#FBFAF7" stroke="#E4DED2"/>
+
+    <circle cx="728" cy="92" r="5" fill="#C2410C"/>
+    <text x="742" y="98" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" font-weight="700" letter-spacing="1.6" fill="#C2410C">LIVE</text>
+    <text x="1112" y="98" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#8A8478">glutton · 8db8fe53</text>
+
+    <line x1="704" y1="112" x2="1136" y2="112" stroke="#E9E3D7"/>
+
+    <text x="724" y="143" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" fill="#C2410C">❯</text>
+    <text x="746" y="143" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19" fill="#15171B">scanner eq "censys"</text>
+
+    <line x1="704" y1="158" x2="1136" y2="158" stroke="#E9E3D7"/>
+
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18">
+      <text x="724" y="183" fill="#6C6E75">15:38:57</text>
+      <text x="824" y="183" fill="#43464C">198.51.100.23</text>
+      <text x="1016" y="183" fill="#43464C">:80</text>
+      <text x="1074" y="183" fill="#43464C">http</text>
+
+      <text x="724" y="217" fill="#6C6E75">15:38:58</text>
+      <text x="824" y="217" fill="#43464C">203.0.113.10</text>
+      <text x="1016" y="217" fill="#43464C">:445</text>
+      <text x="1074" y="217" fill="#43464C">smb</text>
+    </g>
+
+    <rect x="704" y="226" width="432" height="34" fill="#FBE9DC"/>
+    <rect x="704" y="226" width="3" height="34" fill="#C2410C"/>
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18">
+      <text x="724" y="251" fill="#8A4B24">15:38:59</text>
+      <text x="824" y="251" fill="#15171B">192.0.2.77</text>
+      <text x="1016" y="251" fill="#15171B">:3389</text>
+      <text x="1074" y="251" fill="#15171B">rdp</text>
+
+      <text x="724" y="285" fill="#6C6E75">15:39:01</text>
+      <text x="824" y="285" fill="#43464C">198.51.100.23</text>
+      <text x="1016" y="285" fill="#43464C">:22</text>
+      <text x="1074" y="285" fill="#43464C">ssh</text>
+    </g>
+  </g>
+</svg>
