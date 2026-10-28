@@ -1,82 +1,177 @@
-# Ochi
+<p align="center">
+  <img src="assets/readme/hero.svg" width="100%" alt="Ochi — a live console for Glutton honeypot events, with a filtered live event list">
+</p>
 
-UI for events from [Glutton](https://github.com/mushorg/glutton), events streamed [live](https://ochi.mushmush.org/) from a development instance.
+<p align="center">
+  <a href="https://github.com/honeynet/ochi/actions/workflows/go.yml"><img alt="Go CI" src="https://github.com/honeynet/ochi/actions/workflows/go.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/honeynet/ochi/actions/workflows/svelte.yml"><img alt="Frontend CI" src="https://github.com/honeynet/ochi/actions/workflows/svelte.yml/badge.svg?branch=main"></a>
+  <img alt="Go 1.26" src="https://img.shields.io/badge/Go-1.26-15171B?style=flat-square&logo=go&logoColor=white">
+  <img alt="Node.js 26" src="https://img.shields.io/badge/Node.js-26-15171B?style=flat-square&logo=nodedotjs&logoColor=white">
+  <img alt="License: GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-C2410C?style=flat-square">
+</p>
 
-## Motivation
+Self-hosted, real-time web UI for [Glutton](https://github.com/mushorg/glutton) honeypot events. Watch attacks arrive, filter out the noise with a small query language, and inspect anything worth investigating.
 
-Any publicly available IP address is under a constant barrage of attacks. We want to identify trends and attacks which are interesting for honeypot development. The majority of events are internet background noise, so we need to be able to identify truly new events worth investigating.
-Threats are happening in real time and we don't scale to preserve history. We work on a live stream with the requirement to be able to easily filter and classify events which are interesting. 
-Eventually we want to be able to enabled to quickly react to new trends, improve our sensors to collect valuable information.
+[Live instance](https://ochi.mushmush.org/) · [Quick start](#quick-start) · [Configuration](#configuration) · [Contributing](CONTRIBUTING.md)
 
-## Development Requirements
+## Features
+
+- **Live stream:** events reach every connected browser over a WebSocket, with no polling.
+- **Filtering:** query by port, source IP, handler, transport, scanner, end reason or payload, and save filters as tagged queries.
+- **Event detail:** frames, hexdump, TLS client hello, matched rule, duration, payload hash and end reason.
+- **Share:** store an event and get an unguessable link, so it outlives the live stream.
+- **Admin:** register sensors, download their binaries, list users.
+
+## How it works
+
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"background":"#000000","primaryColor":"#17191C","primaryTextColor":"#E5E7EB","primaryBorderColor":"#52677F","lineColor":"#64748B","fontFamily":"Arial"},"flowchart":{"curve":"linear","nodeSpacing":50,"rankSpacing":65}}}%%
+
+flowchart LR
+    G(["Glutton sensor"])
+    S["Ochi server<br/>Go + Svelte<br/>Single binary"]
+    B(["Browser console"])
+    D[("SQLite")]
+
+    G -->|"POST /api/publish?token="| S
+    S -->|"WebSocket /api/subscribe"| B
+    B -->|"Share (signed in)"| S
+    S -->|"Persist events"| D
+
+    classDef default fill:#17191C,stroke:#52677F,color:#E5E7EB,stroke-width:1.5px
+    classDef server fill:#17191C,stroke:#52677F,color:#E5E7EB,stroke-width:2.5px
+
+    class S server
+
+    linkStyle default stroke:#64748B,stroke-width:1.3px,color:#93A4B8
+```
+
+The live list is not an archive. An event is saved to SQLite only when a signed-in user shares it.
+
+## Quick start
+
+### Prerequisites
 
 > [!NOTE]
-> Linux will be the only supported operating system.
+> Linux is currently the only supported operating system for running and developing Ochi.
 
 1. [Golang version 1.26 or later](https://go.dev/doc/install)
 2. [Node.js 26 or later](https://nodejs.org/en/download/)
 
-### Steps for development
+### 1. Clone & install dependencies
 
-1. Clone the repo `git clone https://github.com/honeynet/ochi.git`
-2. run `cd ochi`
-3. run `npm install`
-
-##### For Frontend development only
-
-1. Run `npm run dev`
-2. Open `http://localhost:5000` (or `http://localhost:8080`) in your browser.
-3. To generate simulated test events without a live feed, click the **Config** button in the top navigation bar and select **Development**. No code changes or manual commenting is required. (Optionally, changing the default `env` store value in `frontend/store.ts` to `ENV_DEV` makes development mode the default on load).
-
-##### For Frontend and backend development
-
-1. To build the project, run `make build` (or `npm run build && go build -o server .`)
-2. To start a local server, run `make local` (or `./server`)
-3. Open `http://localhost:3000` in your browser.
-4. To generate simulated events, switch to **Development** mode via the **Config** button in the UI.
-
-Set `require_registered_sensors: true` to accept published events only from sensors whose UUID is in the `sensors` table. It is off by default, because a sensor that was never registered through `/sensors` is rejected once it is on.
-
-##### For using Ochi as a storage of Glutton events locally
-1. Start Ochi server with `make build && make local`
-2. Build Glutton server
-3. Update the Glutton config to include:
-   1. `producers.enabled` to `true` [here](https://github.com/mushorg/glutton/blob/305a9d23a58d065f49ac25edeaeb374f4fe9c59b/config/config.yaml#L9)
-   2. `producers.http.enabled` to `true` [here](https://github.com/mushorg/glutton/blob/305a9d23a58d065f49ac25edeaeb374f4fe9c59b/config/config.yaml#L11)
-   3. `producers.http.remote` to `http://localhost:3000/api/publish?token=token` (use the `publish_token` from your `config.yaml`)
-4. Start Glutton server.
-5. Open `http://localhost:3000` and you should see Glutton events if everything is working as expected.
-
-## Configuration & Security
-
-On first start, the server creates `config.yaml` with local defaults (`localhost:3000`, publish token `token`, JWT secret `secret`). Pass `-config path/to/config.yaml` to use a different file.
-
-### Roles & Permissions
-
-Users can hold roles, and each role grants a fixed set of permissions (defined in `backend/entities/role.go`). The only role so far is `admin`, which grants:
-
-- `users:list`: list every registered user (`GET /api/users`, and the **Users** page).
-- `sensors:add_by_id`: register a sensor under a chosen UUID (`POST /api/sensors` with an `id`). Without it, the server generates the sensor ID.
-
-To make someone an admin, add their Google account email to `config.yaml`; the role is granted the next time they log in or reload the page:
-
-```yaml
-admin_emails:
-  - you@example.com
+```bash
+git clone https://github.com/honeynet/ochi.git
+cd ochi
+npm install
 ```
 
-Removing an address from `admin_emails` does not revoke the role. Delete the row from the `user_roles` table to do that.
+### 2. Development workflows
 
-### Security Best Practices
+Choose the workflow that matches your development needs:
+
+#### For frontend development only
+
+Best for UI modifications, component styling, and query DSL development without compiling or running the Go backend.
+
+1. **Start the development server**:
+   ```bash
+   npm run dev
+   ```
+2. **Open the console in your browser**:
+   Navigate to [`http://localhost:5000`](http://localhost:5000) (or `http://localhost:8080`).
+3. **Enable simulated events**:
+   To generate simulated honeypot events without a live feed, click the **Config** button in the top navigation bar and select **Development**. No code changes or manual commenting are required.
+   *(Tip: Changing the default `env` store value in [`frontend/store.ts`](frontend/store.ts) to `ENV_DEV` makes development mode the default on load).*
+
+#### For frontend and backend development
+
+Run the complete stack with the Go backend serving the bundled Svelte frontend.
+
+1. **Build the application**:
+   ```bash
+   make build   # or: npm run build && go build -o server .
+   ```
+2. **Start the local server**:
+   ```bash
+   make local   # or: ./server
+   ```
+   *On first start, the server automatically generates `config.yaml` with local development defaults (`localhost:3000`, publish token `token`, JWT secret `secret`). Pass `-config path/to/config.yaml` to specify an alternate configuration file.*
+3. **Open the console in your browser**:
+   Navigate to [`http://localhost:3000`](http://localhost:3000).
+4. **Generate simulated events**:
+   To generate simulated events through the full server, switch to **Development** mode via the **Config** button in the UI.
+
+> [!TIP]
+> Set `require_registered_sensors: true` in `config.yaml` to accept published events only from sensors whose UUID exists in the `sensors` table. This is disabled (`false`) by default so newly provisioned sensors are not rejected.
+
+#### For using Ochi with a local Glutton honeypot
+
+Connect a locally running Glutton instance to stream and inspect live sensor events in real time.
+
+1. **Start the Ochi server**:
+   ```bash
+   make build && make local
+   ```
+2. **Build the Glutton server**:
+   Clone and build Glutton from its [repository](https://github.com/mushorg/glutton).
+3. **Configure Glutton producers**:
+   Update Glutton's `config.yaml` to enable HTTP event streaming to Ochi:
+   - Set `producers.enabled` to `true` ([reference in Glutton config](https://github.com/mushorg/glutton/blob/305a9d23a58d065f49ac25edeaeb374f4fe9c59b/config/config.yaml#L9))
+   - Set `producers.http.enabled` to `true` ([reference in Glutton config](https://github.com/mushorg/glutton/blob/305a9d23a58d065f49ac25edeaeb374f4fe9c59b/config/config.yaml#L11))
+   - Set `producers.http.remote` to `http://localhost:3000/api/publish?token=token` (replace `token` with the `publish_token` from your Ochi `config.yaml`):
+
+   ```yaml
+   producers:
+     enabled: true
+     http:
+       enabled: true
+       remote: http://localhost:3000/api/publish?token=token
+   ```
+4. **Start Glutton server**:
+   Launch your Glutton honeypot.
+5. **Inspect incoming events**:
+   Open [`http://localhost:3000`](http://localhost:3000) in your browser. Events captured by Glutton will appear live in the console stream as they occur.
+
+
+## Configuration
+
+On first start, the server creates config.yaml with local defaults (localhost:3000, publish token token, JWT secret secret). Pass -config path/to/config.yaml to use a different file.
+
+## Roles
+
+`admin` is the only role ([`backend/entities/role.go`](backend/entities/role.go)).
+
+| Permission | Allows |
+|------------|--------|
+| `users:list` | Listing all users (`GET /api/users`, **Users** page) |
+| `sensors:add_by_id` | Registering a sensor with a chosen UUID (`POST /api/sensors` with `id`) |
+
+The role applies on the user's next login or reload after you add their email to `admin_emails`. Removing the email does **not** revoke it; delete the row from `user_roles`.
+
+## Deployment
+
+```bash
+docker build -t ochi .
+docker run --rm -p 3000:3000 ochi
+```
+
+The image uses `config.docker.yaml` (`0.0.0.0:3000`, placeholder credentials) and has no volume. Mount `database_path` to keep saved data, and supply your own config with real secrets.
+
+### Security
 
 > [!WARNING]
-> **Do not use default credentials in production!** The auto-generated `config.yaml` uses placeholder credentials intended solely for offline/local development.
+> Never run with the default credentials in production.
 
-- **Secrets & Authentication**: Replace default values (`publish_token: "token"`, `jwt_secret: "secret"`) with strong, randomly generated secrets before deploying or exposing the server.
-- **Sensitive Files**: Keep `config.yaml`, the SQLite database (`data.db`), and SQLite WAL files (`data.db-wal`, `data.db-shm`) private. These files contain operational secrets and data, and are excluded by `.gitignore`.
-- **TLS / HTTPS & WSS**: When deploying to production, run Ochi behind a reverse proxy (e.g., Caddy, NGINX) with TLS enabled to protect publisher tokens and WebSocket traffic in transit.
-- **Rate Limiting**: Adjust `publish_rate_per_sec` and `publish_burst` in `config.yaml` according to your sensor traffic to prevent denial-of-service and ingestion flooding.
+- Set strong random `publish_token` and `jwt_secret` values.
+- Keep `config.yaml`, `data.db`, `data.db-wal` and `data.db-shm` private (they are gitignored).
+- Put Ochi behind a TLS reverse proxy (Caddy, NGINX) to protect tokens and WebSocket traffic.
+- Tune `publish_rate_per_sec` and `publish_burst` to your sensor traffic.
 
-### Notes
-1. In case you are still facing any issue while setup, feel free to ask in [discussion](https://github.com/honeynet/ochi/discussions).
+## Contributing
 
+Questions and design talk go in [Discussions](https://github.com/honeynet/ochi/discussions), concrete work in [issues](https://github.com/honeynet/ochi/issues). See [`CONTRIBUTING.md`](CONTRIBUTING.md) for tests, formatting and generated files.
+
+## License
+
+[GNU GPL v3.0](LICENSE)
