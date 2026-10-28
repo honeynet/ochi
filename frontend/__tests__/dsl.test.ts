@@ -117,6 +117,45 @@ describe('parseDSL', () => {
         expect(matches('cafe')).toBeFalsy();
     });
 
+    test('payload contains matches a term of raw bytes', () => {
+        // A binary payload is searched by byte, so a term written as raw bytes has to keep
+        // matching them: E9 below is a lone high byte, not the UTF-8 encoding of e-acute.
+        const raw = Buffer.from([0x41, 0xe9, 0x42]).toString('base64');
+        const utf8 = Buffer.from('caf\u00e9', 'utf8').toString('base64');
+        const sled = Buffer.from([0x90, 0x90, 0x90]).toString('base64');
+        const matches = (payload: string, term: string) => {
+            const sx = parseDSL(`payload contains ${JSON.stringify(term)}`);
+            expect(sx.lexErrors).toHaveLength(0);
+            expect(sx.parseErrors).toHaveLength(0);
+            return filterEvent(generateTestEvent(80, '123', '192.168.1.1', payload), sx.cst!);
+        };
+
+        // Both readings of one term: the raw byte E9, and the C3 A9 that encodes it.
+        expect(matches(raw, '\u00e9')).toBeTruthy();
+        expect(matches(utf8, '\u00e9')).toBeTruthy();
+        // A NOP sled is bytes and never text, so only the raw reading can find it.
+        expect(matches(sled, '\u0090\u0090')).toBeTruthy();
+        expect(matches(raw, '\u0090\u0090')).toBeFalsy();
+    });
+
+    test('payload contains tolerates a lone surrogate', () => {
+        // encodeURIComponent throws on one, so it is replaced with U+FFFD the way a UTF-8
+        // encoder would. The search must not throw, and must not quietly match nothing at
+        // all either: a payload that does hold U+FFFD is found.
+        const replacement = Buffer.from('\ufffd', 'utf8').toString('base64');
+        const plain = Buffer.from('nothing to see', 'utf8').toString('base64');
+        const matches = (payload: string, term: string) => {
+            const sx = parseDSL(`payload contains ${JSON.stringify(term)}`);
+            expect(sx.lexErrors).toHaveLength(0);
+            expect(sx.parseErrors).toHaveLength(0);
+            return filterEvent(generateTestEvent(80, '123', '192.168.1.1', payload), sx.cst!);
+        };
+
+        expect(() => matches(plain, '\ud800')).not.toThrow();
+        expect(matches(plain, '\ud800')).toBeFalsy();
+        expect(matches(replacement, '\ud800')).toBeTruthy();
+    });
+
     test('parsing payload with spaces, slashes and punctuation', () => {
         let sx = parseDSL('payload contains "GET / HTTP/1.1"');
         expect(sx.lexErrors).toHaveLength(0);
