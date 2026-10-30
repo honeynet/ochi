@@ -24,6 +24,10 @@ type Handlers struct {
 	// in the sensors table.
 	RequireRegisteredSensors bool
 
+	// PublishToken is written into the config served to a sensor's owner, so the
+	// sensor can publish without the token being copied in by hand.
+	PublishToken string
+
 	// AdminEmails are granted the admin role on login.
 	AdminEmails []string
 

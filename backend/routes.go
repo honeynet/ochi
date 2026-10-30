@@ -27,6 +27,7 @@ func newRouter(cs *server) (*chi.Mux, error) {
 
 		RequireRegisteredSensors: cs.cfg.RequireRegisteredSensors,
 		AdminEmails:              cs.cfg.AdminEmails,
+		PublishToken:             cs.cfg.PublishToken,
 	}
 
 	r := chi.NewRouter()
@@ -99,6 +100,10 @@ func newRouter(cs *server) (*chi.Mux, error) {
 			r.Get("/sensors", h.GetSensorsByUser)
 			r.Post("/sensors", h.AddSensor)
 			r.Delete("/sensors/{id}", h.DeleteSensor)
+			// The config carries the publish token, so both stay behind the session
+			// check rather than beside the unauthenticated /download route.
+			r.Get("/sensors/{id}/config", h.GetSensorConfig)
+			r.Get("/sensors/{id}/rules", h.GetSensorRules)
 
 			// admin
 			r.With(h.RequirePermission(entities.PermListUsers)).Get("/users", h.ListUsers)
