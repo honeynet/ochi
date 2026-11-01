@@ -1,13 +1,37 @@
 package backend
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
+	"log"
 	"os"
 
 	"gopkg.in/yaml.v3"
 )
 
 const defaultConfigPath = "config.yaml"
+
+// devModeEnv lets a local setup keep the published secrets below. The check is on the
+// secret itself rather than on the bind address, so the recommended "reverse proxy in
+// front, server on localhost" deployment is not rejected for listening on localhost.
+const devModeEnv = "OCHI_DEV"
+
+// knownSecrets are the values this project shipped as defaults. They are in the README
+// and in config.docker.yaml, so anyone can read them: a deployment still using one is
+// not configured, whatever the file says.
+var knownSecrets = map[string]bool{"token": true, "secret": true}
+
+// newSecret returns 32 random bytes, encoded for a YAML scalar.
+func newSecret() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate secret: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+func devMode() bool { return os.Getenv(devModeEnv) != "" }
 
 // Config holds service configuration loaded from a YAML file.
 type Config struct {
@@ -27,11 +51,12 @@ type Config struct {
 	AdminEmails []string `yaml:"admin_emails,omitempty"`
 }
 
+// defaultConfig deliberately carries no secrets. It is also the base the config file is
+// unmarshalled over, so a secret named here would be inherited in silence by any config
+// that happens to leave that key out.
 func defaultConfig() Config {
 	return Config{
 		ListenAddress:            "localhost:3000",
-		PublishToken:             "token",
-		JWTSecret:                "secret",
 		DatabasePath:             "./data.db",
 		PublishRatePerSec:        100,
 		PublishBurst:             50,
@@ -49,6 +74,18 @@ func (c Config) validate() error {
 	if c.JWTSecret == "" {
 		return fmt.Errorf("jwt_secret is required")
 	}
+	if !devMode() {
+		for field, value := range map[string]string{
+			"publish_token": c.PublishToken,
+			"jwt_secret":    c.JWTSecret,
+		} {
+			if knownSecrets[value] {
+				return fmt.Errorf(
+					"%s is one of this project's published default secrets; replace it, or set %s to keep it for local development",
+					field, devModeEnv)
+			}
+		}
+	}
 	if c.DatabasePath == "" {
 		return fmt.Errorf("database_path is required")
 	}
@@ -62,7 +99,15 @@ func (c Config) validate() error {
 }
 
 func writeDefaultConfig(path string) error {
-	data, err := yaml.Marshal(defaultConfig())
+	cfg := defaultConfig()
+	var err error
+	if cfg.PublishToken, err = newSecret(); err != nil {
+		return err
+	}
+	if cfg.JWTSecret, err = newSecret(); err != nil {
+		return err
+	}
+	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("marshal default config: %w", err)
 	}
@@ -95,6 +140,23 @@ func LoadConfig(path string) (Config, error) {
 	cfg := defaultConfig()
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return Config{}, fmt.Errorf("parse config %q: %w", path, err)
+	}
+	// A config that leaves a secret out gets a generated one for this run rather than a
+	// value an attacker could look up. It is not written back: the file belongs to whoever
+	// wrote it, and in the container it is not ours to write. Sessions and the publish
+	// token therefore last only as long as the process, which the log says plainly.
+	for _, secret := range []struct {
+		field string
+		into  *string
+	}{{"publish_token", &cfg.PublishToken}, {"jwt_secret", &cfg.JWTSecret}} {
+		if *secret.into != "" {
+			continue
+		}
+		if *secret.into, err = newSecret(); err != nil {
+			return Config{}, err
+		}
+		log.Printf("config %q sets no %s: generated one for this run only; set it in the file to keep it across restarts",
+			path, secret.field)
 	}
 	if err := cfg.validate(); err != nil {
 		return Config{}, fmt.Errorf("invalid config %q: %w", path, err)
