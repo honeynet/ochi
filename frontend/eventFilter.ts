@@ -5,6 +5,7 @@ import type {
     BooleanSuffixClauseCstNode,
 } from './generated/chevrotain_dts';
 import type { Event } from './event';
+import { parseStringLiteral, patternFor } from './dsl';
 
 export function filterEvent(event: Event, cst: QueryCstNode): boolean {
     let children = cst.children;
@@ -152,20 +153,21 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
             throw new Error('Unexpected missing portItemClause');
         }
     } else if (children.searchClause) {
-        const searchClause = children.searchClause[0];
-        const stringToken = searchClause.children.STRING?.[0];
-        if (!stringToken) {
-            throw new Error('Missing string token for search clause');
-        }
-        const searchString = parseStringLiteral(stringToken.image);
+        const { STRING, searchOperator } = children.searchClause[0].children;
         if (!event.payload) {
             return false;
         }
+        let bytes: string;
         try {
-            return atob(event.payload).includes(searchString);
+            bytes = atob(event.payload);
         } catch {
             return false;
         }
+        const operator = searchOperator[0].children;
+        if (operator.MATCHES || operator.MATCHES_SMB) {
+            return patternFor(STRING[0]).test(payloadText(bytes));
+        }
+        return bytes.includes(parseStringLiteral(STRING[0].image));
     } else {
         throw new Error('Unexpected booleanClauseCstNode');
     }
@@ -185,13 +187,40 @@ function stringMatch(
         : equalityCheck(actual, value, binaryOperator);
 }
 
-export function parseStringLiteral(image: string): string {
-    const raw = image.slice(1, -1);
+// atob gives one character per byte, so a pattern tested against it would be matched against
+// bytes rather than text: `.` would match half of a multi-byte character and a pattern such as
+// "caf." could never match "café". The payload is decoded as UTF-8 first, and one that is not
+// valid UTF-8 is matched as bytes, which is the best reading available for it.
+//
+// Only the start of a payload is tested. The pattern comes from whoever is at the keyboard,
+// filterEvent runs on the UI thread for every event in the list, and a backtracking pattern
+// such as (a+)+$ costs time that grows sharply with the length of the subject. The cap bounds
+// that; it does not remove it, since a pattern can still be slow on a short subject.
+const maxPatternBytes = 16 * 1024;
+
+function payloadText(bytes: string): string {
+    const head = truncateUtf8(bytes, maxPatternBytes);
     try {
-        return JSON.parse(image);
+        return decodeURIComponent(
+            head.replace(/[\s\S]/g, (c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')),
+        );
     } catch {
-        return raw.replace(/\\(.)/g, '$1');
+        return head;
     }
+}
+
+// truncateUtf8 cuts at the limit without splitting a character in half, which would otherwise
+// leave the whole payload undecodable: continuation bytes are 10xxxxxx, so stepping back over
+// them lands on the start of the character the cut fell inside.
+function truncateUtf8(bytes: string, limit: number): string {
+    if (bytes.length <= limit) {
+        return bytes;
+    }
+    let end = limit;
+    while (end > 0 && (bytes.charCodeAt(end) & 0xc0) === 0x80) {
+        end--;
+    }
+    return bytes.slice(0, end);
 }
 
 function equalityCheck<T>(
