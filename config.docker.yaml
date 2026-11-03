@@ -1,4 +1,8 @@
+# publish_token and jwt_secret are deliberately absent. The image would otherwise ship
+# the same two secrets to everyone who pulls it, on a port bound to 0.0.0.0. The server
+# generates a strong one for each run instead and logs that it did.
+#
+# They last only as long as the process, so sessions do not survive a restart. Mount a
+# config that sets both to keep them.
 listen_address: 0.0.0.0:3000
-publish_token: token
-jwt_secret: secret
 database_path: ./data.db

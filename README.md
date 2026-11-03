@@ -43,13 +43,15 @@ Set `require_registered_sensors: true` to accept published events only from sens
 3. Update the Glutton config to include:
    1. `producers.enabled` to `true` [here](https://github.com/mushorg/glutton/blob/305a9d23a58d065f49ac25edeaeb374f4fe9c59b/config/config.yaml#L9)
    2. `producers.http.enabled` to `true` [here](https://github.com/mushorg/glutton/blob/305a9d23a58d065f49ac25edeaeb374f4fe9c59b/config/config.yaml#L11)
-   3. `producers.http.remote` to `http://localhost:3000/api/publish?token=token` (use the `publish_token` from your `config.yaml`)
+   3. `producers.http.remote` to `http://localhost:3000/api/publish?token=<publish_token>`, using the `publish_token` from your `config.yaml`
 4. Start Glutton server.
 5. Open `http://localhost:3000` and you should see Glutton events if everything is working as expected.
 
 ## Configuration & Security
 
-On first start, the server creates `config.yaml` with local defaults (`localhost:3000`, publish token `token`, JWT secret `secret`). Pass `-config path/to/config.yaml` to use a different file.
+On first start, the server creates `config.yaml` with local defaults (`localhost:3000`) and a freshly generated `publish_token` and `jwt_secret`, written to that file so they survive a restart. Read them from the file; they are not printed. Pass `-config path/to/config.yaml` to use a different file.
+
+A config that leaves either secret out gets a generated one for that run only, logged at startup. The two secrets this project used to ship, `token` and `secret`, are refused: anyone can read them here. Set `OCHI_DEV` to keep them for local work.
 
 ### Roles & Permissions
 
@@ -70,9 +72,9 @@ Removing an address from `admin_emails` does not revoke the role. Delete the row
 ### Security Best Practices
 
 > [!WARNING]
-> **Do not use default credentials in production!** The auto-generated `config.yaml` uses placeholder credentials intended solely for offline/local development.
+> **Keep `config.yaml` private.** The secrets it holds are generated per installation, and anyone who reads them can mint sessions and publish events.
 
-- **Secrets & Authentication**: Replace default values (`publish_token: "token"`, `jwt_secret: "secret"`) with strong, randomly generated secrets before deploying or exposing the server.
+- **Secrets & Authentication**: `publish_token` and `jwt_secret` are generated for you. Supply your own only if you need a specific value, and make it as strong as the generated one.
 - **Sensitive Files**: Keep `config.yaml`, the SQLite database (`data.db`), and SQLite WAL files (`data.db-wal`, `data.db-shm`) private. These files contain operational secrets and data, and are excluded by `.gitignore`.
 - **TLS / HTTPS & WSS**: When deploying to production, run Ochi behind a reverse proxy (e.g., Caddy, NGINX) with TLS enabled to protect publisher tokens and WebSocket traffic in transit.
 - **Rate Limiting**: Adjust `publish_rate_per_sec` and `publish_burst` in `config.yaml` according to your sensor traffic to prevent denial-of-service and ingestion flooding.
