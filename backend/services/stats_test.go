@@ -23,6 +23,16 @@ type mockRepo struct {
 	rows      []entities.SensorStat
 	upserts   []map[string]int64
 	failFlush bool
+	owners    map[string]string
+}
+
+func (m *mockRepo) IsOwner(sensorID, userID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.owners == nil {
+		return true
+	}
+	return m.owners[sensorID] == userID
 }
 
 func (m *mockRepo) LoadAllStats() ([]entities.SensorStat, error) {
@@ -79,9 +89,9 @@ func TestStatsService_IncrementAndQuery(t *testing.T) {
 	assert.Equal(t, int64(2), stats[s1].EventCount)
 	assert.Equal(t, int64(0), stats["unknown"].EventCount)
 
-	// Query 8-char prefix matches full UUID
+	// Exact match only - prefix does not match
 	statsPrefix := svc.GetStatsForSensors([]string{"11111111"})
-	assert.Equal(t, int64(2), statsPrefix["11111111"].EventCount)
+	assert.Equal(t, int64(0), statsPrefix["11111111"].EventCount)
 
 	// Delete sensor removes from memory
 	svc.DeleteSensor(s1)
@@ -160,7 +170,7 @@ func TestStatsService_WebSocketBroadcastAndSubscribe(t *testing.T) {
 			return
 		}
 		defer c.Close(websocket.StatusInternalError, "")
-		_ = svc.Subscribe(r.Context(), c)
+		_ = svc.Subscribe(r.Context(), c, "user-test")
 	}))
 	defer server.Close()
 
@@ -218,4 +228,82 @@ func TestStatsService_BoundaryAndOverflowProtection(t *testing.T) {
 	svc.mu.RLock()
 	assert.Equal(t, int64(math.MaxInt64), svc.deltas[sID], "delta should cap at MaxInt64 without overflow")
 	svc.mu.RUnlock()
+}
+
+func TestStatsService_WebSocketBroadcastOwnerFilter(t *testing.T) {
+	repo := &mockRepo{
+		owners: map[string]string{
+			"sensor-user1": "user-1",
+			"sensor-user2": "user-2",
+		},
+	}
+	svc := NewStatsService(repo)
+	svc.SetBroadcastInterval(50 * time.Millisecond)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	require.NoError(t, svc.Start(ctx))
+	defer func() { _ = svc.Stop() }()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		userID := r.URL.Query().Get("user")
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer c.Close(websocket.StatusInternalError, "")
+		_ = svc.Subscribe(r.Context(), c, userID)
+	}))
+	defer server.Close()
+
+	wsURL1 := "ws" + strings.TrimPrefix(server.URL, "http") + "?user=user-1"
+	c1, _, err := websocket.Dial(ctx, wsURL1, nil)
+	require.NoError(t, err)
+	defer c1.Close(websocket.StatusNormalClosure, "")
+
+	wsURL2 := "ws" + strings.TrimPrefix(server.URL, "http") + "?user=user-2"
+	c2, _, err := websocket.Dial(ctx, wsURL2, nil)
+	require.NoError(t, err)
+	defer c2.Close(websocket.StatusNormalClosure, "")
+
+	// Trigger an increment for sensor owned by user-1
+	svc.IncrementStat("sensor-user1", "2026-10-12T12:00:00Z")
+
+	// Client 1 receives the update
+	readCtx1, readCancel1 := context.WithTimeout(ctx, 3*time.Second)
+	defer readCancel1()
+	_, msg1, err := c1.Read(readCtx1)
+	require.NoError(t, err)
+	var rec1 []entities.SensorStat
+	require.NoError(t, json.Unmarshal(msg1, &rec1))
+	require.Len(t, rec1, 1)
+	assert.Equal(t, "sensor-user1", rec1[0].SensorID)
+
+	// Client 2 should NOT receive user-1's sensor update
+	readCtx2, readCancel2 := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer readCancel2()
+	_, _, err = c2.Read(readCtx2)
+	assert.Error(t, err, "user-2 must not receive stats for sensor owned by user-1")
+}
+
+func TestStatsService_TombstonePreventsRevert(t *testing.T) {
+	repo := &mockRepo{failFlush: true}
+	svc := NewStatsService(repo)
+
+	const sID = "s-tombstone-test"
+	svc.IncrementStat(sID, "2026-10-12T12:00:00Z")
+
+	// Delete sensor while delta is pending
+	svc.DeleteSensor(sID)
+
+	// Flush fails, revertDeltas must NOT revive the tombstoned sensor
+	_ = svc.Flush()
+
+	stats := svc.GetStatsForSensors([]string{sID})
+	assert.Equal(t, int64(0), stats[sID].EventCount)
+
+	// Subsequent increment is ignored because ID is tombstoned
+	stat := svc.IncrementStat(sID, "2026-10-12T12:05:00Z")
+	assert.Equal(t, int64(0), stat.EventCount)
 }

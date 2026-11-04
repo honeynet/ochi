@@ -76,13 +76,19 @@ func (h *Handlers) StatsSubscribe(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "statistics service unavailable", http.StatusServiceUnavailable)
 		return
 	}
+	userID := userIDFromCtx(r.Context())
+	if userID == "" {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
+
 	c, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		return
 	}
 	defer c.Close(websocket.StatusInternalError, "")
 
-	err = h.Stats.Subscribe(r.Context(), c)
+	err = h.Stats.Subscribe(r.Context(), c, userID)
 	if errors.Is(err, context.Canceled) {
 		return
 	}

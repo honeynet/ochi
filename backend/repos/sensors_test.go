@@ -143,6 +143,8 @@ func TestSensorRepo_StatsPersistence(t *testing.T) {
 
 	s1 := "s-11111111"
 	s2 := "s-22222222"
+	require.NoError(t, r.AddSensors(entities.Sensor{ID: s1, Name: "s1", UserID: "test@test"}))
+	require.NoError(t, r.AddSensors(entities.Sensor{ID: s2, Name: "s2", UserID: "test@test"}))
 
 	// Initial batch upsert
 	deltas := map[string]int64{
@@ -199,6 +201,7 @@ func TestSensorRepo_StatsBoundaryAndConstraint(t *testing.T) {
 	r := initRepoForSensors(t)
 
 	const sBoundary = "s-boundary-max"
+	require.NoError(t, r.AddSensors(entities.Sensor{ID: sBoundary, Name: "sBoundary", UserID: "test@test"}))
 
 	// Upsert large int64 boundary value (within SQLite signed 64-bit INTEGER range)
 	const largeCount int64 = math.MaxInt64 / 2
@@ -212,4 +215,49 @@ func TestSensorRepo_StatsBoundaryAndConstraint(t *testing.T) {
 	// SQLite check constraint verifies non-negative counts
 	_, err = r.db.Exec(`INSERT INTO sensor_stats (sensor_id, event_count) VALUES ('invalid-neg', -1)`)
 	require.Error(t, err, "negative counts must be rejected by check constraint")
+}
+
+func TestSensorRepo_IsOwner(t *testing.T) {
+	r := initRepoForSensors(t)
+	const id = "owner-check-sensor"
+
+	require.False(t, r.IsOwner(id, "owner-1"))
+
+	require.NoError(t, r.AddSensors(entities.Sensor{ID: id, Name: "test", UserID: "owner-1"}))
+	require.True(t, r.IsOwner(id, "owner-1"))
+	require.False(t, r.IsOwner(id, "owner-2"))
+	require.False(t, r.IsOwner(id, ""))
+
+	deleted, err := r.DeleteByOwner(id, "owner-1")
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
+	require.False(t, r.IsOwner(id, "owner-1"))
+}
+
+func TestSensorRepo_BatchUpsertSkipsUnregisteredOrDeleted(t *testing.T) {
+	r := initRepoForSensors(t)
+	const id = "unregistered-sensor"
+
+	// Upsert for unregistered sensor is ignored
+	require.NoError(t, r.BatchUpsertStats(map[string]int64{id: 5}, map[string]string{id: "2026-10-12T12:00:00Z"}))
+	stats, err := r.LoadAllStats()
+	require.NoError(t, err)
+	require.Empty(t, stats)
+
+	// Register sensor -> now it can be upserted
+	require.NoError(t, r.AddSensors(entities.Sensor{ID: id, Name: "test", UserID: "owner-1"}))
+	require.NoError(t, r.BatchUpsertStats(map[string]int64{id: 5}, map[string]string{id: "2026-10-12T12:00:00Z"}))
+	stats, err = r.LoadAllStats()
+	require.NoError(t, err)
+	require.Len(t, stats, 1)
+
+	// Delete sensor -> subsequent upsert is ignored and stats stay deleted
+	deleted, err := r.DeleteByOwner(id, "owner-1")
+	require.NoError(t, err)
+	require.EqualValues(t, 1, deleted)
+
+	require.NoError(t, r.BatchUpsertStats(map[string]int64{id: 10}, map[string]string{id: "2026-10-12T12:05:00Z"}))
+	stats, err = r.LoadAllStats()
+	require.NoError(t, err)
+	require.Empty(t, stats, "deleted sensor must not be re-inserted by upsert")
 }

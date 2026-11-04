@@ -23,6 +23,10 @@ func (d *dummyStatsRepo) BatchUpsertStats(deltas map[string]int64, lastSeen map[
 	return nil
 }
 
+func (d *dummyStatsRepo) IsOwner(sensorID, userID string) bool {
+	return true
+}
+
 func TestPublish_AlwaysUsesCurrentUTCTime(t *testing.T) {
 	statsService := services.NewStatsService(&dummyStatsRepo{})
 	h := &Handlers{

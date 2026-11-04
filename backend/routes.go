@@ -68,7 +68,6 @@ func newRouter(cs *server) (*chi.Mux, error) {
 		r.Post("/login", h.Login)
 		// Shared event links are unguessable IDs and must work without login.
 		r.Get("/events/{id}", h.GetEventByID)
-		r.Get("/sensors/stats/ws", h.StatsSubscribe)
 		// Unauthenticated: guarded by the unguessable sensor id in the path plus the owner's user_id.
 		r.Get("/download/{sensor_id}", h.DownloadBinary)
 
@@ -76,11 +75,11 @@ func newRouter(cs *server) (*chi.Mux, error) {
 		// the request context, Authenticator turns a missing or bad one into a 401
 		// before any handler runs.
 		r.Group(func(r chi.Router) {
-			// Only accept the token from the Authorization header. jwtauth.Verifier
-			// also reads a "jwt" cookie, which the browser would send cross-site; the
-			// frontend never sets that cookie, so restricting it removes a CSRF path
-			// that wildcard CORS would otherwise open.
-			r.Use(jwtauth.Verify(tokenAuth, jwtauth.TokenFromHeader))
+			// Accept the token from the Authorization header or query parameter
+			// (for WebSocket connections). jwtauth.Verifier also reads a "jwt" cookie,
+			// which the browser would send cross-site; the frontend never sets that cookie,
+			// so restricting it removes a CSRF path that wildcard CORS would otherwise open.
+			r.Use(jwtauth.Verify(tokenAuth, tokenFromHeaderOrQuery))
 			r.Use(handlers.Authenticator)
 
 			// user
@@ -102,6 +101,7 @@ func newRouter(cs *server) (*chi.Mux, error) {
 			r.Get("/sensors", h.GetSensorsByUser)
 			r.Post("/sensors", h.AddSensor)
 			r.Get("/sensors/stats", h.GetSensorStats)
+			r.Get("/sensors/stats/ws", h.StatsSubscribe)
 			r.Delete("/sensors/{id}", h.DeleteSensor)
 
 			// admin
@@ -110,4 +110,16 @@ func newRouter(cs *server) (*chi.Mux, error) {
 	})
 
 	return r, nil
+}
+
+// tokenFromHeaderOrQuery retrieves a JWT from the Authorization header or
+// "token" / "jwt" query parameters for WebSocket connections. Cookies are excluded.
+func tokenFromHeaderOrQuery(r *http.Request) string {
+	if tok := jwtauth.TokenFromHeader(r); tok != "" {
+		return tok
+	}
+	if tok := r.URL.Query().Get("token"); tok != "" {
+		return tok
+	}
+	return jwtauth.TokenFromQuery(r)
 }

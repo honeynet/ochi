@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"math"
-	"strings"
 	"sync"
 	"time"
 
@@ -16,9 +15,11 @@ import (
 type StatsRepository interface {
 	LoadAllStats() ([]entities.SensorStat, error)
 	BatchUpsertStats(deltas map[string]int64, lastSeen map[string]string) error
+	IsOwner(sensorID, userID string) bool
 }
 
 type statsSubscriber struct {
+	userID    string
 	msgs      chan []byte
 	closeSlow func()
 }
@@ -32,6 +33,7 @@ type StatsService struct {
 	lastSeen       map[string]string
 	deltas         map[string]int64
 	dirtyBroadcast map[string]struct{}
+	tombstones     map[string]struct{}
 
 	subsMu sync.Mutex
 	subs   map[*statsSubscriber]struct{}
@@ -52,6 +54,7 @@ func NewStatsService(repo StatsRepository) *StatsService {
 		lastSeen:          make(map[string]string),
 		deltas:            make(map[string]int64),
 		dirtyBroadcast:    make(map[string]struct{}),
+		tombstones:        make(map[string]struct{}),
 		subs:              make(map[*statsSubscriber]struct{}),
 		flushInterval:     5 * time.Second,
 		broadcastInterval: 500 * time.Millisecond,
@@ -111,6 +114,10 @@ func (s *StatsService) IncrementStat(sensorID, eventTime string) entities.Sensor
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if _, tombstoned := s.tombstones[sensorID]; tombstoned {
+		return entities.SensorStat{SensorID: sensorID}
+	}
+
 	curTotal := s.totals[sensorID]
 	if curTotal < 0 {
 		curTotal = 0
@@ -139,8 +146,8 @@ func (s *StatsService) IncrementStat(sensorID, eventTime string) entities.Sensor
 	}
 }
 
-// GetStatsForSensors retrieves current stats for the requested sensor IDs from memory.
-// It matches by prefix when an event used a truncated 8-character ID or full UUID.
+// GetStatsForSensors retrieves current stats for the requested sensor IDs from memory,
+// matching on exact ID only.
 func (s *StatsService) GetStatsForSensors(sensorIDs []string) map[string]entities.SensorStat {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -148,32 +155,6 @@ func (s *StatsService) GetStatsForSensors(sensorIDs []string) map[string]entitie
 	res := make(map[string]entities.SensorStat, len(sensorIDs))
 	for _, id := range sensorIDs {
 		count := s.totals[id]
-		lastSeen := s.lastSeen[id]
-
-		if count == 0 {
-			if len(id) >= 8 {
-				prefix := id[:8]
-				if c, ok := s.totals[prefix]; ok && c > 0 {
-					count = c
-					lastSeen = s.lastSeen[prefix]
-				}
-			}
-			if count == 0 {
-				for totalID, c := range s.totals {
-					if (strings.HasPrefix(totalID, id) || strings.HasPrefix(id, totalID)) && c > 0 {
-						if count <= math.MaxInt64-c {
-							count += c
-						} else {
-							count = math.MaxInt64
-						}
-						if lastSeen == "" || s.lastSeen[totalID] > lastSeen {
-							lastSeen = s.lastSeen[totalID]
-						}
-					}
-				}
-			}
-		}
-
 		if count < 0 {
 			count = 0
 		}
@@ -181,17 +162,19 @@ func (s *StatsService) GetStatsForSensors(sensorIDs []string) map[string]entitie
 		res[id] = entities.SensorStat{
 			SensorID:    id,
 			EventCount:  count,
-			LastEventAt: lastSeen,
+			LastEventAt: s.lastSeen[id],
 		}
 	}
 	return res
 }
 
-// DeleteSensor removes a sensor's in-memory statistics.
+// DeleteSensor removes a sensor's in-memory statistics and tombstones it so that
+// any in-flight flushes or increments do not re-create or restore it.
 func (s *StatsService) DeleteSensor(sensorID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.tombstones[sensorID] = struct{}{}
 	delete(s.totals, sensorID)
 	delete(s.lastSeen, sensorID)
 	delete(s.deltas, sensorID)
@@ -220,31 +203,49 @@ func (s *StatsService) PopDirtyStatsForBroadcast() []entities.SensorStat {
 }
 
 // Flush commits pending in-memory deltas to the database in a batch.
-// On failure, pending deltas are preserved for retry.
+// It holds s.mu across the database operation to prevent races with concurrent deletes,
+// and respects tombstones so deleted sensors are never revived.
 func (s *StatsService) Flush() error {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if len(s.deltas) == 0 {
-		s.mu.Unlock()
 		return nil
 	}
 
-	pendingDeltas := s.deltas
-	s.deltas = make(map[string]int64)
-	pendingLastSeen := make(map[string]string, len(pendingDeltas))
-	for id := range pendingDeltas {
-		pendingLastSeen[id] = s.lastSeen[id]
+	pendingDeltas := make(map[string]int64, len(s.deltas))
+	pendingLastSeen := make(map[string]string, len(s.deltas))
+	for id, delta := range s.deltas {
+		if _, tombstoned := s.tombstones[id]; !tombstoned {
+			pendingDeltas[id] = delta
+			pendingLastSeen[id] = s.lastSeen[id]
+		}
 	}
-	s.mu.Unlock()
+
+	if len(pendingDeltas) == 0 {
+		s.deltas = make(map[string]int64)
+		return nil
+	}
 
 	if s.repo == nil {
+		s.deltas = make(map[string]int64)
 		return nil
 	}
 
 	if err := s.repo.BatchUpsertStats(pendingDeltas, pendingLastSeen); err != nil {
-		s.revertDeltas(pendingDeltas)
+		for id := range s.tombstones {
+			delete(s.deltas, id)
+		}
 		return err
 	}
 
+	// Succeeded: clear the flushed deltas
+	for id, delta := range pendingDeltas {
+		s.deltas[id] -= delta
+		if s.deltas[id] <= 0 {
+			delete(s.deltas, id)
+		}
+	}
 	return nil
 }
 
@@ -252,6 +253,9 @@ func (s *StatsService) revertDeltas(pending map[string]int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for id, delta := range pending {
+		if _, tombstoned := s.tombstones[id]; tombstoned {
+			continue
+		}
 		if delta > 0 {
 			if s.deltas[id] <= math.MaxInt64-delta {
 				s.deltas[id] += delta
@@ -291,11 +295,55 @@ func (s *StatsService) broadcaster(ctx context.Context) {
 			if len(dirty) == 0 {
 				continue
 			}
-			msg, err := json.Marshal(dirty)
-			if err != nil {
-				continue
+			s.BroadcastStats(dirty)
+		}
+	}
+}
+
+// BroadcastStats sends dirty stats to active subscribers, filtering by sensor owner.
+func (s *StatsService) BroadcastStats(dirty []entities.SensorStat) {
+	if len(dirty) == 0 {
+		return
+	}
+
+	s.subsMu.Lock()
+	subs := make([]*statsSubscriber, 0, len(s.subs))
+	for sub := range s.subs {
+		subs = append(subs, sub)
+	}
+	s.subsMu.Unlock()
+
+	if len(subs) == 0 {
+		return
+	}
+
+	userMsgs := make(map[string][]byte)
+	for _, sub := range subs {
+		if sub.userID == "" {
+			continue
+		}
+		msg, ok := userMsgs[sub.userID]
+		if !ok {
+			var userStats []entities.SensorStat
+			for _, st := range dirty {
+				if s.repo != nil && s.repo.IsOwner(st.SensorID, sub.userID) {
+					userStats = append(userStats, st)
+				}
 			}
-			s.PublishStats(msg)
+			if len(userStats) > 0 {
+				encoded, err := json.Marshal(userStats)
+				if err == nil {
+					msg = encoded
+				}
+			}
+			userMsgs[sub.userID] = msg
+		}
+		if len(msg) > 0 {
+			select {
+			case sub.msgs <- msg:
+			default:
+				go sub.closeSlow()
+			}
 		}
 	}
 }
@@ -319,12 +367,13 @@ func (s *StatsService) PublishStats(msg []byte) bool {
 	return true
 }
 
-// Subscribe attaches a WebSocket connection to the stats broadcast stream.
-func (s *StatsService) Subscribe(ctx context.Context, c *websocket.Conn) error {
+// Subscribe attaches an authenticated WebSocket connection to the stats broadcast stream.
+func (s *StatsService) Subscribe(ctx context.Context, c *websocket.Conn, userID string) error {
 	ctx = c.CloseRead(ctx)
 
 	sub := &statsSubscriber{
-		msgs: make(chan []byte, s.bufferSize),
+		userID: userID,
+		msgs:   make(chan []byte, s.bufferSize),
 		closeSlow: func() {
 			c.Close(websocket.StatusPolicyViolation, "connection too slow to keep up with messages")
 		},

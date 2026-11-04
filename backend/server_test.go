@@ -755,6 +755,7 @@ func TestSensorStats_FlushAndReload(t *testing.T) {
 	require.NoError(t, statsService.Start(context.Background()))
 
 	const sID = "33333333-3333-3333-3333-333333333333"
+	require.NoError(t, repo.AddSensors(entities.Sensor{ID: sID, Name: "sensor-3", UserID: "owner-1"}))
 	statsService.IncrementStat(sID, "2026-10-11T12:00:00Z")
 	statsService.IncrementStat(sID, "2026-10-11T12:01:00Z")
 
@@ -797,6 +798,11 @@ func TestSensorStats_WebSocketBroadcast(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
 
+	const sID1 = "ws-sensor-11111111"
+	const sID2 = "ws-sensor-22222222"
+	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: sID1, Name: "sensor-1", UserID: "owner-1"}))
+	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: sID2, Name: "sensor-2", UserID: "owner-2"}))
+
 	statsService := services.NewStatsService(sensorRepo)
 	statsService.SetBroadcastInterval(50 * time.Millisecond)
 	require.NoError(t, statsService.Start(context.Background()))
@@ -819,23 +825,51 @@ func TestSensorStats_WebSocketBroadcast(t *testing.T) {
 	defer cancel()
 
 	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/sensors/stats/ws"
-	c, _, err := websocket.Dial(ctx, wsURL, nil)
+
+	// 1. Unauthenticated connection is rejected with 401
+	_, resp, err := websocket.Dial(ctx, wsURL, nil)
+	require.Error(t, err, "unauthenticated connection must be rejected")
+	if resp != nil {
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	}
+
+	// 2. Generate tokens for owner-1 and owner-2
+	tokenAuth := entities.NewTokenAuth("test-secret")
+	token1, err := entities.NewToken(tokenAuth, entities.User{ID: "owner-1"})
 	require.NoError(t, err)
-	defer c.Close(websocket.StatusNormalClosure, "")
+	token2, err := entities.NewToken(tokenAuth, entities.User{ID: "owner-2"})
+	require.NoError(t, err)
 
-	// Trigger a stat increment
-	const sID = "ws-sensor-12345678"
-	statsService.IncrementStat(sID, "2026-10-11T12:00:00Z")
+	// Connect owner-1
+	c1, _, err := websocket.Dial(ctx, wsURL+"?token="+token1, nil)
+	require.NoError(t, err)
+	defer c1.Close(websocket.StatusNormalClosure, "")
 
-	// Read message from WS client
-	_, msg, err := c.Read(ctx)
+	// Connect owner-2
+	c2, _, err := websocket.Dial(ctx, wsURL+"?token="+token2, nil)
+	require.NoError(t, err)
+	defer c2.Close(websocket.StatusNormalClosure, "")
+
+	// Trigger a stat increment for owner-1's sensor
+	statsService.IncrementStat(sID1, "2026-10-11T12:00:00Z")
+
+	// Read message from owner-1's WS client
+	readCtx1, readCancel1 := context.WithTimeout(ctx, 3*time.Second)
+	defer readCancel1()
+	_, msg, err := c1.Read(readCtx1)
 	require.NoError(t, err)
 
 	var received []entities.SensorStat
 	require.NoError(t, json.Unmarshal(msg, &received))
 	require.Len(t, received, 1)
-	assert.Equal(t, sID, received[0].SensorID)
+	assert.Equal(t, sID1, received[0].SensorID)
 	assert.Equal(t, int64(1), received[0].EventCount)
+
+	// Owner-2 must NOT receive updates for owner-1's sensor
+	readCtx2, readCancel2 := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer readCancel2()
+	_, _, err = c2.Read(readCtx2)
+	assert.Error(t, err, "owner-2 must not receive stats broadcast for owner-1's sensor")
 }
 
 func newRunnableServer(t *testing.T) *server {

@@ -38,12 +38,16 @@
 
     function connectWs() {
         if (typeof window === 'undefined') return;
+        const currentToken = $token;
+        if (!currentToken) return;
         try {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const host = window.location.host;
-            const wsUrl = WS_ENDPOINT
+            const tokenParam = `?token=${encodeURIComponent(currentToken)}`;
+            const wsBase = WS_ENDPOINT
                 ? `${WS_ENDPOINT}/api/sensors/stats/ws`
                 : `${protocol}//${host}/api/sensors/stats/ws`;
+            const wsUrl = `${wsBase}${tokenParam}`;
 
             ws = new WebSocket(wsUrl);
             ws.onmessage = (event) => {

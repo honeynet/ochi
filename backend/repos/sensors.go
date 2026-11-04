@@ -25,6 +25,7 @@ type SensorRepo struct {
 	// Exists never observes the set and the table disagreeing.
 	mu         sync.RWMutex
 	registered map[string]struct{}
+	owners     map[string]string
 }
 
 func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
@@ -92,13 +93,15 @@ func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
 		return nil, err
 	}
 
-	var ids []string
-	if err := db.Select(&ids, `SELECT id FROM sensors`); err != nil {
+	var ss []entities.Sensor
+	if err := db.Select(&ss, `SELECT id, user_id FROM sensors`); err != nil {
 		return nil, err
 	}
-	r.registered = make(map[string]struct{}, len(ids))
-	for _, id := range ids {
-		r.registered[id] = struct{}{}
+	r.registered = make(map[string]struct{}, len(ss))
+	r.owners = make(map[string]string, len(ss))
+	for _, s := range ss {
+		r.registered[s.ID] = struct{}{}
+		r.owners[s.ID] = s.UserID
 	}
 
 	return r, nil
@@ -120,6 +123,7 @@ func (r *SensorRepo) AddSensors(sensor entities.Sensor) error {
 		return err
 	}
 	r.registered[sensor.ID] = struct{}{}
+	r.owners[sensor.ID] = sensor.UserID
 	return nil
 }
 
@@ -152,6 +156,7 @@ func (r *SensorRepo) DeleteByOwner(id, userID string) (int64, error) {
 	// removes nothing and must leave the owner's sensor able to publish.
 	if deleted > 0 {
 		delete(r.registered, id)
+		delete(r.owners, id)
 		_, _ = r.deleteStat.Exec(id)
 	}
 	return deleted, nil
@@ -168,6 +173,17 @@ func (r *SensorRepo) Exists(id string) bool {
 	return ok
 }
 
+// IsOwner reports whether the sensor belongs to the given user ID.
+func (r *SensorRepo) IsOwner(sensorID, userID string) bool {
+	if sensorID == "" || userID == "" {
+		return false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return r.owners[sensorID] == userID
+}
+
 // LoadAllStats loads all persisted sensor statistics from SQLite.
 func (r *SensorRepo) LoadAllStats() ([]entities.SensorStat, error) {
 	var rows []entities.SensorStat
@@ -182,6 +198,9 @@ func (r *SensorRepo) BatchUpsertStats(deltas map[string]int64, lastSeen map[stri
 	if len(deltas) == 0 {
 		return nil
 	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
 	tx, err := r.db.Beginx()
 	if err != nil {
@@ -203,6 +222,9 @@ func (r *SensorRepo) BatchUpsertStats(deltas map[string]int64, lastSeen map[stri
 
 	for id, delta := range deltas {
 		if delta <= 0 {
+			continue
+		}
+		if _, ok := r.registered[id]; !ok {
 			continue
 		}
 		stat := entities.SensorStat{
