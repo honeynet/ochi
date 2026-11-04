@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 )
 
 const PublishMaxBodyBytes = 2 << 20 // 2 MiB; multi-frame decoded sessions exceed 8 KiB
@@ -44,6 +45,7 @@ func (h *Handlers) Publish(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 		return
 	}
+
 	event["sensorID"] = sensorID[:8]
 	delete(event, "dstHost")
 
@@ -55,6 +57,10 @@ func (h *Handlers) Publish(w http.ResponseWriter, r *http.Request) {
 	if !h.PublishFunc(alteredMsg) {
 		http.Error(w, http.StatusText(http.StatusTooManyRequests), http.StatusTooManyRequests)
 		return
+	}
+	if h.Stats != nil {
+		now := time.Now().UTC().Format(time.RFC3339)
+		h.Stats.IncrementStat(sensorID, now)
 	}
 	w.WriteHeader(http.StatusAccepted)
 }
