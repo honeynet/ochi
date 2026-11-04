@@ -215,3 +215,61 @@ func TestDownloadBinaryHandler_Unauthorized(t *testing.T) {
 		})
 	}
 }
+
+// The baker also bakes the sensor's token into its own slot (the all-f UUID), alongside
+// the id in the all-zero slot, so the binary carries the secret it authenticates with.
+func TestDownloadBinaryHandler_BakesToken(t *testing.T) {
+	const token = "abcdefab-cdef-abcd-efab-cdefabcdefab"
+	content := []byte("pre-" + "00000000-0000-0000-0000-000000000000" +
+		"-mid-" + tokenPlaceholder + "-post")
+
+	osType, arch, cleanup := setupDownloadBinaryTest(t, content)
+	defer cleanup()
+
+	db, err := sqlx.Connect("sqlite", filepath.Join(t.TempDir(), "test.db"))
+	assert.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	repo, err := repos.NewSensorRepo(db)
+	assert.NoError(t, err)
+	assert.NoError(t, repo.AddSensors(entities.Sensor{ID: testSensorID, UserID: testUserID, Name: "s", Token: token}))
+	h := &Handlers{Sensors: repo}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/download/"+testSensorID+"?os="+osType+"&arch="+arch+"&user_id="+testUserID, nil)
+	r = withDownloadParams(r, testSensorID)
+	h.DownloadBinary(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+	body, err := io.ReadAll(w.Result().Body)
+	assert.NoError(t, err)
+
+	assert.True(t, bytes.Contains(body, []byte(testSensorID)), "sensor id baked into the id slot")
+	assert.True(t, bytes.Contains(body, []byte(token)), "token baked into the token slot")
+	assert.False(t, bytes.Contains(body, []byte(tokenPlaceholder)), "token placeholder is gone")
+	assert.Equal(t, len(content), len(body), "both slots are the same width as their placeholders")
+}
+
+// A binary built without a token slot is served unchanged apart from the id, so a sensor
+// older than per-sensor tokens still downloads.
+func TestDownloadBinaryHandler_NoTokenSlot(t *testing.T) {
+	content := []byte("pre-" + "00000000-0000-0000-0000-000000000000" + "-post")
+	osType, arch, cleanup := setupDownloadBinaryTest(t, content)
+	defer cleanup()
+
+	db, err := sqlx.Connect("sqlite", filepath.Join(t.TempDir(), "test.db"))
+	assert.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	repo, err := repos.NewSensorRepo(db)
+	assert.NoError(t, err)
+	assert.NoError(t, repo.AddSensors(entities.Sensor{ID: testSensorID, UserID: testUserID, Name: "s"}))
+	h := &Handlers{Sensors: repo}
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("GET", "/api/download/"+testSensorID+"?os="+osType+"&arch="+arch+"&user_id="+testUserID, nil)
+	r = withDownloadParams(r, testSensorID)
+	h.DownloadBinary(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+	body, err := io.ReadAll(w.Result().Body)
+	assert.NoError(t, err)
+	assert.True(t, bytes.Contains(body, []byte(testSensorID)))
+}

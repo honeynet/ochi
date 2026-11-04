@@ -136,3 +136,70 @@ func initRepoForSensors(t *testing.T) *SensorRepo {
 	require.NotNil(t, r)
 	return r
 }
+
+func TestAddSensors_GeneratesAUniqueToken(t *testing.T) {
+	r := initRepoForSensors(t)
+
+	require.NoError(t, r.AddSensors(entities.Sensor{ID: "id-1", Name: "one", UserID: "owner"}))
+	require.NoError(t, r.AddSensors(entities.Sensor{ID: "id-2", Name: "two", UserID: "owner"}))
+
+	one, err := r.GetSensor("id-1", "owner")
+	require.NoError(t, err)
+	two, err := r.GetSensor("id-2", "owner")
+	require.NoError(t, err)
+
+	require.NotEmpty(t, one.Token)
+	require.NotEmpty(t, two.Token)
+	require.NotEqual(t, one.Token, two.Token, "each sensor gets its own token")
+
+	// The token authenticates a sensor, and resolves to exactly that sensor.
+	byToken, err := r.GetSensorByToken(one.Token)
+	require.NoError(t, err)
+	require.Equal(t, "id-1", byToken.ID)
+
+	_, err = r.GetSensorByToken("00000000-0000-0000-0000-000000000000")
+	require.Error(t, err, "an unknown token resolves to no sensor")
+}
+
+func TestAddSensors_KeepsAnExplicitToken(t *testing.T) {
+	r := initRepoForSensors(t)
+	const token = "known-token-value"
+
+	require.NoError(t, r.AddSensors(entities.Sensor{ID: "id-1", Name: "one", UserID: "owner", Token: token}))
+
+	got, err := r.GetSensorByToken(token)
+	require.NoError(t, err)
+	require.Equal(t, "id-1", got.ID)
+}
+
+// A sensors table created before per-sensor tokens is migrated: the column is added and
+// every existing sensor is given a token, so each can authenticate.
+func TestNewSensorRepo_BackfillsTokensForOldRows(t *testing.T) {
+	db := openSensorTestDB(t)
+
+	// An older schema: the table exists without a token column, with rows already in it.
+	_, err := db.Exec(`CREATE TABLE sensors (
+		id TEXT PRIMARY KEY NOT NULL
+		, user_id TEXT NOT NULL
+		, name TEXT NOT NULL
+		, UNIQUE (user_id, name)
+	)`)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO sensors (id, user_id, name) VALUES ('old-1', 'owner', 'one'), ('old-2', 'owner', 'two')`)
+	require.NoError(t, err)
+
+	r, err := NewSensorRepo(db)
+	require.NoError(t, err)
+
+	one, err := r.GetSensor("old-1", "owner")
+	require.NoError(t, err)
+	two, err := r.GetSensor("old-2", "owner")
+	require.NoError(t, err)
+	require.NotEmpty(t, one.Token)
+	require.NotEmpty(t, two.Token)
+	require.NotEqual(t, one.Token, two.Token)
+
+	byToken, err := r.GetSensorByToken(one.Token)
+	require.NoError(t, err)
+	require.Equal(t, "old-1", byToken.ID)
+}

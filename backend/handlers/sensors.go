@@ -13,6 +13,11 @@ import (
 	"github.com/google/uuid"
 )
 
+// tokenPlaceholder is the slot a sensor binary reserves for its publish token, the
+// counterpart of the all-zero UUID slot for its id. DownloadBinary overwrites it with the
+// sensor's token. It is a canonical UUID so it is the same width as the token.
+const tokenPlaceholder = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+
 func (h *Handlers) GetSensorsByUser(w http.ResponseWriter, r *http.Request) {
 	userId := userIDFromCtx(r.Context())
 	events, err := h.Sensors.GetSensorsByOwnerId(userId)
@@ -26,9 +31,15 @@ func (h *Handlers) GetSensorsByUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The token is a credential, so it never travels in a list response.
+	safe := make([]entities.Sensor, len(events))
+	for i, s := range events {
+		safe[i] = s.WithoutSecret()
+	}
+
 	w.WriteHeader(http.StatusOK)
 
-	if err = json.NewEncoder(w).Encode(events); err != nil {
+	if err = json.NewEncoder(w).Encode(safe); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -87,7 +98,7 @@ func (h *Handlers) AddSensor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(sensor); err != nil {
+	if err := json.NewEncoder(w).Encode(sensor.WithoutSecret()); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -165,6 +176,16 @@ func (h *Handlers) DownloadBinary(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		http.Error(w, "Placeholder UUID not found in binary", http.StatusInternalServerError)
 		return
+	}
+
+	// Bake the sensor's token into its own slot as well, so the binary carries the secret
+	// it authenticates config and rules fetches with. Both placeholders are canonical UUID
+	// width, so the token (also a UUID) overwrites the slot exactly. The slot is optional:
+	// a binary built without it is left unchanged, so this does not break an older sensor.
+	if sensor.Token != "" {
+		if replaced, ok := IndexReplace(modifiedData, []byte(tokenPlaceholder), []byte(sensor.Token)); ok {
+			modifiedData = replaced
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/octet-stream")
