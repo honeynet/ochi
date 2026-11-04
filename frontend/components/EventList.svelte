@@ -3,9 +3,16 @@
 <script lang="ts">
     import { onMount } from 'svelte';
     import { get } from 'svelte/store';
-    import { token, currentEvent } from '../store';
+    import {
+        token,
+        currentEvent,
+        eventColumnWidths,
+        hasCustomColumnWidths,
+        buildEventColsStyle,
+    } from '../store';
     import { type Event, deleteEvents, getEventById, getEvents } from '../event';
     import Message from './Message.svelte';
+    import EventHeader from './EventHeader.svelte';
     import ConfirmDialog from './ConfirmDialog.svelte';
     import { showError } from '../toast';
 
@@ -190,19 +197,13 @@
     {:else if total === 0}
         <p class="status">No saved events</p>
     {:else}
-        <div id="message-log">
-            <div class="event-head">
-                <span></span>
-                <span>Time</span>
-                <span>Sensor</span>
-                <span>Source</span>
-                <span>Port</span>
-                <span>Handler</span>
-                <span>Scanner</span>
-                <span>End</span>
-                <span class="frames" title="received/sent">Frames</span>
-                <span></span>
-            </div>
+        <div
+            id="message-log"
+            style={$hasCustomColumnWidths
+                ? `--event-cols: ${buildEventColsStyle($eventColumnWidths, true)};`
+                : undefined}
+        >
+            <EventHeader selectable />
             {#each events as event (event.id)}
                 <Message message={event} follow={false} selectable bind:selectedIds={selected} />
             {/each}
@@ -276,36 +277,8 @@
         flex: 1;
         min-height: 0;
         overflow-y: auto;
-        overflow-x: hidden;
+        overflow-x: auto;
         scrollbar-gutter: stable;
-    }
-
-    .event-head {
-        display: grid;
-        grid-template-columns: var(--event-cols);
-        column-gap: 5px;
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        padding: 0 0 2px;
-        font-family: monospace;
-        font-size: 11px;
-        font-weight: 600;
-        line-height: 1.2;
-        color: #555;
-        background: #fff;
-        border-bottom: 1px solid #ccc;
-    }
-
-    .event-head span {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-
-    .frames {
-        text-align: right;
     }
 
     .pager {

@@ -4,7 +4,7 @@
     import type { Event } from '../event';
     import { END_REASONS, displayRule, formatEventTime, formatPort, getEventById } from '../event';
     import { formatFrameCount, frameCountTitle } from '../decoded';
-    import { currentEvent } from '../store';
+    import { currentEvent, filterBySensor, userSensorsById, findSensor } from '../store';
 
     interface Props {
         message: Event;
@@ -26,6 +26,13 @@
     let selected = $derived(
         message.id ? $currentEvent?.id === message.id : $currentEvent === message,
     );
+    let matchedSensor = $derived(findSensor(message.sensorID, $userSensorsById));
+    let sensorName = $derived(matchedSensor?.name);
+    let sensorTitle = $derived(
+        sensorName
+            ? `${sensorName} (${message.sensorID}) - Click to filter`
+            : `Filter by sensor: ${message.sensorID}`,
+    );
 
     async function click() {
         if (selectable && message.id) {
@@ -41,6 +48,7 @@
     }
 
     function onKeydown(e: KeyboardEvent) {
+        if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             click();
@@ -49,6 +57,13 @@
 
     function stopRowActivation(e: MouseEvent) {
         e.stopPropagation();
+    }
+
+    function onSensorClick(e: MouseEvent) {
+        e.stopPropagation();
+        if (message.sensorID) {
+            filterBySensor(message.sensorID);
+        }
     }
 
     // untrack so Resume (follow toggled later) does not re-scroll existing rows.
@@ -67,7 +82,11 @@
 
 {#snippet cells()}
     <span class="cell time" title={message.timestamp}>{formatEventTime(message.timestamp)}</span>
-    <span class="cell sensor" title={message.sensorID}>{message.sensorID}</span>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <span class="cell sensor" title={sensorTitle} onclick={onSensorClick}>
+        {message.sensorID}
+    </span>
     <!-- The source port is ephemeral, so the column shows the host and the tooltip the port. -->
     <span class="cell source" title={message.srcPtr ? `${message.srcPtr} (${source})` : source}
         >{message.srcHost}</span
@@ -157,6 +176,15 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+    }
+
+    .cell.sensor {
+        cursor: pointer;
+    }
+
+    .cell.sensor:hover {
+        text-decoration: underline;
+        color: #0066cc;
     }
 
     .check {

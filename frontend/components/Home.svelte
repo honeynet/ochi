@@ -5,13 +5,13 @@
     import Filter from './Filter.svelte';
     import Content from './Content.svelte';
 
-    import { onMount, untrack } from 'svelte';
+    import { onDestroy, onMount, untrack } from 'svelte';
     import { get } from 'svelte/store';
     import { ENV_DEV, ENV_PROD, WS_ENDPOINT } from '../constants';
     import type { Event } from '../event';
-    import { generateRandomTestEvent } from '../util';
+    import { DEMO_SENSORS, generateRandomTestEvent } from '../util';
     import { validate } from '../session';
-    import { currentEvent, env } from '../store';
+    import { currentEvent, env, userSensors } from '../store';
     import type { Event as OchiEvent } from '../event';
 
     let { active }: { active: boolean } = $props();
@@ -73,9 +73,26 @@
 
     const test = async () => {
         const run = ++testRun;
-        while (run === testRun && $env == ENV_DEV) {
-            addMessage(generateRandomTestEvent());
-            await sleep(1000);
+        let didSeedDemo = false;
+        if (get(userSensors).length === 0) {
+            userSensors.set(DEMO_SENSORS.map((s) => ({ ...s, user_id: 'dev' })));
+            didSeedDemo = true;
+        }
+        try {
+            while (run === testRun && $env == ENV_DEV) {
+                addMessage(generateRandomTestEvent());
+                await sleep(1000);
+            }
+        } finally {
+            if (didSeedDemo && (run === testRun || $env !== ENV_DEV)) {
+                const current = get(userSensors);
+                if (
+                    current.length === DEMO_SENSORS.length &&
+                    current.every((s) => s.user_id === 'dev')
+                ) {
+                    userSensors.set([]);
+                }
+            }
         }
     };
 
@@ -113,6 +130,15 @@
     onMount(() => {
         currentEvent.set(undefined);
         validate();
+    });
+
+    onDestroy(() => {
+        testRun++;
+        hangUp();
+        const current = get(userSensors);
+        if (current.length === DEMO_SENSORS.length && current.every((s) => s.user_id === 'dev')) {
+            userSensors.set([]);
+        }
     });
 </script>
 

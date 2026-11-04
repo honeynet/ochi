@@ -126,6 +126,8 @@ function filterByBooleanClause(event: Event, booleanClauseCstNode: BooleanClause
         } else if (field.SCANNER) {
             // Scanner names (censys, shodan, ...) are case insensitive.
             return stringMatch(event.scanner, value, binaryOperator.children, true);
+        } else if (field.SENSOR) {
+            return stringMatch(event.sensorID, value, binaryOperator.children, true);
         }
         throw new Error('Unexpected field in string clause');
     } else if (children.portItemClause) {
