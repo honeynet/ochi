@@ -2,7 +2,6 @@
 
 <script lang="ts">
     import { onMount } from 'svelte';
-    import PageShell from '../components/PageShell.svelte';
     import ColumnSplit from '../components/ColumnSplit.svelte';
     import EventList from '../components/EventList.svelte';
     import Content from '../components/Content.svelte';
@@ -13,18 +12,16 @@
     });
 </script>
 
-<PageShell path="/" pathText="Go back">
-    <main>
-        <ColumnSplit>
-            {#snippet left()}
-                <EventList />
-            {/snippet}
-            {#snippet right()}
-                <Content isShared={true} />
-            {/snippet}
-        </ColumnSplit>
-    </main>
-</PageShell>
+<main>
+    <ColumnSplit>
+        {#snippet left()}
+            <EventList />
+        {/snippet}
+        {#snippet right()}
+            <Content isShared={true} />
+        {/snippet}
+    </ColumnSplit>
+</main>
 
 <style>
     main {

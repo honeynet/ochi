@@ -1,6 +1,5 @@
 <script lang="ts">
     import { params } from '@roxi/routify';
-    import PageShell from '../../components/PageShell.svelte';
     import Content from '../../components/Content.svelte';
     import type { Event } from '../../event';
     import { API_ENDPOINT } from '../../constants';
@@ -31,6 +30,4 @@
     });
 </script>
 
-<PageShell path="/" pathText="Go back">
-    <Content isShared={true} />
-</PageShell>
+<Content isShared={true} />
