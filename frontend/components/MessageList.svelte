@@ -157,8 +157,13 @@
     }
 
     #message-log {
-        --event-cols: 8ch 8ch minmax(14ch, 1.6fr) 9ch 8ch minmax(6ch, 0.9fr) minmax(11ch, 13ch) 6ch
-            7ch;
+        /* Every track has a ceiling, and the slack collects in the empty track at the end.
+           With a share of the free space instead, Source and Scanner grew without limit and
+           pushed the columns to their right away from the ones on their left as the pane was
+           widened. Content sizing is not an option: each row is its own grid, so a track
+           sized to its content would be measured per row and the columns would not line up. */
+        --event-cols: 8ch 8ch minmax(14ch, 26ch) 9ch 8ch minmax(6ch, 12ch) minmax(11ch, 13ch) 6ch
+            7ch minmax(0, 1fr);
         flex: 1;
         min-height: 0;
         overflow-y: auto;

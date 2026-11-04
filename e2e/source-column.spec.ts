@@ -78,4 +78,32 @@ test.describe('event list source column', () => {
             ).toBe(true);
         }
     });
+    // #218 gave Source a share of the spare space so an address would fit at the default
+    // width. That share had no ceiling, so widening the pane kept stretching the column and
+    // opened a gap between the address and the columns after it, which moved away from the
+    // ones before it. The column now stops once it can show an address.
+    test('widening the list does not stretch the source column', async ({ page }) => {
+        await page.setViewportSize({ width: 1600, height: 900 });
+
+        const handle = page.locator('.handle');
+        const box = await handle.boundingBox();
+        if (!box) throw new Error('split handle not found');
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(1600 * 0.85, box.y + box.height / 2, { steps: 10 });
+        await page.mouse.up();
+
+        const log = page.locator('#message-log');
+        await expect
+            .poll(async () => Math.round((await log.boundingBox())!.width))
+            .toBeGreaterThan(1100);
+
+        // An address plus a port is 21 characters at most, so the track has no reason to be
+        // this wide. Before the cap it took most of the spare space, roughly 600px here.
+        const source = page.locator('.message .cell.source').first();
+        const width = Math.round((await source.boundingBox())!.width);
+        expect(width, `source column is ${width}px wide in a ${1600 * 0.85}px list`).toBeLessThan(
+            260,
+        );
+    });
 });
