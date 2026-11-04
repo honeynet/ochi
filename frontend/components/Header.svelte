@@ -26,7 +26,7 @@
 <header class="header">
     <div class="header__left">
         <a class="header__link header__brand" href={$url('/')}>Ochi</a>
-        {#if $isAuthenticated}
+        {#if $isAuthenticated && !$isActive('/events/[id]')}
             <nav class="header__nav" aria-label="Main navigation">
                 {#each navLinks as link}
                     {#if !link.perm || $permissions.includes(link.perm)}
@@ -46,7 +46,9 @@
         {/if}
     </div>
     <div class="header__center" hidden={!$isActive('/index')}>
-        <Filter />
+        {#if $isActive('/index')}
+            <Filter />
+        {/if}
     </div>
     <div class="header__right">
         {#if !$isAuthenticated}

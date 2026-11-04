@@ -209,6 +209,128 @@ test.describe('routing', () => {
         ).toHaveCount(0);
     });
 
+    test('shared event page shows Go back fallback for both logged-in and logged-out users without main nav', async ({
+        page,
+    }) => {
+        // Logged-in user on /events/abc
+        await authenticate(page, ['users:list']);
+        await page.goto('/events/abc');
+
+        // Main nav is not rendered on shared event link
+        await expect(page.locator('.header__nav')).toHaveCount(0);
+
+        // "Go back" link is displayed
+        const goBack = page.locator('.header__left a.header__link', { hasText: 'Go back' });
+        await expect(goBack).toBeVisible();
+
+        // Clicking "Go back" navigates home to Live stream
+        await goBack.click();
+        await expect(page).toHaveURL('/');
+        await expect(page.locator('.home')).toBeVisible();
+        await expect(page.locator('.header__nav')).toBeVisible();
+
+        // Logged-out visitor on /events/abc
+        await page.evaluate(() => {
+            localStorage.clear();
+        });
+        await page.goto('/events/abc');
+        await expect(page.locator('.header__nav')).toHaveCount(0);
+        const loggedOutGoBack = page.locator('.header__left a.header__link', {
+            hasText: 'Go back',
+        });
+        await expect(loggedOutGoBack).toBeVisible();
+        await loggedOutGoBack.click();
+        await expect(page).toHaveURL('/');
+        await expect(page.locator('.home')).toBeVisible();
+    });
+
+    test('filter component mounts on Live view and unmounts on subpages', async ({ page }) => {
+        await authenticate(page);
+        await page.goto('/');
+
+        // Filter is mounted on home
+        await expect(page.locator('.filter-input')).toBeVisible();
+
+        // Navigate to queries page - Filter should be unmounted
+        await page.locator('.header__nav').getByRole('link', { name: 'Queries' }).click();
+        await expect(page).toHaveURL('/myqueries');
+        await expect(page.locator('.filter-input')).toHaveCount(0);
+
+        // Navigate back to Live - Filter should be mounted again
+        await page.locator('.header__nav').getByRole('link', { name: 'Live' }).click();
+        await expect(page).toHaveURL('/');
+        await expect(page.locator('.filter-input')).toBeVisible();
+    });
+
+    test('pages with many items scroll properly in shell body (queries, sensors, users)', async ({
+        page,
+    }) => {
+        const mockQueries = Array.from({ length: 40 }, (_, i) => ({
+            id: `query-${i}`,
+            content: `tcp.port == ${i}`,
+            description: `Query description ${i}`,
+        }));
+        const mockSensors = Array.from({ length: 40 }, (_, i) => ({
+            id: `sensor-uuid-${i}`,
+            name: `Sensor #${i}`,
+        }));
+        const mockUsers = Array.from({ length: 40 }, (_, i) => ({
+            id: `user-uuid-${i}`,
+            email: `user${i}@example.com`,
+            roles: ['user'],
+        }));
+
+        await authenticate(page, ['users:list', 'sensors:add_by_id']);
+
+        await page.route('**/api/**', (route) => {
+            const url = route.request().url();
+            if (url.endsWith('/api/session')) {
+                return route.fulfill({
+                    json: {
+                        user: { email: 'admin@example.com' },
+                        permissions: ['users:list', 'sensors:add_by_id'],
+                        token: 'test-token',
+                    },
+                });
+            }
+            if (url.endsWith('/api/queries')) {
+                return route.fulfill({ json: mockQueries });
+            }
+            if (url.endsWith('/api/sensors')) {
+                return route.fulfill({ json: mockSensors });
+            }
+            if (url.endsWith('/api/users')) {
+                return route.fulfill({ json: mockUsers });
+            }
+            return route.fulfill({ status: 401, json: {} });
+        });
+
+        // 1. Verify queries scrolling
+        await page.goto('/myqueries');
+        await expect(page.locator('.queryList__item')).toHaveCount(40);
+        const body = page.locator('.shell__body');
+        expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+        const lastQuery = page.locator('.queryList__item').last();
+        await lastQuery.scrollIntoViewIfNeeded();
+        await expect(lastQuery).toBeInViewport();
+
+        // 2. Verify sensors scrolling
+        await page.goto('/mysensors');
+        await expect(page.locator('.sensorList__item')).toHaveCount(40);
+        expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+        const lastSensor = page.locator('.sensorList__item').last();
+        await lastSensor.scrollIntoViewIfNeeded();
+        await expect(lastSensor).toBeInViewport();
+
+        // 3. Verify users scrolling
+        await page.goto('/users');
+        await expect(page.locator('.userList__item')).toHaveCount(40);
+        expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+        const lastUser = page.locator('.userList__item').last();
+        await lastUser.scrollIntoViewIfNeeded();
+        await expect(lastUser).toBeInViewport();
+    });
+
     test('header preserves repository link to GitHub', async ({ page }) => {
         await page.goto('/');
 
