@@ -3,6 +3,7 @@ package handlers
 import (
 	"io/fs"
 	"net/http"
+	"sync"
 
 	"github.com/honeynet/ochi/backend/repos"
 
@@ -15,6 +16,10 @@ type Handlers struct {
 	TokenAuth  *jwtauth.JWTAuth
 	HTTPClient *http.Client
 
+	// defaultsCache holds Glutton's default files once fetched. The ref they are fetched
+	// from is pinned, so a file never changes under a running server.
+	defaultsCache sync.Map
+
 	Users   *repos.UserRepo
 	Queries *repos.QueryRepo
 	Events  *repos.EventRepo
@@ -23,6 +28,10 @@ type Handlers struct {
 	// RequireRegisteredSensors rejects published events whose sensor UUID is not
 	// in the sensors table.
 	RequireRegisteredSensors bool
+
+	// PublishToken is written into the config served to a sensor's owner, so the
+	// sensor can publish without the token being copied in by hand.
+	PublishToken string
 
 	// AdminEmails are granted the admin role on login.
 	AdminEmails []string

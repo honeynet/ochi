@@ -27,6 +27,7 @@ func newRouter(cs *server) (*chi.Mux, error) {
 
 		RequireRegisteredSensors: cs.cfg.RequireRegisteredSensors,
 		AdminEmails:              cs.cfg.AdminEmails,
+		PublishToken:             cs.cfg.PublishToken,
 	}
 
 	r := chi.NewRouter()
@@ -68,6 +69,12 @@ func newRouter(cs *server) (*chi.Mux, error) {
 		r.Get("/events/{id}", h.GetEventByID)
 		// Unauthenticated: guarded by the unguessable sensor id in the path plus the owner's user_id.
 		r.Get("/download/{sensor_id}", h.DownloadBinary)
+
+		// A sensor fetches its own config and rules, authenticating with its token in an
+		// Authorization: Bearer header (not a user session, which a sensor does not have).
+		// The handlers check the token against the sensor in the path themselves.
+		r.Get("/sensors/{id}/config", h.GetSensorConfig)
+		r.Get("/sensors/{id}/rules", h.GetSensorRules)
 
 		// Everything below needs a valid session token. Verifier decodes it onto
 		// the request context, Authenticator turns a missing or bad one into a 401

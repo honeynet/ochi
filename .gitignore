@@ -28,8 +28,9 @@ data.db
 data.db-shm
 data.db-wal
 
-# Local service config (auto-created with defaults if missing)
-config.yaml
+# Local service config (auto-created with defaults if missing). Anchored, so it does
+# not also hide files named config.yaml elsewhere in the tree.
+/config.yaml
 
 # Local / secrets
 .env.deploy

@@ -1,0 +1,90 @@
+ports:
+  tcp: 5000
+  udp: 5001
+  ssh: 22          # management sshd port; always excluded from redirection (same as listing it in ignore.incoming).
+  ignore:          # ports never redirected into the honeypot (iptables multiport, at most 15 per list).
+    incoming: []   # destination ports of traffic to services on this host.
+    outgoing: []   # source ports of replies to connections this host makes (e.g. 53 for DNS).
+
+rules_path: config/rules.yaml
+
+addresses: ["1.2.3.4", "5.4.3.2"]
+
+interface: eth0
+
+producers:
+  enabled: false
+  http:
+    enabled: false
+    remote: https://localhost:9000
+  hpfeeds:
+    enabled: false
+    host: 172.26.0.2
+    port: 20000
+    ident: ident
+    auth: auth
+    channel: test
+
+conn_timeout: 45    # idle I/O timeout in seconds for established connections.
+max_tcp_payload: 4096   # bytes
+dial_timeout: 5   # timeout in seconds for proxy target connection.
+
+capture_traffic:
+  enabled: false
+
+recall:   # per-source memory: a source returning after visit_gap gets the next response variant (SIP).
+  enabled: true
+  visit_gap: 1800     # seconds of silence after which a returning source starts a new visit.
+  ttl: 604800         # seconds a source is remembered after it was last seen.
+  max_sources: 65536  # sources kept; the least recently seen is dropped first.
+
+udp_reply_limit:   # bounds UDP replies per destination IP so spoofed requests cannot use the honeypot as an amplifier.
+  enabled: true
+  source_rate: 512        # reply bytes per second one destination IP may receive.
+  source_burst: 8192      # most reply bytes one destination IP may receive at once; larger replies are never sent.
+  global_rate: 131072     # reply bytes per second to all destinations together; 0 disables.
+  global_burst: 1048576   # most reply bytes to all destinations at once.
+  source_request_rate: 16     # replies per second one destination IP may receive.
+  source_request_burst: 32    # most replies one destination IP may receive at once.
+  global_request_rate: 2048   # replies per second to all destinations together; 0 disables.
+  global_request_burst: 4096  # most replies to all destinations at once.
+  max_sources: 65536      # destinations tracked; the least recently answered is dropped first.
+
+tcp_reply_limit:   # bounds bytes and write counts to each TCP peer IP (all handlers, TLS, proxy_tcp, and handler-dialed relays).
+  enabled: true
+  source_rate: 65536      # bytes per second one peer IP may receive.
+  source_burst: 1048576   # most bytes one peer IP may receive at once; larger single writes are never sent.
+  global_rate: 8388608    # bytes per second to all peers together; 0 disables.
+  global_burst: 33554432  # most bytes to all peers at once.
+  source_request_rate: 256      # writes per second one peer IP may receive across all its connections.
+  source_request_burst: 512     # most writes one peer IP may receive at once.
+  global_request_rate: 16384    # writes per second to all peers together; 0 disables.
+  global_request_burst: 32768   # most writes to all peers at once.
+  max_sources: 65536      # peers tracked; the least recently answered is dropped first.
+
+openvpn:
+  reply: false        # answer well-formed UDP hard resets with P_CONTROL_HARD_RESET_SERVER_V2 (default parse-only).
+
+sip:
+  reject_invites: 2   # new INVITE calls in a source IP's first visit (see recall) answered 404 before calls ring; later visits never; 0 disables.
+  register_challenge: false  # answer an unauthenticated REGISTER with a 401 digest challenge (any credentials are then accepted) so scanners reveal the username and digest they guess with.
+  record_media: true  # UDP: record the RTP a caller sends to an answered call's SDP port (WAV files in payloads/rtp, DTMF in decoded).
+
+smtp:
+  hostname: mail.localdomain   # server name in the 220 greeting and HELO/EHLO replies.
+
+ssh:
+  host_keys: []   # private key files (PEM/OpenSSH) for the ssh handler; empty generates RSA, ECDSA and Ed25519 keys per process.
+
+icap:
+  service: "C-ICAP/0.5.10 server - Echo demo service"   # Service header in OPTIONS replies.
+  istag: CI0001-XXXXXXXXX                               # ISTag (without quotes) on every reply.
+
+dnp3:
+  address: 10        # outstation link address; REQUEST_LINK_STATUS and TEST_LINK sent to it are answered, other addresses get silence.
+
+rdp:
+  guess_passwords: []   # extra NLA passwords tried after rdp.credentials (at most 64). A match completes CredSSP; any other password gets STATUS_LOGON_FAILURE.
+
+spicy:
+  enabled: true
