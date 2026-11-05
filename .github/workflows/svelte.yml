@@ -30,6 +30,16 @@ jobs:
           node-version-file: 'package.json'
           cache: "npm"
       - run: npm ci
+
+      # Only what ships is a build failure. Dev-only advisories are reported instead, because
+      # they are not part of the bundle and the fix is often a major upgrade of a test tool,
+      # which should not block an unrelated pull request.
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Audit development dependencies
+        run: |
+          npm audit --audit-level=high ||
+            echo "::notice title=Development dependency advisories::npm audit reported findings in devDependencies; see the log above."
       - run: npm run build --if-present
       - name: Validate generated files are up-to-date
         run: npm run generate-check

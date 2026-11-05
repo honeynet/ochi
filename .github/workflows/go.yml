@@ -35,3 +35,40 @@ jobs:
 
       - name: Test
         run: go test -v ./...
+
+      # govulncheck reports both vulnerabilities in the modules this repository requires
+      # and vulnerabilities in the Go standard library. Only the first kind is something a
+      # change here can fix, so only that kind fails the build; see the filter below.
+      - name: Scan dependencies for known vulnerabilities
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -json ./... > "$RUNNER_TEMP/govulncheck.json"
+
+          # -json always exits 0, so the decision is made here. In every finding trace[0] is
+          # the vulnerable symbol: it carries a function only when that symbol is reachable
+          # from this code, and its module says whether the fix is a dependency bump or a
+          # newer Go toolchain.
+          reachable() {
+            jq -sr --argjson stdlib "$1" '
+              [ .[] | select(has("finding")) | .finding
+                | select(.trace[0].function != null)
+                | select(if $stdlib then .trace[0].module == "stdlib"
+                         else .trace[0].module != "stdlib" end)
+                | .osv ] | unique | join(" ")' "$RUNNER_TEMP/govulncheck.json"
+          }
+
+          stdlib=$(reachable true)
+          dependencies=$(reachable false)
+
+          # Reported, but not a failure: standard-library advisories are fixed by moving to a
+          # patched Go release, on the Go team's schedule rather than this repository's, and
+          # blocking every pull request until that happens would say nothing about the change.
+          if [ -n "$stdlib" ]; then
+            echo "::notice title=Reachable Go standard library advisories::$stdlib (fixed by raising the go directive in go.mod to a patched release)"
+          fi
+
+          if [ -n "$dependencies" ]; then
+            echo "::error title=Reachable vulnerability in a required module::$dependencies (details at https://pkg.go.dev/vuln/<id>)"
+            exit 1
+          fi
+
+          echo "No reachable vulnerabilities in required modules."
