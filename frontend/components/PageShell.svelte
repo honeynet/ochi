@@ -1,21 +1,26 @@
 <script lang="ts">
     import type { Snippet } from 'svelte';
+    import { activeRoute } from '@roxi/routify';
     import Header from './Header.svelte';
 
     interface Props {
-        path: string;
-        pathText: string;
-        headerCenter?: Snippet;
-        showEvents?: boolean;
         children: Snippet;
     }
 
-    let { path, pathText, headerCenter, showEvents, children }: Props = $props();
+    let { children }: Props = $props();
+    let body = $state<HTMLDivElement | null>(null);
+
+    $effect(() => {
+        void $activeRoute;
+        if (body) {
+            body.scrollTop = 0;
+        }
+    });
 </script>
 
 <div class="shell">
-    <Header {path} {pathText} {headerCenter} {showEvents} />
-    <div class="shell__body">
+    <Header />
+    <div class="shell__body" bind:this={body}>
         {@render children()}
     </div>
 </div>
