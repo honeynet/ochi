@@ -16,11 +16,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/honeynet/ochi/backend/entities"
 	"github.com/honeynet/ochi/backend/handlers"
 	"github.com/honeynet/ochi/backend/repos"
+	"github.com/honeynet/ochi/backend/services"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/types"
 	"github.com/stretchr/testify/assert"
@@ -666,6 +668,211 @@ func TestRouter_CorsPreflightAndStaticFiles(t *testing.T) {
 	assert.Equal(t, "body {}", w.Body.String())
 }
 
+func TestSensorStats_RESTEndpointAndIsolation(t *testing.T) {
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	sensorRepo, err := repos.NewSensorRepo(db)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	const s1 = "11111111-1111-1111-1111-111111111111"
+	const s2 = "22222222-2222-2222-2222-222222222222"
+	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: s1, Name: "sensor-1", UserID: "owner-1"}))
+	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: s2, Name: "sensor-2", UserID: "owner-2"}))
+
+	statsService := services.NewStatsService(sensorRepo, services.DefaultStatsConfig())
+	require.NoError(t, statsService.Start(context.Background()))
+	defer func() { _ = statsService.Stop() }()
+
+	cs := &server{
+		sensorRepo:     sensorRepo,
+		statsService:   statsService,
+		fs:             os.DirFS(tmp),
+		cfg:            Config{JWTSecret: "test-secret", PublishToken: "token"},
+		publishLimiter: rate.NewLimiter(rate.Inf, 1),
+	}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	token1, err := entities.NewToken(entities.NewTokenAuth("test-secret"), entities.User{ID: "owner-1"})
+	require.NoError(t, err)
+
+	// Publish 2 events for s1
+	for i := 0; i < 2; i++ {
+		payload := fmt.Sprintf(`{"sensorID":"%s","dstPort":80,"timestamp":"2026-01-01T00:00:00Z"}`, s1)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/api/publish?token=token", bytes.NewBufferString(payload))
+		mux.ServeHTTP(w, r)
+		require.Equal(t, http.StatusAccepted, w.Code)
+	}
+
+	// Publish 1 event for s2
+	{
+		payload := fmt.Sprintf(`{"sensorID":"%s","dstPort":80,"timestamp":"2026-01-01T00:00:00Z"}`, s2)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/api/publish?token=token", bytes.NewBufferString(payload))
+		mux.ServeHTTP(w, r)
+		require.Equal(t, http.StatusAccepted, w.Code)
+	}
+
+	// Unauthenticated GET /api/sensors/stats -> 401
+	{
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/api/sensors/stats", nil)
+		mux.ServeHTTP(w, r)
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
+	}
+
+	// Authenticated as owner-1 -> only sees s1
+	{
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("GET", "/api/sensors/stats", nil)
+		r.Header.Set("Authorization", "Bearer "+token1)
+		mux.ServeHTTP(w, r)
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var stats map[string]entities.SensorStat
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &stats))
+		require.Contains(t, stats, s1)
+		assert.Equal(t, int64(2), stats[s1].EventCount)
+		assert.NotContains(t, stats, s2, "owner-1 must not see owner-2 stats")
+	}
+}
+
+func TestSensorStats_FlushAndReload(t *testing.T) {
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	repo, err := repos.NewSensorRepo(db)
+	require.NoError(t, err)
+
+	statsService := services.NewStatsService(repo, services.DefaultStatsConfig())
+	require.NoError(t, statsService.Start(context.Background()))
+
+	const sID = "33333333-3333-3333-3333-333333333333"
+	require.NoError(t, repo.AddSensors(entities.Sensor{ID: sID, Name: "sensor-3", UserID: "owner-1"}))
+	statsService.IncrementStat(sID, "2026-10-11T12:00:00Z")
+	statsService.IncrementStat(sID, "2026-10-11T12:01:00Z")
+
+	// Flush to SQLite
+	require.NoError(t, statsService.Flush())
+
+	// Verify row in SQLite
+	var row entities.SensorStat
+	require.NoError(t, db.Get(&row, "SELECT sensor_id, event_count, last_event_at FROM sensor_stats WHERE sensor_id=?", sID))
+	assert.Equal(t, int64(2), row.EventCount)
+	assert.Equal(t, "2026-10-11T12:01:00Z", row.LastEventAt)
+
+	// Flush again with no changes does not fail or duplicate
+	require.NoError(t, statsService.Flush())
+	require.NoError(t, db.Get(&row, "SELECT sensor_id, event_count, last_event_at FROM sensor_stats WHERE sensor_id=?", sID))
+	assert.Equal(t, int64(2), row.EventCount)
+
+	// Stop previous service
+	require.NoError(t, statsService.Stop())
+
+	// Simulate restart: new repo and service loads from DB
+	repo2, err := repos.NewSensorRepo(db)
+	require.NoError(t, err)
+	statsService2 := services.NewStatsService(repo2, services.DefaultStatsConfig())
+	require.NoError(t, statsService2.Start(context.Background()))
+	defer func() { _ = statsService2.Stop() }()
+
+	stats := statsService2.GetStatsForSensors([]string{sID})
+	assert.Equal(t, int64(2), stats[sID].EventCount)
+	assert.Equal(t, "2026-10-11T12:01:00Z", stats[sID].LastEventAt)
+}
+
+func TestSensorStats_WebSocketBroadcast(t *testing.T) {
+	tmp := t.TempDir()
+	db, err := sqlx.Connect("sqlite", filepath.Join(tmp, "test.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	sensorRepo, err := repos.NewSensorRepo(db)
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "build"), 0755))
+
+	const sID1 = "ws-sensor-11111111"
+	const sID2 = "ws-sensor-22222222"
+	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: sID1, Name: "sensor-1", UserID: "owner-1"}))
+	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: sID2, Name: "sensor-2", UserID: "owner-2"}))
+
+	statsService := services.NewStatsService(sensorRepo, services.StatsConfig{
+		BroadcastInterval: 50 * time.Millisecond,
+	})
+	require.NoError(t, statsService.Start(context.Background()))
+	defer func() { _ = statsService.Stop() }()
+
+	cs := &server{
+		sensorRepo:     sensorRepo,
+		statsService:   statsService,
+		fs:             os.DirFS(tmp),
+		cfg:            Config{JWTSecret: "test-secret", PublishToken: "token"},
+		publishLimiter: rate.NewLimiter(rate.Inf, 1),
+	}
+	mux, err := newRouter(cs)
+	require.NoError(t, err)
+
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/api/sensors/stats/ws"
+
+	// 1. Unauthenticated connection is rejected with 401
+	_, resp, err := websocket.Dial(ctx, wsURL, nil)
+	require.Error(t, err, "unauthenticated connection must be rejected")
+	if resp != nil {
+		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	}
+
+	// 2. Generate tokens for owner-1 and owner-2
+	tokenAuth := entities.NewTokenAuth("test-secret")
+	token1, err := entities.NewToken(tokenAuth, entities.User{ID: "owner-1"})
+	require.NoError(t, err)
+	token2, err := entities.NewToken(tokenAuth, entities.User{ID: "owner-2"})
+	require.NoError(t, err)
+
+	// Connect owner-1
+	c1, _, err := websocket.Dial(ctx, wsURL+"?token="+token1, nil)
+	require.NoError(t, err)
+	defer c1.Close(websocket.StatusNormalClosure, "")
+
+	// Connect owner-2
+	c2, _, err := websocket.Dial(ctx, wsURL+"?token="+token2, nil)
+	require.NoError(t, err)
+	defer c2.Close(websocket.StatusNormalClosure, "")
+
+	// Trigger a stat increment for owner-1's sensor
+	statsService.IncrementStat(sID1, "2026-10-11T12:00:00Z")
+
+	// Read message from owner-1's WS client
+	readCtx1, readCancel1 := context.WithTimeout(ctx, 3*time.Second)
+	defer readCancel1()
+	_, msg, err := c1.Read(readCtx1)
+	require.NoError(t, err)
+
+	var received []entities.SensorStat
+	require.NoError(t, json.Unmarshal(msg, &received))
+	require.Len(t, received, 1)
+	assert.Equal(t, sID1, received[0].SensorID)
+	assert.Equal(t, int64(1), received[0].EventCount)
+
+	// Owner-2 must NOT receive updates for owner-1's sensor
+	readCtx2, readCancel2 := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer readCancel2()
+	_, _, err = c2.Read(readCtx2)
+	assert.Error(t, err, "owner-2 must not receive stats broadcast for owner-1's sensor")
+}
+
 func newRunnableServer(t *testing.T) *server {
 	t.Helper()
 	tmp := t.TempDir()
@@ -689,6 +896,8 @@ func newRunnableServer(t *testing.T) *server {
 	require.NoError(t, err)
 	cs.sensorRepo, err = repos.NewSensorRepo(db)
 	require.NoError(t, err)
+	cs.statsService = services.NewStatsService(cs.sensorRepo, services.DefaultStatsConfig())
+	require.NoError(t, cs.statsService.Start(context.Background()))
 	cs.mux, err = newRouter(cs)
 	require.NoError(t, err)
 	return cs

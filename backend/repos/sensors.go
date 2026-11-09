@@ -16,15 +16,22 @@ type SensorRepo struct {
 	addSensor        *sqlx.NamedStmt
 	deleteSensor     *sqlx.Stmt
 
+	getAllStats *sqlx.Stmt
+	deleteStat  *sqlx.Stmt
+	db          *sqlx.DB
+
 	// registered holds every sensor ID in the table so Exists can answer the publish
 	// path without a query. mu is held for writing across each INSERT and DELETE, so
 	// Exists never observes the set and the table disagreeing.
 	mu         sync.RWMutex
 	registered map[string]struct{}
+	owners     map[string]string
 }
 
 func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
-	r := &SensorRepo{}
+	r := &SensorRepo{
+		db: db,
+	}
 	db.Mapper = reflectx.NewMapperFunc("json", strings.ToLower)
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS sensors (
 		id TEXT PRIMARY KEY NOT NULL 
@@ -37,13 +44,21 @@ func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
 		return nil, err
 	}
 
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS sensor_stats (
+		sensor_id TEXT PRIMARY KEY NOT NULL
+		, event_count INTEGER NOT NULL DEFAULT 0 CHECK(event_count >= 0)
+		, last_event_at TEXT
+	)`)
+	if err != nil {
+		return nil, err
+	}
+
 	r.getSensorsByUser, err = db.Preparex(`
 	SELECT * FROM sensors 
 		WHERE 
 		user_id=?
 	`)
 	if err != nil {
-
 		return nil, err
 	}
 
@@ -68,13 +83,25 @@ func NewSensorRepo(db *sqlx.DB) (*SensorRepo, error) {
 		return nil, err
 	}
 
-	var ids []string
-	if err := db.Select(&ids, `SELECT id FROM sensors`); err != nil {
+	r.getAllStats, err = db.Preparex(`SELECT sensor_id, event_count, last_event_at FROM sensor_stats`)
+	if err != nil {
 		return nil, err
 	}
-	r.registered = make(map[string]struct{}, len(ids))
-	for _, id := range ids {
-		r.registered[id] = struct{}{}
+
+	r.deleteStat, err = db.Preparex(`DELETE FROM sensor_stats WHERE sensor_id=?`)
+	if err != nil {
+		return nil, err
+	}
+
+	var ss []entities.Sensor
+	if err := db.Select(&ss, `SELECT id, user_id FROM sensors`); err != nil {
+		return nil, err
+	}
+	r.registered = make(map[string]struct{}, len(ss))
+	r.owners = make(map[string]string, len(ss))
+	for _, s := range ss {
+		r.registered[s.ID] = struct{}{}
+		r.owners[s.ID] = s.UserID
 	}
 
 	return r, nil
@@ -96,6 +123,7 @@ func (r *SensorRepo) AddSensors(sensor entities.Sensor) error {
 		return err
 	}
 	r.registered[sensor.ID] = struct{}{}
+	r.owners[sensor.ID] = sensor.UserID
 	return nil
 }
 
@@ -128,6 +156,8 @@ func (r *SensorRepo) DeleteByOwner(id, userID string) (int64, error) {
 	// removes nothing and must leave the owner's sensor able to publish.
 	if deleted > 0 {
 		delete(r.registered, id)
+		delete(r.owners, id)
+		_, _ = r.deleteStat.Exec(id)
 	}
 	return deleted, nil
 }
@@ -141,4 +171,77 @@ func (r *SensorRepo) Exists(id string) bool {
 
 	_, ok := r.registered[id]
 	return ok
+}
+
+// IsOwner reports whether the sensor belongs to the given user ID.
+func (r *SensorRepo) IsOwner(sensorID, userID string) bool {
+	if sensorID == "" || userID == "" {
+		return false
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return r.owners[sensorID] == userID
+}
+
+// LoadAllStats loads all persisted sensor statistics from SQLite.
+func (r *SensorRepo) LoadAllStats() ([]entities.SensorStat, error) {
+	var rows []entities.SensorStat
+	if err := r.getAllStats.Select(&rows); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// BatchUpsertStats commits a batch of deltas into SQLite in a single statement.
+func (r *SensorRepo) BatchUpsertStats(deltas map[string]int64, lastSeen map[string]string) error {
+	if len(deltas) == 0 {
+		return nil
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	type statRow struct {
+		id       string
+		count    int64
+		lastSeen string
+	}
+	valid := make([]statRow, 0, len(deltas))
+	for id, delta := range deltas {
+		if delta <= 0 {
+			continue
+		}
+		if _, ok := r.registered[id]; !ok {
+			continue
+		}
+		valid = append(valid, statRow{id: id, count: delta, lastSeen: lastSeen[id]})
+	}
+
+	if len(valid) == 0 {
+		return nil
+	}
+
+	var b strings.Builder
+	b.WriteString(`INSERT INTO sensor_stats (sensor_id, event_count, last_event_at) VALUES `)
+	args := make([]any, 0, len(valid)*3)
+	for i, row := range valid {
+		if i > 0 {
+			b.WriteString(`, `)
+		}
+		b.WriteString(`(?, ?, ?)`)
+		args = append(args, row.id, row.count, row.lastSeen)
+	}
+	b.WriteString(` ON CONFLICT(sensor_id) DO UPDATE SET
+		event_count = event_count + excluded.event_count,
+		last_event_at = excluded.last_event_at`)
+
+	_, err := r.db.Exec(b.String(), args...)
+	return err
+}
+
+// DeleteStat removes the stats row for a sensor.
+func (r *SensorRepo) DeleteStat(id string) error {
+	_, err := r.deleteStat.Exec(id)
+	return err
 }

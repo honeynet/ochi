@@ -6,6 +6,25 @@ export interface Sensor {
     user_id: string; // owner id
 }
 
+export interface SensorStat {
+    sensor_id: string;
+    event_count: number;
+    last_event_at?: string;
+}
+
+export async function getSensorStats(token: string): Promise<Record<string, SensorStat>> {
+    const res = await fetch(`${API_ENDPOINT}/api/sensors/stats`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 404 || res.status === 401) {
+        return {};
+    }
+    if (!res.ok) {
+        throw new Error(`failed to load sensor stats: ${await res.text()}`);
+    }
+    return (await res.json()) ?? {};
+}
+
 export async function getSensors(token: string): Promise<Sensor[]> {
     const res = await fetch(`${API_ENDPOINT}/api/sensors`, {
         headers: { Authorization: `Bearer ${token}` },
