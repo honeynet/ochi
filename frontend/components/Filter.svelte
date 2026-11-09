@@ -127,6 +127,9 @@
             return;
         }
         parsedFilter.set(parseResult.cst);
+        if ($stringFilter !== filter) {
+            stringFilter.set(filter);
+        }
     }
 
     function openSaveQuery() {
@@ -136,6 +139,9 @@
     }
 
     function handleClickOutsideSuggestionBox(event: MouseEvent) {
+        if (hideSuggestions) {
+            return;
+        }
         const target = event.target;
         if (!(target instanceof Node)) {
             return;

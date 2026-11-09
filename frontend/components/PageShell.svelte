@@ -1,5 +1,6 @@
 <script lang="ts">
     import type { Snippet } from 'svelte';
+    import { activeRoute } from '@roxi/routify';
     import Header from './Header.svelte';
 
     interface Props {
@@ -7,11 +8,19 @@
     }
 
     let { children }: Props = $props();
+    let body = $state<HTMLDivElement | null>(null);
+
+    $effect(() => {
+        void $activeRoute;
+        if (body) {
+            body.scrollTop = 0;
+        }
+    });
 </script>
 
 <div class="shell">
     <Header />
-    <div class="shell__body">
+    <div class="shell__body" bind:this={body}>
         {@render children()}
     </div>
 </div>
