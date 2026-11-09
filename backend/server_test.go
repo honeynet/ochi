@@ -683,7 +683,7 @@ func TestSensorStats_RESTEndpointAndIsolation(t *testing.T) {
 	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: s1, Name: "sensor-1", UserID: "owner-1"}))
 	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: s2, Name: "sensor-2", UserID: "owner-2"}))
 
-	statsService := services.NewStatsService(sensorRepo)
+	statsService := services.NewStatsService(sensorRepo, services.DefaultStatsConfig())
 	require.NoError(t, statsService.Start(context.Background()))
 	defer func() { _ = statsService.Stop() }()
 
@@ -751,7 +751,7 @@ func TestSensorStats_FlushAndReload(t *testing.T) {
 	repo, err := repos.NewSensorRepo(db)
 	require.NoError(t, err)
 
-	statsService := services.NewStatsService(repo)
+	statsService := services.NewStatsService(repo, services.DefaultStatsConfig())
 	require.NoError(t, statsService.Start(context.Background()))
 
 	const sID = "33333333-3333-3333-3333-333333333333"
@@ -779,7 +779,7 @@ func TestSensorStats_FlushAndReload(t *testing.T) {
 	// Simulate restart: new repo and service loads from DB
 	repo2, err := repos.NewSensorRepo(db)
 	require.NoError(t, err)
-	statsService2 := services.NewStatsService(repo2)
+	statsService2 := services.NewStatsService(repo2, services.DefaultStatsConfig())
 	require.NoError(t, statsService2.Start(context.Background()))
 	defer func() { _ = statsService2.Stop() }()
 
@@ -803,8 +803,9 @@ func TestSensorStats_WebSocketBroadcast(t *testing.T) {
 	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: sID1, Name: "sensor-1", UserID: "owner-1"}))
 	require.NoError(t, sensorRepo.AddSensors(entities.Sensor{ID: sID2, Name: "sensor-2", UserID: "owner-2"}))
 
-	statsService := services.NewStatsService(sensorRepo)
-	statsService.SetBroadcastInterval(50 * time.Millisecond)
+	statsService := services.NewStatsService(sensorRepo, services.StatsConfig{
+		BroadcastInterval: 50 * time.Millisecond,
+	})
 	require.NoError(t, statsService.Start(context.Background()))
 	defer func() { _ = statsService.Stop() }()
 
@@ -895,7 +896,7 @@ func newRunnableServer(t *testing.T) *server {
 	require.NoError(t, err)
 	cs.sensorRepo, err = repos.NewSensorRepo(db)
 	require.NoError(t, err)
-	cs.statsService = services.NewStatsService(cs.sensorRepo)
+	cs.statsService = services.NewStatsService(cs.sensorRepo, services.DefaultStatsConfig())
 	require.NoError(t, cs.statsService.Start(context.Background()))
 	cs.mux, err = newRouter(cs)
 	require.NoError(t, err)

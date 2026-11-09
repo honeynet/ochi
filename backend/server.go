@@ -124,7 +124,7 @@ func NewServer(fsys fs.FS, configPath string) (*server, error) {
 		return nil, err
 	}
 
-	cs.statsService = services.NewStatsService(cs.sensorRepo)
+	cs.statsService = services.NewStatsService(cs.sensorRepo, services.DefaultStatsConfig())
 	if err := cs.statsService.Start(context.Background()); err != nil {
 		return nil, err
 	}

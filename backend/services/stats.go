@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"log"
 	"math"
 	"sync"
 	"time"
@@ -24,10 +26,28 @@ type statsSubscriber struct {
 	closeSlow func()
 }
 
+// StatsConfig configures intervals and buffer sizes for StatsService.
+type StatsConfig struct {
+	FlushInterval     time.Duration
+	BroadcastInterval time.Duration
+	BufferSize        int
+}
+
+// DefaultStatsConfig returns sensible defaults for StatsService.
+func DefaultStatsConfig() StatsConfig {
+	return StatsConfig{
+		FlushInterval:     5 * time.Second,
+		BroadcastInterval: 500 * time.Millisecond,
+		BufferSize:        64,
+	}
+}
+
 // StatsService manages in-memory event counting, periodic persistence, and live updates.
 type StatsService struct {
 	repo StatsRepository
+	cfg  StatsConfig
 
+	flushMu        sync.Mutex
 	mu             sync.RWMutex
 	totals         map[string]int64
 	lastSeen       map[string]string
@@ -38,56 +58,51 @@ type StatsService struct {
 	subsMu sync.Mutex
 	subs   map[*statsSubscriber]struct{}
 
-	flushInterval     time.Duration
-	broadcastInterval time.Duration
-	bufferSize        int
-
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
-// NewStatsService creates a new StatsService with default intervals.
-func NewStatsService(repo StatsRepository) *StatsService {
-	return &StatsService{
-		repo:              repo,
-		totals:            make(map[string]int64),
-		lastSeen:          make(map[string]string),
-		deltas:            make(map[string]int64),
-		dirtyBroadcast:    make(map[string]struct{}),
-		tombstones:        make(map[string]struct{}),
-		subs:              make(map[*statsSubscriber]struct{}),
-		flushInterval:     5 * time.Second,
-		broadcastInterval: 500 * time.Millisecond,
-		bufferSize:        64,
+// NewStatsService creates a new StatsService configured with cfg.
+func NewStatsService(repo StatsRepository, cfg StatsConfig) *StatsService {
+	if cfg.FlushInterval <= 0 {
+		cfg.FlushInterval = 5 * time.Second
 	}
-}
-
-// SetFlushInterval overrides the default periodic flush interval.
-func (s *StatsService) SetFlushInterval(d time.Duration) {
-	s.flushInterval = d
-}
-
-// SetBroadcastInterval overrides the default broadcast interval.
-func (s *StatsService) SetBroadcastInterval(d time.Duration) {
-	s.broadcastInterval = d
+	if cfg.BroadcastInterval <= 0 {
+		cfg.BroadcastInterval = 500 * time.Millisecond
+	}
+	if cfg.BufferSize <= 0 {
+		cfg.BufferSize = 64
+	}
+	return &StatsService{
+		repo:           repo,
+		cfg:            cfg,
+		totals:         make(map[string]int64),
+		lastSeen:       make(map[string]string),
+		deltas:         make(map[string]int64),
+		dirtyBroadcast: make(map[string]struct{}),
+		tombstones:     make(map[string]struct{}),
+		subs:           make(map[*statsSubscriber]struct{}),
+	}
 }
 
 // Start loads initial stats from the database and launches periodic background tasks.
 func (s *StatsService) Start(ctx context.Context) error {
-	if s.repo != nil {
-		rows, err := s.repo.LoadAllStats()
-		if err != nil {
-			return err
-		}
-		s.mu.Lock()
-		for _, row := range rows {
-			if row.EventCount >= 0 {
-				s.totals[row.SensorID] = row.EventCount
-				s.lastSeen[row.SensorID] = row.LastEventAt
-			}
-		}
-		s.mu.Unlock()
+	if s.repo == nil {
+		return errors.New("stats repository is required")
 	}
+
+	rows, err := s.repo.LoadAllStats()
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	for _, row := range rows {
+		if row.EventCount >= 0 {
+			s.totals[row.SensorID] = row.EventCount
+			s.lastSeen[row.SensorID] = row.LastEventAt
+		}
+	}
+	s.mu.Unlock()
 
 	runCtx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
@@ -100,11 +115,24 @@ func (s *StatsService) Start(ctx context.Context) error {
 }
 
 // Stop stops background workers and commits any pending deltas to the database.
+// It bounds the wait for background tasks so shutdown cannot hang indefinitely.
 func (s *StatsService) Stop() error {
 	if s.cancel != nil {
 		s.cancel()
 	}
-	s.wg.Wait()
+
+	waitCh := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(waitCh)
+	}()
+
+	select {
+	case <-waitCh:
+	case <-time.After(5 * time.Second):
+		log.Printf("stats service shutdown timed out waiting for background tasks")
+	}
+
 	return s.Flush()
 }
 
@@ -203,13 +231,15 @@ func (s *StatsService) PopDirtyStatsForBroadcast() []entities.SensorStat {
 }
 
 // Flush commits pending in-memory deltas to the database in a batch.
-// It holds s.mu across the database operation to prevent races with concurrent deletes,
-// and respects tombstones so deleted sensors are never revived.
+// It swaps pending deltas under a short in-memory lock so concurrent calls to
+// IncrementStat (/api/publish) are never blocked by database disk I/O.
 func (s *StatsService) Flush() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.flushMu.Lock()
+	defer s.flushMu.Unlock()
 
+	s.mu.Lock()
 	if len(s.deltas) == 0 {
+		s.mu.Unlock()
 		return nil
 	}
 
@@ -221,31 +251,22 @@ func (s *StatsService) Flush() error {
 			pendingLastSeen[id] = s.lastSeen[id]
 		}
 	}
+	s.deltas = make(map[string]int64)
+	s.mu.Unlock()
 
 	if len(pendingDeltas) == 0 {
-		s.deltas = make(map[string]int64)
 		return nil
 	}
 
 	if s.repo == nil {
-		s.deltas = make(map[string]int64)
 		return nil
 	}
 
 	if err := s.repo.BatchUpsertStats(pendingDeltas, pendingLastSeen); err != nil {
-		for id := range s.tombstones {
-			delete(s.deltas, id)
-		}
+		s.revertDeltas(pendingDeltas)
 		return err
 	}
 
-	// Succeeded: clear the flushed deltas
-	for id, delta := range pendingDeltas {
-		s.deltas[id] -= delta
-		if s.deltas[id] <= 0 {
-			delete(s.deltas, id)
-		}
-	}
 	return nil
 }
 
@@ -268,7 +289,7 @@ func (s *StatsService) revertDeltas(pending map[string]int64) {
 
 func (s *StatsService) flusher(ctx context.Context) {
 	defer s.wg.Done()
-	ticker := time.NewTicker(s.flushInterval)
+	ticker := time.NewTicker(s.cfg.FlushInterval)
 	defer ticker.Stop()
 
 	for {
@@ -276,14 +297,16 @@ func (s *StatsService) flusher(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			_ = s.Flush()
+			if err := s.Flush(); err != nil {
+				log.Printf("failed to flush sensor stats: %v", err)
+			}
 		}
 	}
 }
 
 func (s *StatsService) broadcaster(ctx context.Context) {
 	defer s.wg.Done()
-	ticker := time.NewTicker(s.broadcastInterval)
+	ticker := time.NewTicker(s.cfg.BroadcastInterval)
 	defer ticker.Stop()
 
 	for {
@@ -349,7 +372,7 @@ func (s *StatsService) BroadcastStats(dirty []entities.SensorStat) {
 }
 
 // PublishStats sends a message to all active WebSocket stats subscribers.
-func (s *StatsService) PublishStats(msg []byte) bool {
+func (s *StatsService) PublishStats(msg []byte) {
 	s.subsMu.Lock()
 	subs := make([]*statsSubscriber, 0, len(s.subs))
 	for sub := range s.subs {
@@ -364,7 +387,6 @@ func (s *StatsService) PublishStats(msg []byte) bool {
 			go sub.closeSlow()
 		}
 	}
-	return true
 }
 
 // Subscribe attaches an authenticated WebSocket connection to the stats broadcast stream.
@@ -373,7 +395,7 @@ func (s *StatsService) Subscribe(ctx context.Context, c *websocket.Conn, userID 
 
 	sub := &statsSubscriber{
 		userID: userID,
-		msgs:   make(chan []byte, s.bufferSize),
+		msgs:   make(chan []byte, s.cfg.BufferSize),
 		closeSlow: func() {
 			c.Close(websocket.StatusPolicyViolation, "connection too slow to keep up with messages")
 		},
@@ -392,7 +414,7 @@ func (s *StatsService) Subscribe(ctx context.Context, c *websocket.Conn, userID 
 	for {
 		select {
 		case msg := <-sub.msgs:
-			ctxTimeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+			ctxTimeout, cancel := context.WithTimeout(ctx, time.Second)
 			err := c.Write(ctxTimeout, websocket.MessageText, msg)
 			cancel()
 			if err != nil {

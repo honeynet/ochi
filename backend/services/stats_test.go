@@ -71,7 +71,7 @@ func (m *mockRepo) BatchUpsertStats(deltas map[string]int64, lastSeen map[string
 
 func TestStatsService_IncrementAndQuery(t *testing.T) {
 	repo := &mockRepo{}
-	svc := NewStatsService(repo)
+	svc := NewStatsService(repo, DefaultStatsConfig())
 
 	const s1 = "11111111-1111-1111-1111-111111111111"
 	stat1 := svc.IncrementStat(s1, "2026-10-12T12:00:00Z")
@@ -101,7 +101,7 @@ func TestStatsService_IncrementAndQuery(t *testing.T) {
 
 func TestStatsService_FlushAndRevertOnError(t *testing.T) {
 	repo := &mockRepo{failFlush: true}
-	svc := NewStatsService(repo)
+	svc := NewStatsService(repo, DefaultStatsConfig())
 
 	const sID = "s-test-retry"
 	svc.IncrementStat(sID, "2026-10-12T12:00:00Z")
@@ -130,8 +130,7 @@ func TestStatsService_LifecycleStartStop(t *testing.T) {
 			{SensorID: "init-1", EventCount: 10, LastEventAt: "2026-10-12T10:00:00Z"},
 		},
 	}
-	svc := NewStatsService(repo)
-	svc.SetFlushInterval(50 * time.Millisecond)
+	svc := NewStatsService(repo, StatsConfig{FlushInterval: 50 * time.Millisecond})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -155,8 +154,7 @@ func TestStatsService_LifecycleStartStop(t *testing.T) {
 }
 
 func TestStatsService_WebSocketBroadcastAndSubscribe(t *testing.T) {
-	svc := NewStatsService(&mockRepo{})
-	svc.SetBroadcastInterval(50 * time.Millisecond)
+	svc := NewStatsService(&mockRepo{}, StatsConfig{BroadcastInterval: 50 * time.Millisecond})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -199,7 +197,7 @@ func TestStatsService_WebSocketBroadcastAndSubscribe(t *testing.T) {
 
 func TestStatsService_BoundaryAndOverflowProtection(t *testing.T) {
 	repo := &mockRepo{}
-	svc := NewStatsService(repo)
+	svc := NewStatsService(repo, DefaultStatsConfig())
 
 	const sID = "s-boundary"
 
@@ -237,8 +235,7 @@ func TestStatsService_WebSocketBroadcastOwnerFilter(t *testing.T) {
 			"sensor-user2": "user-2",
 		},
 	}
-	svc := NewStatsService(repo)
-	svc.SetBroadcastInterval(50 * time.Millisecond)
+	svc := NewStatsService(repo, StatsConfig{BroadcastInterval: 50 * time.Millisecond})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -289,7 +286,7 @@ func TestStatsService_WebSocketBroadcastOwnerFilter(t *testing.T) {
 
 func TestStatsService_TombstonePreventsRevert(t *testing.T) {
 	repo := &mockRepo{failFlush: true}
-	svc := NewStatsService(repo)
+	svc := NewStatsService(repo, DefaultStatsConfig())
 
 	const sID = "s-tombstone-test"
 	svc.IncrementStat(sID, "2026-10-12T12:00:00Z")
@@ -306,4 +303,59 @@ func TestStatsService_TombstonePreventsRevert(t *testing.T) {
 	// Subsequent increment is ignored because ID is tombstoned
 	stat := svc.IncrementStat(sID, "2026-10-12T12:05:00Z")
 	assert.Equal(t, int64(0), stat.EventCount)
+}
+
+func TestStatsService_FlushDoesNotBlockIncrement(t *testing.T) {
+	flushStarted := make(chan struct{})
+	flushCanFinish := make(chan struct{})
+
+	repo := &slowMockRepo{
+		onUpsert: func() {
+			close(flushStarted)
+			<-flushCanFinish
+		},
+	}
+	svc := NewStatsService(repo, DefaultStatsConfig())
+
+	// Seed deltas
+	svc.IncrementStat("s-seed", "2026-10-12T12:00:00Z")
+
+	flushDone := make(chan error, 1)
+	go func() {
+		flushDone <- svc.Flush()
+	}()
+
+	// Wait until flush has entered DB write
+	<-flushStarted
+
+	// IncrementStat (/api/publish path) must complete immediately while flush is running
+	start := time.Now()
+	stat := svc.IncrementStat("s-fast", "2026-10-12T12:00:01Z")
+	elapsed := time.Since(start)
+
+	assert.Equal(t, int64(1), stat.EventCount)
+	assert.Less(t, elapsed, 50*time.Millisecond, "IncrementStat must not be blocked by SQLite flush")
+
+	// Allow flush to complete
+	close(flushCanFinish)
+	require.NoError(t, <-flushDone)
+}
+
+type slowMockRepo struct {
+	onUpsert func()
+}
+
+func (s *slowMockRepo) LoadAllStats() ([]entities.SensorStat, error) {
+	return nil, nil
+}
+
+func (s *slowMockRepo) BatchUpsertStats(deltas map[string]int64, lastSeen map[string]string) error {
+	if s.onUpsert != nil {
+		s.onUpsert()
+	}
+	return nil
+}
+
+func (s *slowMockRepo) IsOwner(sensorID, userID string) bool {
+	return true
 }

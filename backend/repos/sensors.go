@@ -193,7 +193,7 @@ func (r *SensorRepo) LoadAllStats() ([]entities.SensorStat, error) {
 	return rows, nil
 }
 
-// BatchUpsertStats commits a batch of deltas into SQLite within a single transaction.
+// BatchUpsertStats commits a batch of deltas into SQLite in a single statement.
 func (r *SensorRepo) BatchUpsertStats(deltas map[string]int64, lastSeen map[string]string) error {
 	if len(deltas) == 0 {
 		return nil
@@ -202,24 +202,12 @@ func (r *SensorRepo) BatchUpsertStats(deltas map[string]int64, lastSeen map[stri
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	tx, err := r.db.Beginx()
-	if err != nil {
-		return err
+	type statRow struct {
+		id       string
+		count    int64
+		lastSeen string
 	}
-	defer tx.Rollback()
-
-	stmt, err := tx.PrepareNamed(`
-		INSERT INTO sensor_stats (sensor_id, event_count, last_event_at)
-		VALUES (:sensor_id, :event_count, :last_event_at)
-		ON CONFLICT(sensor_id) DO UPDATE SET
-			event_count = event_count + excluded.event_count,
-			last_event_at = excluded.last_event_at
-	`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
+	valid := make([]statRow, 0, len(deltas))
 	for id, delta := range deltas {
 		if delta <= 0 {
 			continue
@@ -227,17 +215,29 @@ func (r *SensorRepo) BatchUpsertStats(deltas map[string]int64, lastSeen map[stri
 		if _, ok := r.registered[id]; !ok {
 			continue
 		}
-		stat := entities.SensorStat{
-			SensorID:    id,
-			EventCount:  delta,
-			LastEventAt: lastSeen[id],
-		}
-		if _, err := stmt.Exec(stat); err != nil {
-			return err
-		}
+		valid = append(valid, statRow{id: id, count: delta, lastSeen: lastSeen[id]})
 	}
 
-	return tx.Commit()
+	if len(valid) == 0 {
+		return nil
+	}
+
+	var b strings.Builder
+	b.WriteString(`INSERT INTO sensor_stats (sensor_id, event_count, last_event_at) VALUES `)
+	args := make([]any, 0, len(valid)*3)
+	for i, row := range valid {
+		if i > 0 {
+			b.WriteString(`, `)
+		}
+		b.WriteString(`(?, ?, ?)`)
+		args = append(args, row.id, row.count, row.lastSeen)
+	}
+	b.WriteString(` ON CONFLICT(sensor_id) DO UPDATE SET
+		event_count = event_count + excluded.event_count,
+		last_event_at = excluded.last_event_at`)
+
+	_, err := r.db.Exec(b.String(), args...)
+	return err
 }
 
 // DeleteStat removes the stats row for a sensor.

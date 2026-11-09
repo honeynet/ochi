@@ -28,7 +28,7 @@ func (d *dummyStatsRepo) IsOwner(sensorID, userID string) bool {
 }
 
 func TestPublish_AlwaysUsesCurrentUTCTime(t *testing.T) {
-	statsService := services.NewStatsService(&dummyStatsRepo{})
+	statsService := services.NewStatsService(&dummyStatsRepo{}, services.DefaultStatsConfig())
 	h := &Handlers{
 		Stats: statsService,
 		PublishFunc: func(msg []byte) bool {
