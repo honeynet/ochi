@@ -43,9 +43,20 @@ export interface SearchClauseCstNode extends CstNode {
 }
 
 export type SearchClauseCstChildren = {
-    PAYLOAD?: IToken[];
+    PAYLOAD: IToken[];
+    searchOperator: SearchOperatorCstNode[];
+    STRING: IToken[];
+};
+
+export interface SearchOperatorCstNode extends CstNode {
+    name: 'searchOperator';
+    children: SearchOperatorCstChildren;
+}
+
+export type SearchOperatorCstChildren = {
     CONTAINS?: IToken[];
-    STRING?: IToken[];
+    MATCHES?: IToken[];
+    MATCHES_SMB?: IToken[];
 };
 
 export interface PortItemClauseCstNode extends CstNode {
@@ -112,6 +123,7 @@ export interface ICstNodeVisitor<IN, OUT> extends ICstVisitor<IN, OUT> {
     booleanSuffixClause(children: BooleanSuffixClauseCstChildren, param?: IN): OUT;
     booleanClause(children: BooleanClauseCstChildren, param?: IN): OUT;
     searchClause(children: SearchClauseCstChildren, param?: IN): OUT;
+    searchOperator(children: SearchOperatorCstChildren, param?: IN): OUT;
     portItemClause(children: PortItemClauseCstChildren, param?: IN): OUT;
     ipItemClause(children: IpItemClauseCstChildren, param?: IN): OUT;
     stringItemClause(children: StringItemClauseCstChildren, param?: IN): OUT;

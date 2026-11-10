@@ -43,6 +43,16 @@ searchClause:
 searchOperators: 
    "contains" || "matches" || "~"
 
+   "contains" is a substring test. "matches" and "~" test a JavaScript regular
+   expression against the decoded payload; a pattern that does not compile is
+   reported like a syntax error.
+
+   A pattern is used as written, so a backslash reaches the expression intact:
+   "\.php" matches a literal dot and "\d+" matches digits. Matching is case
+   sensitive; a leading "(?i)", "(?s)" or "(?m)" sets the corresponding flag, as
+   in "(?i)wget". Only the first 16 KiB of a payload is tested, which keeps a
+   slow pattern from locking up the page.
+
 payload:
    : "payload"
 
@@ -66,5 +76,8 @@ string:
 `transport ne "tcp" and payload contains "something"`  
 `payload contains "GET / HTTP/1.1"`  
 `payload contains "192.168.1.1"`  
+`payload matches "wget|curl"`  
+`payload ~ "^GET /[^ ]*\.php"`  
+`payload matches "(?i)wget"`  
 `end.reason == "connection reset by peer"`
 
