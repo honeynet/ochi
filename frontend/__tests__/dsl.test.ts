@@ -159,6 +159,21 @@ describe('parseDSL', () => {
         expect(filterEvent(generateTestEvent(80, '123', '10.0.0.1'), sx.cst!)).toBeFalsy();
     });
 
+    test('ip.src accepts addresses whose last octet is 200-255', () => {
+        for (const ip of [
+            '192.168.1.199',
+            '192.168.1.200',
+            '192.168.1.250',
+            '10.0.0.255',
+            '255.255.255.255',
+        ]) {
+            let sx = parseDSL(`ip.src eq ${ip}`);
+            expect(sx.lexErrors).toHaveLength(0);
+            expect(sx.parseErrors).toHaveLength(0);
+            expect(filterEvent(generateTestEvent(80, '123', ip), sx.cst!)).toBeTruthy();
+        }
+    });
+
     test('parses tcp.port against transport rather than rule text', () => {
         let sx = parseDSL('tcp.port == 445');
         expect(sx.lexErrors).toHaveLength(0);
