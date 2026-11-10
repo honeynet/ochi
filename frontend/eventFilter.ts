@@ -7,56 +7,63 @@ import type {
 import type { Event } from './event';
 import { parseStringLiteral, patternFor } from './dsl';
 
-export function filterEvent(event: Event, cst: QueryCstNode): boolean {
-    let children = cst.children;
-    if (children.NOT) {
-        if (!children.booleanClause || !children.booleanSuffixClause) {
-            throw new Error('Missing boolean clause for NOT query');
-        }
-        return filterByBooleanClauseWithSuffix(
-            event,
-            children.booleanClause[0],
-            children.booleanSuffixClause[0],
-            true,
-        );
-    } else if (children.booleanClause && children.booleanSuffixClause) {
-        return filterByBooleanClauseWithSuffix(
-            event,
-            children.booleanClause[0],
-            children.booleanSuffixClause[0],
-        );
-    } else {
-        throw new Error('Unexpected node at query');
-    }
+// One clause of a query chain, with the `not` that may precede it.
+interface Term {
+    clause: BooleanClauseCstNode;
+    negate: boolean;
 }
 
-function filterByBooleanClauseWithSuffix(
-    event: Event,
-    booleanClause: BooleanClauseCstNode,
-    suffix: BooleanSuffixClauseCstNode,
-    negate: boolean = false,
-): boolean {
-    let booleanResult = filterByBooleanClause(event, booleanClause);
-    if (negate) {
-        booleanResult = !booleanResult;
+/**
+ * Evaluates a query with `and` binding tighter than `or`, so `A and B or C` is
+ * `(A and B) or C`, as in Wireshark display filters.
+ *
+ * The grammar nests a chain to the right (`A and (B or (C))`), so the chain is
+ * flattened first and then evaluated as an `or` of `and` groups.
+ */
+export function filterEvent(event: Event, cst: QueryCstNode): boolean {
+    const terms: Term[] = [];
+    const operators: ('and' | 'or')[] = [];
+    collectChain(cst, terms, operators);
+
+    let groupResult = true;
+    for (let i = 0; i < terms.length; i++) {
+        if (i > 0 && operators[i - 1] === 'or') {
+            if (groupResult) {
+                return true;
+            }
+            groupResult = true;
+        }
+        if (groupResult) {
+            const result = filterByBooleanClause(event, terms[i].clause);
+            groupResult = terms[i].negate ? !result : result;
+        }
     }
+    return groupResult;
+}
 
-    let booleanSuffixClauseC = suffix.children;
+function collectChain(cst: QueryCstNode, terms: Term[], operators: ('and' | 'or')[]): void {
+    let query: QueryCstNode | undefined = cst;
+    while (query) {
+        const children: QueryCstNode['children'] = query.children;
+        const clause = children.booleanClause?.[0];
+        const suffix: BooleanSuffixClauseCstNode | undefined = children.booleanSuffixClause?.[0];
+        if (!clause || !suffix) {
+            throw new Error(
+                children.NOT ? 'Missing boolean clause for NOT query' : 'Unexpected node at query',
+            );
+        }
+        terms.push({ clause, negate: !!children.NOT });
 
-    if (booleanSuffixClauseC.AND) {
-        const nextQuery = booleanSuffixClauseC.query?.[0];
-        if (!nextQuery) {
-            throw new Error('Missing query for boolean suffix clause');
+        const suffixChildren = suffix.children;
+        if (suffixChildren.AND || suffixChildren.OR) {
+            query = suffixChildren.query?.[0];
+            if (!query) {
+                throw new Error('Missing query for boolean suffix clause');
+            }
+            operators.push(suffixChildren.AND ? 'and' : 'or');
+        } else {
+            query = undefined;
         }
-        return booleanResult && filterEvent(event, nextQuery);
-    } else if (booleanSuffixClauseC.OR) {
-        const nextQuery = booleanSuffixClauseC.query?.[0];
-        if (!nextQuery) {
-            throw new Error('Missing query for boolean suffix clause');
-        }
-        return booleanResult || filterEvent(event, nextQuery);
-    } else {
-        return booleanResult;
     }
 }
 

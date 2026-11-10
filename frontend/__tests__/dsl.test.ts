@@ -624,3 +624,53 @@ describe('parenthesized groups', () => {
         expect(run('payload contains "needle"')).toBeTruthy();
     });
 });
+
+describe('and binds tighter than or', () => {
+    const fromSrc = (port: number, src: string) => generateTestEvent(port, '123', src);
+    const matches = (query: string, port: number, src: string) => {
+        let sx = parseDSL(query);
+        expect(sx.lexErrors).toHaveLength(0);
+        expect(sx.parseErrors).toHaveLength(0);
+        return filterEvent(fromSrc(port, src), sx.cst!);
+    };
+
+    test('reads A and B or C as (A and B) or C', () => {
+        const query = 'tcp.port == 22 and ip.src eq 1.1.1.1 or tcp.port == 80';
+        expect(matches(query, 80, '9.9.9.9')).toBeTruthy();
+        expect(matches(query, 22, '1.1.1.1')).toBeTruthy();
+        expect(matches(query, 22, '9.9.9.9')).toBeFalsy();
+    });
+
+    test('gives the same result whichever side of or comes first', () => {
+        const query = 'tcp.port == 80 or tcp.port == 22 and ip.src eq 1.1.1.1';
+        expect(matches(query, 80, '9.9.9.9')).toBeTruthy();
+        expect(matches(query, 22, '1.1.1.1')).toBeTruthy();
+        expect(matches(query, 22, '9.9.9.9')).toBeFalsy();
+    });
+
+    test('reads A or B and C or D as A or (B and C) or D', () => {
+        const query = 'tcp.port == 21 or tcp.port == 22 and ip.src eq 1.1.1.1 or tcp.port == 23';
+        expect(matches(query, 21, '9.9.9.9')).toBeTruthy();
+        expect(matches(query, 23, '9.9.9.9')).toBeTruthy();
+        expect(matches(query, 22, '1.1.1.1')).toBeTruthy();
+        expect(matches(query, 22, '9.9.9.9')).toBeFalsy();
+    });
+
+    test('applies not to the clause right after it', () => {
+        const query = 'not tcp.port == 22 and ip.src eq 1.1.1.1 or tcp.port == 80';
+        expect(matches(query, 23, '1.1.1.1')).toBeTruthy();
+        expect(matches(query, 22, '1.1.1.1')).toBeFalsy();
+        expect(matches(query, 80, '9.9.9.9')).toBeTruthy();
+
+        const inner = 'tcp.port == 80 or not tcp.port == 22 and ip.src eq 1.1.1.1';
+        expect(matches(inner, 23, '1.1.1.1')).toBeTruthy();
+        expect(matches(inner, 22, '1.1.1.1')).toBeFalsy();
+        expect(matches(inner, 23, '9.9.9.9')).toBeFalsy();
+    });
+
+    test('still lets parentheses group an or first', () => {
+        const query = 'tcp.port == 22 and (ip.src eq 1.1.1.1 or tcp.port == 80)';
+        expect(matches(query, 80, '9.9.9.9')).toBeFalsy();
+        expect(matches(query, 22, '1.1.1.1')).toBeTruthy();
+    });
+});

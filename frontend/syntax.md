@@ -61,6 +61,17 @@ string:
 ```
 
 
+# Precedence
+
+`not` applies to the clause right after it, `and` binds tighter than `or`, and
+parentheses group explicitly, as in Wireshark display filters:
+
+`tcp.port == 22 and ip.src eq 1.1.1.1 or tcp.port == 80` is read as
+`(tcp.port == 22 and ip.src eq 1.1.1.1) or tcp.port == 80`.
+
+Use parentheses to group an `or` first:
+`tcp.port == 22 and (ip.src eq 1.1.1.1 or tcp.port == 80)`.
+
 # Examples (not all supported yet)
 
 `ip.src eq 192.168.1.12 and ip.port == 8080`  
