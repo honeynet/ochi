@@ -35,3 +35,17 @@ jobs:
 
       - name: Test
         run: go test -v ./...
+
+  # Fails on any vulnerability reachable from this code, in a required module or in the
+  # Go standard library. It scans with the newest Go 1.26 patch, the toolchain the
+  # Dockerfile's golang:1.26 image builds the shipped binary with, rather than the
+  # go.mod minimum the build job uses: that older release has standard-library
+  # vulnerabilities the shipped binary does not.
+  govulncheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Scan for known vulnerabilities
+        uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
+        with:
+          go-version-input: '1.26.x'
