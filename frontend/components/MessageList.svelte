@@ -10,6 +10,11 @@
     let { active = true }: { active?: boolean } = $props();
 
     let messages = $state<Event[]>([]);
+    let visibleMessages = $derived(
+        $parsedFilter
+            ? messages.filter((message) => filterEvent(message, $parsedFilter))
+            : messages,
+    );
     let follow = $state(true);
     // Events that arrived while the list was paused, shown on the Resume button.
     let missed = $state(0);
@@ -48,34 +53,25 @@
         if (isTypingTarget(e.target)) {
             return;
         }
-        if (messages.length === 0) {
+        if (visibleMessages.length === 0) {
             return;
         }
 
         e.preventDefault();
         follow = false;
 
-        let idx = eventIndex(messages, get(currentEvent));
+        let idx = eventIndex(visibleMessages, get(currentEvent));
         if (idx === -1) {
-            currentEvent.set(messages[messages.length - 1]);
+            currentEvent.set(visibleMessages[visibleMessages.length - 1]);
             return;
         }
 
         const next = e.key === 'ArrowUp' ? idx - 1 : idx + 1;
-        if (next < 0 || next >= messages.length) {
+        if (next < 0 || next >= visibleMessages.length) {
             return;
         }
-        currentEvent.set(messages[next]);
+        currentEvent.set(visibleMessages[next]);
     }
-
-    $effect(() => {
-        const value = $parsedFilter;
-        if (value) {
-            untrack(() => {
-                messages = messages.filter((message) => filterEvent(message, value));
-            });
-        }
-    });
 
     $effect(() => {
         const value = $maxNumberOfMessages;
@@ -95,16 +91,12 @@
     });
 
     export function onNewMessage(message: Event) {
-        if (!$parsedFilter || filterEvent(message, $parsedFilter)) {
-            messages.push(message);
-            messages = messages;
-            if (!follow) {
-                missed++;
-            }
-
-            if ($maxNumberOfMessages < messages.length) {
-                messages = messages.slice(messages.length - $maxNumberOfMessages);
-            }
+        messages.push(message);
+        if ($maxNumberOfMessages < messages.length) {
+            messages = messages.slice(messages.length - $maxNumberOfMessages);
+        }
+        if (!follow && (!$parsedFilter || filterEvent(message, $parsedFilter))) {
+            missed++;
         }
     }
 </script>
@@ -114,8 +106,10 @@
 <div class="column">
     <div
         id="message-log"
-        onwheel={() => {
-            follow = false;
+        onwheel={(e) => {
+            if (e.currentTarget.scrollHeight > e.currentTarget.clientHeight) {
+                follow = false;
+            }
         }}
     >
         <div class="event-head">
@@ -129,7 +123,7 @@
             <span class="frames" title="received/sent">Frames</span>
             <span></span>
         </div>
-        {#each messages as message (message)}
+        {#each visibleMessages as message (message)}
             <Message {message} {follow} />
         {/each}
     </div>
