@@ -26,6 +26,9 @@
         {@render headerCenter?.()}
     </div>
     <div class="header__right">
+        {#if showEvents}
+            <a class="header__link" href={$url('/stats')}>Stats</a>
+        {/if}
         {#if !$isAuthenticated}
             {#if path === '/'}
                 <a class="header__link" href={$url(path)}>{pathText}</a>
