@@ -11,8 +11,10 @@
     import type { Event } from '../event';
     import { generateRandomTestEvent } from '../util';
     import { validate } from '../session';
-    import { currentEvent, env } from '../store';
+    import { currentEvent, env, token, userQueries } from '../store';
     import type { Event as OchiEvent } from '../event';
+    import { getQueries } from '../query';
+    import { recordEvent } from '../statsStore';
 
     let { active }: { active: boolean } = $props();
 
@@ -20,8 +22,26 @@
     let messageList: MessageList | null = $state(null);
 
     function addMessage(message: Event) {
+        recordEvent(message);
         messageList?.onNewMessage(message);
     }
+
+    // The statistics count matches of saved queries, so load them once signed in
+    // instead of waiting for a visit to the queries page.
+    $effect(() => {
+        const jwt = $token;
+        if (!jwt) {
+            return;
+        }
+        untrack(() => {
+            getQueries(jwt).then(
+                (queries) => userQueries.set(queries),
+                () => {
+                    // Statistics are best effort; the queries page reports fetch errors.
+                },
+            );
+        });
+    });
 
     // Drops the current connection. Clearing conn first stops its close
     // listener from scheduling a reconnect.
